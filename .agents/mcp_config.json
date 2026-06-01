@@ -1,0 +1,24 @@
+{
+  "mcpServers": {
+    "context7": {
+      "command": "npx",
+      "args": ["-y", "@upstash/context7-mcp"],
+      "description": "获取最新的库/框架文档（React, FastAPI, Vite, Ant Design 等），防止使用过时 API"
+    },
+    "playwright": {
+      "command": "npx",
+      "args": ["-y", "@playwright/mcp@latest"],
+      "description": "浏览器自动化，用于 UI 测试、Web 交互调试、前端界面验证"
+    },
+    "sqlite": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sqlite"],
+      "description": "SQLite 数据库查询与管理，毕设阶段数据库操作"
+    },
+    "sequential-thinking": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-sequential-thinking"],
+      "description": "结构化多步推理，适用于复杂架构设计、Pipeline 编排等深度思考场景"
+    }
+  }
+}

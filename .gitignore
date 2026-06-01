@@ -1,0 +1,87 @@
+# ========================
+# Python
+# ========================
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+*.egg-info/
+dist/
+build/
+*.egg
+.eggs/
+*.whl
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# Testing
+.pytest_cache/
+htmlcov/
+.coverage
+.coverage.*
+coverage.xml
+*.cover
+
+# Distribution
+*.tar.gz
+*.zip
+
+# ========================
+# Node.js / Frontend
+# ========================
+node_modules/
+frontend/dist/
+frontend/build/
+*.tsbuildinfo
+.eslintcache
+
+# ========================
+# Environment & Secrets
+# ========================
+.env
+.env.local
+.env.*.local
+*.pem
+
+# ========================
+# Database
+# ========================
+*.db
+*.sqlite
+*.sqlite3
+
+# ========================
+# Storage & Media (generated)
+# ========================
+storage/
+workspace/
+*.mp4
+*.mp3
+*.wav
+*.srt
+*.vtt
+!tests/fixtures/**
+
+# ========================
+# OS
+# ========================
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# ========================
+# Project-specific
+# ========================
+alembic/versions/*.py
+!alembic/versions/.gitkeep

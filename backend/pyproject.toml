@@ -1,0 +1,53 @@
+[project]
+name = "educast"
+version = "0.1.0"
+description = "课影 EduCast — 面向高校教学的智能视频生产平台"
+requires-python = ">=3.11"
+license = {text = "MIT"}
+authors = [
+    {name = "EduCast Team"},
+]
+dependencies = [
+    "fastapi>=0.115.0",
+    "uvicorn[standard]>=0.32.0",
+    "pydantic>=2.10.0",
+    "pydantic-settings>=2.6.0",
+    "sqlalchemy[asyncio]>=2.0.36",
+    "aiosqlite>=0.20.0",
+    "alembic>=1.14.0",
+    "python-pptx>=1.0.0",
+    "pymupdf>=1.25.0",
+    "pdfplumber>=0.11.0",
+    "mammoth>=1.8.0",
+    "pillow>=11.0.0",
+    "edge-tts>=6.1.0",
+    "httpx>=0.28.0",
+    "python-multipart>=0.0.18",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=8.3.0",
+    "pytest-asyncio>=0.24.0",
+    "black>=24.10.0",
+    "ruff>=0.8.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.black]
+line-length = 88
+target-version = ["py311"]
+
+[tool.ruff]
+line-length = 88
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "N", "W", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]

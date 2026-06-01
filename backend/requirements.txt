@@ -1,0 +1,33 @@
+# EduCast Backend Dependencies
+# =============================
+
+# Web Framework
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+pydantic>=2.10.0
+pydantic-settings>=2.6.0
+
+# Database
+sqlalchemy[asyncio]>=2.0.36
+aiosqlite>=0.20.0
+alembic>=1.14.0
+
+# Document Parsing
+python-pptx>=1.0.0
+pymupdf>=1.25.0
+pdfplumber>=0.11.0
+mammoth>=1.8.0
+pillow>=11.0.0
+
+# TTS & HTTP
+edge-tts>=6.1.0
+httpx>=0.28.0
+
+# File Upload
+python-multipart>=0.0.18
+
+# Dev Dependencies
+pytest>=8.3.0
+pytest-asyncio>=0.24.0
+black>=24.10.0
+ruff>=0.8.0

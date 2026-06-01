@@ -1,0 +1,132 @@
+"""自定义异常类与全局异常处理器。"""
+
+from fastapi import FastAPI, Request
+from fastapi.responses import JSONResponse
+
+
+class EduCastException(Exception):
+    """EduCast 基础异常。"""
+
+    def __init__(
+        self,
+        message: str = "内部服务错误",
+        error_code: str = "INTERNAL_ERROR",
+        status_code: int = 500,
+    ) -> None:
+        self.message = message
+        self.error_code = error_code
+        self.status_code = status_code
+        super().__init__(self.message)
+
+
+class ProviderException(EduCastException):
+    """Provider 适配层异常（外部 API 调用失败）。"""
+
+    def __init__(
+        self,
+        message: str = "外部服务调用失败",
+        error_code: str = "PROVIDER_ERROR",
+        status_code: int = 502,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class ParseException(EduCastException):
+    """文档解析异常。"""
+
+    def __init__(
+        self,
+        message: str = "文档解析失败",
+        error_code: str = "PARSE_ERROR",
+        status_code: int = 422,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class CostLimitException(EduCastException):
+    """成本超限异常。"""
+
+    def __init__(
+        self,
+        message: str = "成本超出预算限制",
+        error_code: str = "COST_LIMIT_EXCEEDED",
+        status_code: int = 429,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class ResourceNotFoundException(EduCastException):
+    """资源未找到异常。"""
+
+    def __init__(
+        self,
+        message: str = "请求的资源不存在",
+        error_code: str = "RESOURCE_NOT_FOUND",
+        status_code: int = 404,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class TaskNotFoundException(EduCastException):
+    """任务未找到异常。"""
+
+    def __init__(
+        self,
+        message: str = "请求的任务不存在",
+        error_code: str = "TASK_NOT_FOUND",
+        status_code: int = 404,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class ValidationException(EduCastException):
+    """数据校验异常。"""
+
+    def __init__(
+        self,
+        message: str = "数据校验失败",
+        error_code: str = "VALIDATION_ERROR",
+        status_code: int = 422,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+def register_exception_handlers(app: FastAPI) -> None:
+    """注册全局异常处理器到 FastAPI 应用。"""
+
+    @app.exception_handler(EduCastException)
+    async def educast_exception_handler(
+        request: Request,
+        exc: EduCastException,
+    ) -> JSONResponse:
+        return JSONResponse(
+            status_code=exc.status_code,
+            content={
+                "detail": exc.message,
+                "error_code": exc.error_code,
+            },
+        )
