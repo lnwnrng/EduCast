@@ -42,8 +42,12 @@
 为了确保功能完整对应《需求分析文档》中的 6 大核心模块，接下来的开发将分模块逐步推进，您可以按顺序逐一实现并进行测试：
 
 ### 模块一：课件解析引擎 (Parser Module)
-- [ ] **解析服务 (`pipeline/parser.py`)**：接入 `python-pptx`（优先）及 `pdfplumber`，提取每一页的文本、备注、图片资源。
-- [ ] **IR 构建**：将提取到的松散内容组装为标准的第一版 `CourseIR` 结构（草稿态）。
+- [x] **解析服务 (`pipeline/parser.py`)**：完整实现 PPTX（python-pptx: 标题/正文/备注/图片提取, 章节自动检测）、PDF（pdfplumber: 逐页文本/大号标题检测）、Markdown（标题层级拆分章节/知识点）、纯文本（段落切分）四种解析器。
+- [x] **IR 构建**：实现 slide → scene 映射、章节自动切分、知识点分组，生成标准四层 CourseIR 结构（草稿态）。
+- [x] **解析服务层 (`services/parser_service.py`)**：协调解析 + IR 保存到文件系统 + Task/Project 状态更新 + 多版本 IR 管理。
+- [x] **上传 API 增强 (`api/v1/upload.py`)**：上传后自动创建 Project + Task，通过 BackgroundTasks 触发后台解析。
+- [x] **脚本 API 实现 (`api/v1/scripts.py`)**：实现 IR 加载（get_script）和更新（update_script, 含版本管理与校验）。
+- [x] **单元测试与集成测试 (73 tests all passing)**：覆盖 IR Schema、IR 校验器、四种解析器、解析服务 IR 持久化、上传 API、脚本 API。
 - [ ] **前端交互**：完善 `Upload` 页面，实现文件上传进度条、解析状态轮询，并最终跳转至脚本编辑器。
 
 ### 模块二：大模型脚本编排 (LLM Scriptwriter Module)
