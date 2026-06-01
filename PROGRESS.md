@@ -37,18 +37,36 @@
 
 ---
 
-## 📝 接下来待办 (Next Steps)
+## 📝 接下来待办 (核心功能开发清单)
 
-接下来，我们将进入 **P1 核心功能实现阶段**，重点打通文件解析到最终合成的数据流：
+为了确保功能完整对应《需求分析文档》中的 6 大核心模块，接下来的开发将分模块逐步推进，您可以按顺序逐一实现并进行测试：
 
-1. **[后端] 文档解析功能 (`pipeline/parser.py`)**
-   - 优先实现 PPTX 解析 (`python-pptx`)：提取文本、图片，并组装为初版 IR（中间表示）。
-2. **[后端] 大模型脚本编排 (`providers/llm` & `pipeline/scriptwriter.py`)**
-   - 接入智谱 GLM-4-Flash，编写 Prompt，将初版 IR 扩写为包含分镜、口播词、字幕的详细脚本。
-3. **[后端] TTS 配音 (`providers/tts`)**
-   - 接入 Edge-TTS，根据分镜中的口播词生成对应的旁白音频文件。
-4. **[后端] FFmpeg 视频合成 (`utils/ffmpeg.py` & `pipeline/composer.py`)**
-   - 将背景图、配音音频、字幕通过代码组装 FFmpeg 命令，合成为最终的 MP4 视频。
-5. **[前端] 联调与状态反馈**
-   - 前端真实调用上传接口，并展示任务流转状态（Parsing -> Scripting -> Composing）。
-   - 解析完成后，在脚本编辑器中呈现真实的 IR 数据供用户审核/修改。
+### 模块一：课件解析引擎 (Parser Module)
+- [ ] **解析服务 (`pipeline/parser.py`)**：接入 `python-pptx`（优先）及 `pdfplumber`，提取每一页的文本、备注、图片资源。
+- [ ] **IR 构建**：将提取到的松散内容组装为标准的第一版 `CourseIR` 结构（草稿态）。
+- [ ] **前端交互**：完善 `Upload` 页面，实现文件上传进度条、解析状态轮询，并最终跳转至脚本编辑器。
+
+### 模块二：大模型脚本编排 (LLM Scriptwriter Module)
+- [ ] **LLM Provider 接入 (`providers/llm/zhipu.py`)**：使用智谱 GLM-4-Flash API，实现 `generate_script` 接口封装。
+- [ ] **编排逻辑 (`pipeline/scriptwriter.py`)**：编写结构化 Prompt，将第一版 IR 输入给大模型，生成包含分镜（数字人/课件页/生成式画面）、口播讲稿、字幕文本及时间预估的详细版 IR。
+- [ ] **前端审核**：在 `ScriptEditor` 页面完整渲染 IR 数据，允许教师进行图文、口播词及画面类型的二次调整并保存。
+
+### 模块三：基础渲染与合成 (Renderer & Composer Module)
+- [ ] **TTS 配音生成 (`providers/tts/edge_tts_provider.py`)**：解析 IR 中的 `narration_text`，批量请求 Edge-TTS 生成音频，并获取时长。
+- [ ] **课件静态渲染**：根据 IR 分镜指定的课件页（或背景色），生成静态背景图片或视频片段。
+- [ ] **FFmpeg 最终合成 (`utils/ffmpeg.py` & `pipeline/composer.py`)**：基于时间轴，将音频、背景图、通过 `srt` 生成的字幕组装成复杂的 FFmpeg Filtergraph 命令，输出最终的 MP4。
+
+### 模块四：数字人集成 (Digital Human Module)
+- [ ] **Provider 抽象设计**：针对腾讯云/硅基等第三方数字人 API 设计适配器接口。
+- [ ] **降级方案实现**：为了解决初期零预算问题，实现一个“占位”或“纯静态图+动嘴”的本地数字人 mock 方案。
+- [ ] **流水线整合**：当分镜为 `digital_human` 时，触发该任务节点，生成带 Alpha 通道或绿幕的口播视频，交由 FFmpeg 叠加。
+
+### 模块五：生成式教学片段 (Generative Clip Module)
+- [ ] **生成 API 接入 (`providers/video_gen`)**：预留 Sora/可灵等视频生成 API 的适配逻辑，或调用免费的文生图 API 生成概念图片。
+- [ ] **自动配图逻辑**：针对“抽象概念引入”等分镜，自动提取关键词，调用外部 API 产生视觉素材并无缝插入视频时间轴。
+
+### 模块六：教学评估与增强 (Assessment & Enhancement Module) 
+*(视进度与答辩需求选做)*
+- [ ] **课后题库生成**：基于最终的 IR，利用 LLM 针对每个知识点生成包含单选、多选、解析的随堂测验。
+- [ ] **公式与代码动画**：尝试接入 `manim`，对于数学公式推导或代码讲解分镜，生成程序化动画视频替代静态课件。
+- [ ] **打包导出**：提供将视频、字幕、试题打包为标准归档包（如 ZIP）供用户下载的功能。
