@@ -31,8 +31,9 @@ import {
   SaveOutlined,
   UserOutlined,
 } from '@ant-design/icons';
-import { useParams } from 'react-router-dom';
+import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
+import { getProjects } from '../../api/projects';
 import {
   approveScript,
   getScript,
@@ -88,18 +89,37 @@ const ScriptEditor: React.FC = () => {
     sceneIdx: number;
   } | null>(null);
 
+  const navigate = useNavigate();
+
   // ── 加载 IR ────────────────────────────────────────────
   useEffect(() => {
-    if (!projectId) {
-      setLoading(false);
-      setError('请从项目页面进入脚本编辑器');
-      return;
-    }
-
     const loadIR = async () => {
       setLoading(true);
+
+      let targetProjectId = projectId;
+      
+      // 如果没有指定 projectId (比如从侧边栏点击进入)，则尝试获取最新项目
+      if (!targetProjectId) {
+        try {
+          const resp = await getProjects(1, 1);
+          if (resp.data.items && resp.data.items.length > 0) {
+            targetProjectId = resp.data.items[0].id;
+            navigate(`/projects/${targetProjectId}/script`, { replace: true });
+            return; // 导航后组件会重新渲染，这里直接返回
+          }
+        } catch {
+          // 获取项目列表失败，静默处理，走下面的 error 逻辑
+        }
+      }
+
+      if (!targetProjectId) {
+        setLoading(false);
+        setError('暂无项目记录，请先在「上传课件」页面上传');
+        return;
+      }
+
       try {
-        const resp = await getScript(projectId);
+        const resp = await getScript(targetProjectId);
         setIR(resp.data.ir);
         // 默认选中第一个分镜
         if (resp.data.ir.chapters.length > 0) {
@@ -119,7 +139,7 @@ const ScriptEditor: React.FC = () => {
     };
 
     loadIR();
-  }, [projectId]);
+  }, [projectId, navigate]);
 
   // ── 获取当前选中的分镜 ────────────────────────────────
   const currentScene: SceneIR | null =
