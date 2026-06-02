@@ -86,17 +86,17 @@ const AppLayout: React.FC = () => {
           transition: 'width 0.2s',
           overflow: 'hidden'
         }}>
-          {!sidebarCollapsed && (
-            <span style={{ 
-              fontFamily: '"Dancing Script", cursive', 
-              fontSize: 32, 
-              color: '#333', 
-              fontWeight: 600,
-              letterSpacing: '1px' 
-            }}>
-              EduCast
-            </span>
-          )}
+          <span style={{ 
+            fontFamily: '"Dancing Script", cursive', 
+            fontSize: sidebarCollapsed ? 28 : 32, 
+            color: '#333', 
+            fontWeight: 600,
+            letterSpacing: '1px',
+            transition: 'font-size 0.2s',
+            whiteSpace: 'nowrap'
+          }}>
+            {sidebarCollapsed ? 'E' : 'EduCast'}
+          </span>
         </div>
         <div style={{ 
           paddingLeft: 16, // Precisely matches the 16px left padding of Content
