@@ -102,6 +102,9 @@ const AppLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            position: 'sticky',
+            top: 0,
+            zIndex: 10,
           }}
         >
           <Title level={5} style={{ margin: 0, color: '#333' }}>
