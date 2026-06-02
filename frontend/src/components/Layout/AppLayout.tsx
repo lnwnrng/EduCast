@@ -6,6 +6,7 @@ import {
   EditOutlined,
   FolderOutlined,
   VideoCameraOutlined,
+  PlaySquareOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -35,6 +36,11 @@ const menuItems = [
     label: '脚本编辑',
   },
   {
+    key: '/generate',
+    icon: <PlaySquareOutlined />,
+    label: '视频生成',
+  },
+  {
     key: '/resources',
     icon: <FolderOutlined />,
     label: '资源管理',
@@ -49,6 +55,7 @@ const AppLayout: React.FC = () => {
   // 将动态路由映射回菜单 key
   const getSelectedKey = (pathname: string): string => {
     if (pathname.includes('/script')) return '/script';
+    if (pathname.includes('/generate')) return '/generate';
     if (pathname.includes('/upload')) return '/upload';
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';

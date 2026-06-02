@@ -19,6 +19,7 @@ const App: React.FC = () => {
         <Route path="/projects/:id/upload" element={<UploadPage />} />
         <Route path="/script" element={<ScriptEditor />} />
         <Route path="/projects/:id/script" element={<ScriptEditor />} />
+        <Route path="/generate" element={<GeneratePage />} />
         <Route path="/projects/:id/generate" element={<GeneratePage />} />
         <Route path="/preview" element={<Preview />} />
         <Route path="/projects/:id/preview" element={<Preview />} />

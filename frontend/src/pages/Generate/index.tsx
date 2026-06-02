@@ -3,7 +3,7 @@ import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, 
 import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
-import { getProject } from '../../api/projects';
+import { getProject, getProjects } from '../../api/projects';
 import { approveScript } from '../../api/scripts';
 import { getTask } from '../../api/tasks';
 import type { Task, TaskStatus } from '../../types/task';
@@ -25,9 +25,30 @@ const GeneratePage: React.FC = () => {
 
   useEffect(() => {
     const fetchProject = async () => {
-      if (!projectId) return;
+      setLoading(true);
+      let targetProjectId = projectId;
+      
+      if (!targetProjectId) {
+        try {
+          const resp = await getProjects(1, 1);
+          if (resp.data.items && resp.data.items.length > 0) {
+            targetProjectId = resp.data.items[0].id;
+            navigate(`/projects/${targetProjectId}/generate`, { replace: true });
+            return;
+          }
+        } catch {
+          // ignore
+        }
+      }
+
+      if (!targetProjectId) {
+        setLoading(false);
+        message.warning('暂无项目记录，请先在「上传课件」页面上传');
+        return;
+      }
+
       try {
-        const resp = await getProject(projectId);
+        const resp = await getProject(targetProjectId);
         setProject(resp.data);
         
         // If it's already generating, composing or completed, fetch its task
@@ -43,7 +64,7 @@ const GeneratePage: React.FC = () => {
       }
     };
     fetchProject();
-  }, [projectId]);
+  }, [projectId, navigate]);
 
   const handleStartGeneration = async (values: any) => {
     if (!projectId) return;
