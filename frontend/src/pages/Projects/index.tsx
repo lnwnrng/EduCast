@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Typography, Button, Space, message, Input, Popconfirm } from 'antd';
+import { Card, Table, Tag, Typography, Button, Space, message, Input, Modal } from 'antd';
 import {
   EditOutlined,
   VideoCameraOutlined,
@@ -7,6 +7,7 @@ import {
   PlusOutlined,
   SearchOutlined,
   DeleteOutlined,
+  ExclamationCircleFilled,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -54,6 +55,20 @@ const Projects: React.FC = () => {
     } catch (err) {
       message.error('删除失败');
     }
+  };
+
+  const showDeleteConfirm = (id: string) => {
+    Modal.confirm({
+      title: '确定要永久删除该项目吗？',
+      icon: <ExclamationCircleFilled />,
+      content: '删除后，项目的草稿、脚本以及生成的素材等数据将全部不可恢复，请谨慎操作。',
+      okText: '确认删除',
+      okType: 'danger',
+      cancelText: '取消',
+      onOk: async () => {
+        await handleDelete(id);
+      },
+    });
   };
 
   // Status rendering map
@@ -122,17 +137,15 @@ const Projects: React.FC = () => {
                 预览
               </Button>
             )}
-            <Popconfirm
-              title="确定要删除这个项目吗？"
-              description="删除后不可恢复"
-              onConfirm={() => handleDelete(record.id)}
-              okText="确定"
-              cancelText="取消"
+            <Button 
+              type="link" 
+              danger 
+              size="small" 
+              icon={<DeleteOutlined />}
+              onClick={() => showDeleteConfirm(record.id)}
             >
-              <Button type="link" danger size="small" icon={<DeleteOutlined />}>
-                删除
-              </Button>
-            </Popconfirm>
+              删除
+            </Button>
           </Space>
         );
       },
