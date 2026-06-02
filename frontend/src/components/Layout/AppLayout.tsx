@@ -5,8 +5,8 @@ import {
   UploadOutlined,
   EditOutlined,
   FolderOutlined,
-  PlaySquareOutlined,
   ProjectOutlined,
+  PlaySquareFilled,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -78,19 +78,43 @@ const AppLayout: React.FC = () => {
           zIndex: 10,
         }}
       >
-        <div style={{ width: sidebarCollapsed ? 80 : 220, display: 'flex', alignItems: 'center', transition: 'width 0.2s' }}>
-          <Title
-            level={4}
-            style={{
-              color: '#1677ff',
-              margin: 0,
-              fontSize: 20,
-              whiteSpace: 'nowrap',
-              overflow: 'hidden',
-            }}
-          >
-            {sidebarCollapsed ? '课' : '课影 EduCast'}
-          </Title>
+        <div style={{ 
+          width: sidebarCollapsed ? 80 : 220, 
+          display: 'flex', 
+          alignItems: 'center', 
+          justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
+          transition: 'all 0.2s',
+          marginLeft: sidebarCollapsed ? -24 : 0 // Adjust for Header padding when collapsed
+        }}>
+          <div style={{
+            width: 32,
+            height: 32,
+            borderRadius: 8,
+            background: 'linear-gradient(135deg, #1677ff 0%, #36cfc9 100%)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: '#fff',
+            fontSize: 18,
+            marginRight: sidebarCollapsed ? 0 : 12,
+            flexShrink: 0,
+            boxShadow: '0 4px 12px rgba(22,119,255,0.3)',
+            transition: 'margin 0.2s'
+          }}>
+            <PlaySquareFilled />
+          </div>
+          <div style={{ 
+            display: 'flex', 
+            flexDirection: 'column', 
+            lineHeight: 1, 
+            opacity: sidebarCollapsed ? 0 : 1, 
+            width: sidebarCollapsed ? 0 : 'auto', 
+            overflow: 'hidden',
+            transition: 'all 0.2s'
+          }}>
+            <span style={{ fontSize: 20, fontWeight: 900, color: '#1677ff', letterSpacing: '-0.5px' }}>EduCast</span>
+            <span style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4, letterSpacing: '1px', fontWeight: 500 }}>智能课影平台</span>
+          </div>
         </div>
         <Title level={5} style={{ margin: 0, color: '#333' }}>
           智能教学视频生产平台

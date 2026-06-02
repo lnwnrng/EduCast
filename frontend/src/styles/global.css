@@ -94,3 +94,15 @@ a {
 .ant-menu .ant-menu-item .anticon {
   font-size: 18px !important;
 }
+
+/* 修改侧边栏底部折叠按钮的样式 */
+.ant-layout-sider-trigger {
+  background: transparent !important;
+  color: #666 !important;
+  transition: all 0.3s;
+}
+
+.ant-layout-sider-trigger:hover {
+  background: rgba(0, 0, 0, 0.04) !important;
+  color: #1677ff !important;
+}
