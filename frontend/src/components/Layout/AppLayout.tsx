@@ -46,6 +46,16 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
 
+  // 将动态路由映射回菜单 key
+  const getSelectedKey = (pathname: string): string => {
+    if (pathname.includes('/script')) return '/script';
+    if (pathname.includes('/upload')) return '/upload';
+    if (pathname.includes('/preview')) return '/preview';
+    if (pathname.includes('/resources')) return '/resources';
+    if (pathname === '/projects' || pathname.startsWith('/projects')) return '/projects';
+    return pathname;
+  };
+
   const handleMenuClick = ({ key }: { key: string }) => {
     navigate(key);
   };
@@ -89,7 +99,7 @@ const AppLayout: React.FC = () => {
         <Menu
           theme="dark"
           mode="inline"
-          selectedKeys={[location.pathname]}
+          selectedKeys={[getSelectedKey(location.pathname)]}
           items={menuItems}
           onClick={handleMenuClick}
         />
