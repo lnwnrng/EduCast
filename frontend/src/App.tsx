@@ -4,6 +4,7 @@ import AppLayout from './components/Layout/AppLayout';
 import Dashboard from './pages/Dashboard';
 import UploadPage from './pages/Upload';
 import ScriptEditor from './pages/ScriptEditor';
+import GeneratePage from './pages/Generate';
 import Preview from './pages/Preview';
 import Resources from './pages/Resources';
 
@@ -17,6 +18,7 @@ const App: React.FC = () => {
         <Route path="/projects/:id/upload" element={<UploadPage />} />
         <Route path="/script" element={<ScriptEditor />} />
         <Route path="/projects/:id/script" element={<ScriptEditor />} />
+        <Route path="/projects/:id/generate" element={<GeneratePage />} />
         <Route path="/preview" element={<Preview />} />
         <Route path="/projects/:id/preview" element={<Preview />} />
         <Route path="/resources" element={<Resources />} />

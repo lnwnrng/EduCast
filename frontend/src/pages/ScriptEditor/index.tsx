@@ -30,6 +30,7 @@ import {
   RobotOutlined,
   SaveOutlined,
   UserOutlined,
+  UnorderedListOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -249,22 +250,22 @@ const ScriptEditor: React.FC = () => {
         }
         extra={
           <Space>
+            <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/projects')}>
+              返回项目列表
+            </Button>
             <Button
               icon={<SaveOutlined />}
               loading={saving}
               onClick={handleSave}
             >
-              保存
-            </Button>
-            <Button icon={<RobotOutlined />} disabled>
-              AI 编排 (模块二)
+              保存草稿
             </Button>
             <Button
-              icon={<CheckOutlined />}
+              icon={<PlaySquareOutlined />}
               type="primary"
-              onClick={handleApprove}
+              onClick={() => navigate(`/projects/${projectId}/generate`)}
             >
-              审核通过
+              下一步：配置生成
             </Button>
           </Space>
         }
