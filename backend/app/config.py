@@ -54,6 +54,12 @@ class Settings(BaseSettings):
     # ── 成本护栏 ────────────────────────────────────────────
     MAX_COST_PER_TASK: float = 10.0
     MAX_COST_PER_PROJECT: float = 100.0
+    # 付费能力费率（元/秒）；用于生成前成本预估（真实 API 未接也给可信估值）
+    DIGITAL_HUMAN_COST_PER_SEC: float = 0.5
+    VIDEO_GEN_COST_PER_SEC: float = 1.0
+    # 生成式片段默认时长（秒）与中文 TTS 估时长用的字/秒
+    GEN_CLIP_SECONDS: float = 5.0
+    TTS_CHARS_PER_SEC: float = 4.0
 
     # ── CORS ────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]

@@ -3,6 +3,7 @@
 P1 阶段不使用生成式视频片段。
 """
 
+from app.config import settings
 from app.providers.base import BaseProvider, ProviderResult
 
 
@@ -27,4 +28,6 @@ class PlaceholderVideoGenProvider(BaseProvider):
         raise NotImplementedError("视频生成 Provider P2 阶段实现")
 
     def estimate_cost(self, request: dict) -> float:
-        return 0.0
+        """按片段时长 × 费率估算（元）。request: {"duration_sec": float}。"""
+        duration = float(request.get("duration_sec", 0.0))
+        return duration * settings.VIDEO_GEN_COST_PER_SEC

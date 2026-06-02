@@ -3,6 +3,7 @@
 P1 阶段降级为"纯旁白 + 课件"模式。
 """
 
+from app.config import settings
 from app.providers.base import BaseProvider, ProviderResult
 
 
@@ -27,4 +28,6 @@ class PlaceholderDigitalHumanProvider(BaseProvider):
         raise NotImplementedError("数字人 Provider P2 阶段实现")
 
     def estimate_cost(self, request: dict) -> float:
-        return 0.0
+        """按预估口播时长 × 费率估算（元）。request: {"duration_sec": float}。"""
+        duration = float(request.get("duration_sec", 0.0))
+        return duration * settings.DIGITAL_HUMAN_COST_PER_SEC
