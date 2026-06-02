@@ -1,14 +1,13 @@
 import React from 'react';
 import { Layout, Menu, Typography } from 'antd';
 import {
-  DashboardOutlined,
-  UploadOutlined,
-  EditOutlined,
-  FolderOutlined,
-  PlaySquareOutlined,
-  ProjectOutlined,
-  PlaySquareFilled,
-} from '@ant-design/icons';
+  LayoutDashboard,
+  FolderKanban,
+  FileUp,
+  FileEdit,
+  Film,
+  Library,
+} from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
 
@@ -18,32 +17,32 @@ const { Title } = Typography;
 const menuItems = [
   {
     key: '/',
-    icon: <DashboardOutlined />,
+    icon: <LayoutDashboard size={20} strokeWidth={1.5} />,
     label: '仪表盘',
   },
   {
     key: '/projects',
-    icon: <ProjectOutlined />,
+    icon: <FolderKanban size={20} strokeWidth={1.5} />,
     label: '项目管理',
   },
   {
     key: '/upload',
-    icon: <UploadOutlined />,
+    icon: <FileUp size={20} strokeWidth={1.5} />,
     label: '上传课件',
   },
   {
     key: '/script',
-    icon: <EditOutlined />,
+    icon: <FileEdit size={20} strokeWidth={1.5} />,
     label: '脚本编辑',
   },
   {
     key: '/generate',
-    icon: <PlaySquareOutlined />,
+    icon: <Film size={20} strokeWidth={1.5} />,
     label: '视频生成',
   },
   {
     key: '/resources',
-    icon: <FolderOutlined />,
+    icon: <Library size={20} strokeWidth={1.5} />,
     label: '资源管理',
   },
 ];
@@ -71,7 +70,7 @@ const AppLayout: React.FC = () => {
     <Layout style={{ height: '100vh', overflow: 'hidden', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
       <Header
         style={{
-          padding: '0 24px',
+          padding: 0, // Removes default 24px padding
           background: 'transparent',
           display: 'flex',
           alignItems: 'center',
@@ -80,46 +79,33 @@ const AppLayout: React.FC = () => {
         }}
       >
         <div style={{ 
-          width: sidebarCollapsed ? 80 : 220, 
+          width: sidebarCollapsed ? 80 : 220, // Matches Sider width exactly
           display: 'flex', 
           alignItems: 'center', 
-          justifyContent: sidebarCollapsed ? 'center' : 'flex-start',
-          transition: 'all 0.2s',
-          marginLeft: sidebarCollapsed ? -24 : 0 // Adjust for Header padding when collapsed
+          justifyContent: 'center',
+          transition: 'width 0.2s',
+          overflow: 'hidden'
         }}>
-          <div style={{
-            width: 32,
-            height: 32,
-            borderRadius: 8,
-            background: 'linear-gradient(135deg, #1677ff 0%, #36cfc9 100%)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            color: '#fff',
-            fontSize: 18,
-            marginRight: sidebarCollapsed ? 0 : 12,
-            flexShrink: 0,
-            boxShadow: '0 4px 12px rgba(22,119,255,0.3)',
-            transition: 'margin 0.2s'
-          }}>
-            <PlaySquareFilled />
-          </div>
-          <div style={{ 
-            display: 'flex', 
-            flexDirection: 'column', 
-            lineHeight: 1, 
-            opacity: sidebarCollapsed ? 0 : 1, 
-            width: sidebarCollapsed ? 0 : 'auto', 
-            overflow: 'hidden',
-            transition: 'all 0.2s'
-          }}>
-            <span style={{ fontSize: 20, fontWeight: 900, color: '#1677ff', letterSpacing: '-0.5px' }}>EduCast</span>
-            <span style={{ fontSize: 11, color: '#8c8c8c', marginTop: 4, letterSpacing: '1px', fontWeight: 500 }}>智能课影平台</span>
-          </div>
+          {!sidebarCollapsed && (
+            <span style={{ 
+              fontFamily: '"Dancing Script", cursive', 
+              fontSize: 32, 
+              color: '#333', 
+              fontWeight: 600,
+              letterSpacing: '1px' 
+            }}>
+              EduCast
+            </span>
+          )}
         </div>
-        <Title level={5} style={{ margin: 0, color: '#333' }}>
-          智能教学视频生产平台
-        </Title>
+        <div style={{ 
+          paddingLeft: 16, // Precisely matches the 16px left padding of Content
+          transition: 'padding-left 0.2s'
+        }}>
+          <Title level={5} style={{ margin: 0, color: '#333' }}>
+            智能教学视频生产平台
+          </Title>
+        </div>
       </Header>
 
       <Layout style={{ background: 'transparent' }}>
