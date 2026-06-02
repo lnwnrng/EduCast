@@ -1,6 +1,9 @@
 """资源服务 — 教学资源 CRUD 与版本管理。"""
 
+import json
+import os
 from datetime import UTC, datetime
+from typing import Any
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -12,6 +15,50 @@ from app.models.resource import Resource
 
 class ResourceService:
     """资源管理服务。"""
+
+    @staticmethod
+    async def create_resource(
+        db: AsyncSession,
+        project_id: UUID,
+        resource_type: str,
+        title: str,
+        file_path: str,
+        *,
+        mime_type: str | None = None,
+        version: int = 1,
+        parent_id: UUID | None = None,
+        metadata: dict[str, Any] | None = None,
+        watermark_applied: bool = False,
+    ) -> Resource:
+        """登记一条教学资源（自动读取文件大小）。
+
+        resource_type: video / audio / image / subtitle / ir_snapshot / archive
+        """
+        file_size = 0
+        try:
+            if os.path.exists(file_path):
+                file_size = os.path.getsize(file_path)
+        except OSError:
+            pass
+
+        resource = Resource(
+            project_id=project_id,
+            resource_type=resource_type,
+            title=title,
+            file_path=file_path,
+            file_size=file_size,
+            mime_type=mime_type,
+            version=version,
+            parent_id=parent_id,
+            metadata_json=(
+                json.dumps(metadata, ensure_ascii=False) if metadata else None
+            ),
+            watermark_applied=watermark_applied,
+        )
+        db.add(resource)
+        await db.flush()
+        await db.refresh(resource)
+        return resource
 
     @staticmethod
     async def list_resources(

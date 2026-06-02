@@ -19,6 +19,7 @@ from app.ir.schema import CourseIR
 from app.ir.validator import validate_ir
 from app.models.task import Task
 from app.schemas.common import SuccessResponse
+from app.services.composition_service import CompositionService
 from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
@@ -41,6 +42,23 @@ async def _run_orchestrate_in_background(
             )
         except Exception:
             # orchestrate 内部已处理错误状态更新
+            pass
+
+
+async def _run_composition_in_background(
+    project_id: str,
+    task_id: str,
+) -> None:
+    """后台执行模块三视频合成（独立 DB session）。"""
+    async with async_session_factory() as db:
+        try:
+            await CompositionService().compose(
+                project_id=project_id,
+                task_id=task_id,
+                db=db,
+            )
+        except Exception:
+            # compose 内部已处理错误状态更新
             pass
 
 
@@ -142,10 +160,36 @@ async def generate_script(
 @router.post("/projects/{project_id}/script/approve")
 async def approve_script(
     project_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> SuccessResponse:
-    """审核通过脚本 — 推进任务到生成阶段。
+    """审核通过脚本 — 人在环放行，触发模块三视频生成与合成。
 
-    TODO(模块三): 更新任务状态为 GENERATING。
+    创建生成任务并在后台执行 CompositionService（配音 + 课件渲染 + FFmpeg 合成
+    + 入库），返回 task_id 供前端轮询进度。
     """
-    return SuccessResponse(message="脚本审核通过，即将开始生成（待模块三实现）")
+    ir = await _parser_service.load_ir(str(project_id))
+    if ir is None:
+        raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR，无法生成视频")
+
+    task = Task(
+        project_id=project_id,
+        task_type="full_pipeline",
+        status="generating",
+        progress=50,
+    )
+    db.add(task)
+    await db.flush()
+    await db.refresh(task)
+    await db.commit()
+
+    background_tasks.add_task(
+        _run_composition_in_background,
+        project_id=str(project_id),
+        task_id=str(task.id),
+    )
+
+    return SuccessResponse(
+        message="脚本审核通过，已开始生成视频",
+        data={"project_id": str(project_id), "task_id": str(task.id)},
+    )

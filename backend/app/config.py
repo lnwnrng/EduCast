@@ -35,6 +35,19 @@ class Settings(BaseSettings):
     # ── TTS ─────────────────────────────────────────────────
     EDGE_TTS_VOICE: str = "zh-CN-XiaoxiaoNeural"
 
+    # ── 视频合成（模块三）─────────────────────────────────────
+    FFMPEG_BIN: str = "ffmpeg"
+    FFPROBE_BIN: str = "ffprobe"
+    VIDEO_WIDTH: int = 1920
+    VIDEO_HEIGHT: int = 1080
+    VIDEO_FPS: int = 30
+    # 课件页渲染字体；留空则自动探测系统 CJK 字体（Windows 回退 msyh.ttc）
+    SLIDE_FONT_PATH: str = ""
+    # 可见水印文本；留空则使用课程标题
+    WATERMARK_TEXT: str = ""
+    # 分镜无旁白音频时的兜底时长（秒）
+    SILENT_SCENE_DURATION: float = 4.0
+
     # ── Provider 路由 ──────────────────────────────────────
     DEFAULT_ROUTING_STRATEGY: str = "free_first"
 

@@ -1,57 +1,56 @@
-"""FFmpeg 视频合成器 — 将各素材合成为最终教学视频。
+"""FFmpeg 视频合成器 — 把逐分镜片段拼接为最终教学视频。
+
+职责很薄：调用 ``app.utils.ffmpeg`` 的原子操作完成「拼接 → 复用字幕/章节」。
+逐分镜片段（静图+旁白）由 CompositionService 预先生成；字幕已烤进画面，这里
+另把 SRT 作为软字幕、章节作为 metadata 复用进 MP4。
 
 合成规格（来自 pipeline-orchestration SKILL）:
-- 分辨率: 1920×1080 (1080p) 或 1280×720 (720p)
-- 编码: H.264 / AAC
-- 帧率: 30fps
-- 字幕: SRT/VTT
-- 章节: FFmpeg metadata
+- 分辨率 1920×1080 / 编码 H.264+AAC / 帧率 30fps
+- 字幕 SRT（软）+ 章节 FFmpeg metadata
 """
 
 import logging
+import os
+
+from app.utils import ffmpeg
 
 logger = logging.getLogger(__name__)
 
 
 class VideoComposer:
-    """FFmpeg 视频合成器。
+    """FFmpeg 视频合成器。"""
 
-    按 IR 分镜列表组装 FFmpeg 命令，合成最终教学视频:
-    底画面 + 旁白音频 + 数字人画中画 + 字幕 + 水印 + 转场
-    """
+    async def compose(
+        self,
+        clip_paths: list[str],
+        output_path: str,
+        *,
+        srt_path: str | None = None,
+        chapter_metadata_path: str | None = None,
+    ) -> str:
+        """拼接分镜片段并复用字幕/章节，返回成片路径。"""
+        if not clip_paths:
+            raise ValueError("没有可合成的分镜片段")
 
-    async def compose(self, scenes: list[dict], output_path: str) -> str:
-        """合成视频。
+        logger.info("开始合成: %d 个分镜片段 → %s", len(clip_paths), output_path)
 
-        TODO(P1): 实现 FFmpeg 合成:
-        1. 按分镜列表收集素材文件
-        2. 使用 FFmpegCommand 构建命令
-        3. 底画面 + 音频 + 字幕 + 水印
-        4. 章节标记
+        if not (srt_path or chapter_metadata_path):
+            await ffmpeg.concat_clips(clip_paths, output_path)
+            return output_path
 
-        FFmpeg 命令模式:
-        ```
-        ffmpeg -i background.mp4 \\
-               -i narrator_audio.mp3 \\
-               -i digital_human.mp4 \\
-               -vf "overlay=W-w-20:H-h-20" \\
-               -vf "subtitles=subtitle.srt" \\
-               -c:v libx264 -preset medium \\
-               -c:a aac -b:a 128k \\
-               output.mp4
-        ```
+        # 先拼接到临时文件，再复用软字幕/章节 metadata
+        concat_out = f"{output_path}.concat.mp4"
+        await ffmpeg.concat_clips(clip_paths, concat_out)
+        try:
+            await ffmpeg.mux_subtitle_and_chapters(
+                concat_out,
+                output_path,
+                srt_path=srt_path,
+                chapter_metadata_path=chapter_metadata_path,
+            )
+        finally:
+            if os.path.exists(concat_out):
+                os.remove(concat_out)
 
-        Args:
-            scenes: 分镜素材列表
-            output_path: 输出文件路径
-
-        Returns:
-            输出文件路径
-        """
-        logger.info(
-            "视频合成 (占位): %d 个分镜 → %s",
-            len(scenes),
-            output_path,
-        )
-        # TODO: 使用 app.utils.ffmpeg.FFmpegCommand 构建并执行
+        logger.info("合成完成: %s", output_path)
         return output_path

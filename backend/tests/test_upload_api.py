@@ -236,8 +236,8 @@ class TestScriptsAPI:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_approve_script(self, client: AsyncClient) -> None:
-        """审核通过脚本（当前为 stub）。"""
+    async def test_approve_script_without_ir(self, client: AsyncClient) -> None:
+        """在无 IR 的项目上审核放行应返回 404（无法生成视频）。"""
         create_resp = await client.post(
             "/api/v1/projects/",
             json={"title": "待审核"},
@@ -247,5 +247,4 @@ class TestScriptsAPI:
         resp = await client.post(
             f"/api/v1/scripts/projects/{project_id}/script/approve"
         )
-        assert resp.status_code == 200
-        assert "审核通过" in resp.json()["message"]
+        assert resp.status_code == 404
