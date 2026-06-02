@@ -1,15 +1,16 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Typography, Button, Space, message, Input } from 'antd';
+import { Card, Table, Tag, Typography, Button, Space, message, Input, Popconfirm } from 'antd';
 import {
   EditOutlined,
   VideoCameraOutlined,
   EyeOutlined,
   PlusOutlined,
-  SearchOutlined
+  SearchOutlined,
+  DeleteOutlined,
 } from '@ant-design/icons';
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
-import { getProjects } from '../../api/projects';
+import { getProjects, deleteProject } from '../../api/projects';
 import type { Project } from '../../types/project';
 
 const { Text } = Typography;
@@ -43,6 +44,16 @@ const Projects: React.FC = () => {
 
   const handleTableChange = (newPagination: any) => {
     fetchProjects(newPagination.current, newPagination.pageSize);
+  };
+
+  const handleDelete = async (id: string) => {
+    try {
+      await deleteProject(id);
+      message.success('删除成功');
+      fetchProjects(pagination.current, pagination.pageSize);
+    } catch (err) {
+      message.error('删除失败');
+    }
   };
 
   // Status rendering map
@@ -85,35 +96,43 @@ const Projects: React.FC = () => {
       render: (_: any, record: Project) => {
         return (
           <Space>
-            {['reviewing', 'scripting', 'parsing'].includes(record.status) && (
-              <Button
-                type="primary"
-                size="small"
-                icon={<EditOutlined />}
-                onClick={() => navigate(`/projects/${record.id}/script`)}
-              >
-                编辑脚本
-              </Button>
-            )}
-            {['generating', 'composing', 'failed'].includes(record.status) && (
-              <Button
-                size="small"
-                icon={<VideoCameraOutlined />}
-                onClick={() => navigate(`/projects/${record.id}/generate`)}
-              >
-                查看进度
-              </Button>
-            )}
+            <Button
+              type="link"
+              size="small"
+              icon={<EditOutlined />}
+              onClick={() => navigate(`/projects/${record.id}/script`)}
+            >
+              脚本
+            </Button>
+            <Button
+              type="link"
+              size="small"
+              icon={<VideoCameraOutlined />}
+              onClick={() => navigate(`/projects/${record.id}/generate`)}
+            >
+              生成
+            </Button>
             {record.status === 'completed' && (
               <Button
-                type="primary"
+                type="link"
                 size="small"
                 icon={<EyeOutlined />}
                 onClick={() => navigate(`/projects/${record.id}/preview`)}
               >
-                预览视频
+                预览
               </Button>
             )}
+            <Popconfirm
+              title="确定要删除这个项目吗？"
+              description="删除后不可恢复"
+              onConfirm={() => handleDelete(record.id)}
+              okText="确定"
+              cancelText="取消"
+            >
+              <Button type="link" danger size="small" icon={<DeleteOutlined />}>
+                删除
+              </Button>
+            </Popconfirm>
           </Space>
         );
       },
