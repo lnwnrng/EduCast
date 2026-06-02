@@ -1,7 +1,6 @@
 """资源服务 — 教学资源 CRUD 与版本管理。"""
 
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -17,8 +16,8 @@ class ResourceService:
     @staticmethod
     async def list_resources(
         db: AsyncSession,
-        project_id: Optional[UUID] = None,
-        resource_type: Optional[str] = None,
+        project_id: UUID | None = None,
+        resource_type: str | None = None,
         page: int = 1,
         page_size: int = 20,
     ) -> tuple[list[Resource], int]:
@@ -29,9 +28,7 @@ class ResourceService:
         if resource_type:
             conditions.append(Resource.resource_type == resource_type)
 
-        count_stmt = select(func.count(Resource.id)).where(
-            *conditions
-        )
+        count_stmt = select(func.count(Resource.id)).where(*conditions)
         total = (await db.execute(count_stmt)).scalar() or 0
 
         stmt = (
@@ -47,24 +44,16 @@ class ResourceService:
         return resources, total
 
     @staticmethod
-    async def get_resource(
-        db: AsyncSession, resource_id: UUID
-    ) -> Resource:
+    async def get_resource(db: AsyncSession, resource_id: UUID) -> Resource:
         """获取资源详情。"""
         resource = await db.get(Resource, resource_id)
         if resource is None or resource.deleted_at is not None:
-            raise ResourceNotFoundException(
-                f"资源不存在: {resource_id}"
-            )
+            raise ResourceNotFoundException(f"资源不存在: {resource_id}")
         return resource
 
     @staticmethod
-    async def delete_resource(
-        db: AsyncSession, resource_id: UUID
-    ) -> None:
+    async def delete_resource(db: AsyncSession, resource_id: UUID) -> None:
         """软删除资源。"""
-        resource = await ResourceService.get_resource(
-            db, resource_id
-        )
-        resource.deleted_at = datetime.now(timezone.utc)
+        resource = await ResourceService.get_resource(db, resource_id)
+        resource.deleted_at = datetime.now(UTC)
         await db.flush()

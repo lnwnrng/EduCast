@@ -47,6 +47,13 @@ target-version = "py311"
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "N", "W", "UP"]
+# UP042: 保留 (str, Enum) 以兼容 Pydantic v2 序列化与既有 IR JSON，不改用 StrEnum
+# N818: 自定义异常采用 *Exception 后缀（Python 惯用），不强制 *Error 后缀
+ignore = ["UP042", "N818"]
+
+[tool.ruff.lint.per-file-ignores]
+# test_parsers.py 内嵌最小 PDF 字面量，其 xref 行尾空格是 PDF 格式所必需，不可删除
+"tests/test_parsers.py" = ["W291"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

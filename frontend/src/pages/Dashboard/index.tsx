@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Col, Row, Statistic, Table, Tag, Typography, Button, Space, message } from 'antd';
+import { Card, Col, Row, Statistic, Table, Tag, Typography, Button, message } from 'antd';
 import {
   ProjectOutlined,
   PlayCircleOutlined,
@@ -43,7 +43,7 @@ const Dashboard: React.FC = () => {
           completed: projects.filter(p => p.status === 'completed').length,
         });
         setSystemStatus('normal');
-      } catch (err) {
+      } catch {
         setSystemStatus('error');
         message.error('获取仪表盘数据失败，后端服务可能未启动或异常');
       } finally {

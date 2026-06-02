@@ -1,12 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Steps, Progress, Empty, Table, Tag } from 'antd';
-import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined, VideoCameraOutlined, EditOutlined } from '@ant-design/icons';
+import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Progress, Empty, Table, Tag } from 'antd';
+import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getProject, getProjects } from '../../api/projects';
 import { approveScript } from '../../api/scripts';
-import { getTask } from '../../api/tasks';
-import type { Task, TaskStatus } from '../../types/task';
 import type { Project } from '../../types/project';
 
 const { Title, Text } = Typography;
@@ -17,15 +15,13 @@ const GeneratePage: React.FC = () => {
   
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  const [project, setProject] = useState<any>(null);
+  const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectsList, setProjectsList] = useState<Project[]>([]);
   const [listPagination, setListPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   
   // Status and Polling
-  const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [taskProgress, setTaskProgress] = useState(0);
-  const [taskId, setTaskId] = useState<string | null>(null);
 
   useEffect(() => {
     if (!projectId) {
@@ -54,7 +50,7 @@ const GeneratePage: React.FC = () => {
       try {
         const resp = await getProject(projectId);
         setProject(resp.data);
-      } catch (err) {
+      } catch {
         setError('加载项目失败');
       } finally {
         setLoading(false);
@@ -63,7 +59,7 @@ const GeneratePage: React.FC = () => {
     fetchProject();
   }, [projectId]);
 
-  const handleStartGeneration = async (values: any) => {
+  const handleStartGeneration = async () => {
     if (!projectId) return;
     setSubmitting(true);
     try {
@@ -73,8 +69,7 @@ const GeneratePage: React.FC = () => {
       message.success('已提交生成任务！');
       
       // Update local state to show progress view
-      setProject({ ...project, status: 'generating' });
-      setTaskStatus('generating');
+      setProject((prev) => (prev ? { ...prev, status: 'generating' } : prev));
       setTaskProgress(5);
       
       // Navigate back to project list after a short delay
@@ -82,7 +77,7 @@ const GeneratePage: React.FC = () => {
          navigate('/projects');
       }, 3000);
       
-    } catch (err) {
+    } catch {
       message.error('提交失败，请重试');
     } finally {
       setSubmitting(false);
@@ -135,7 +130,7 @@ const GeneratePage: React.FC = () => {
       {
         title: '操作',
         key: 'actions',
-        render: (_: any, record: Project) => (
+        render: (_: unknown, record: Project) => (
           <Button
             type="link"
             size="small"

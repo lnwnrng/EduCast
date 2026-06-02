@@ -34,13 +34,9 @@ async def list_projects(
     db: AsyncSession = Depends(get_db),
 ) -> PaginatedResponse[ProjectResponse]:
     """分页查询项目列表。"""
-    projects, total = await ProjectService.list_projects(
-        db, page, page_size
-    )
+    projects, total = await ProjectService.list_projects(db, page, page_size)
     return PaginatedResponse(
-        items=[
-            ProjectResponse.model_validate(p) for p in projects
-        ],
+        items=[ProjectResponse.model_validate(p) for p in projects],
         total=total,
         page=page,
         page_size=page_size,
@@ -64,9 +60,7 @@ async def update_project(
     db: AsyncSession = Depends(get_db),
 ) -> ProjectResponse:
     """更新项目信息。"""
-    project = await ProjectService.update_project(
-        db, project_id, data
-    )
+    project = await ProjectService.update_project(db, project_id, data)
     return ProjectResponse.model_validate(project)
 
 

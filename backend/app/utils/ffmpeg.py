@@ -6,7 +6,6 @@
 import asyncio
 import logging
 import subprocess
-from typing import Optional
 
 logger = logging.getLogger(__name__)
 
@@ -30,7 +29,7 @@ class FFmpegCommand:
     def __init__(self) -> None:
         self._inputs: list[str] = []
         self._filters: list[str] = []
-        self._output: Optional[str] = None
+        self._output: str | None = None
         self._video_codec: str = "libx264"
         self._audio_codec: str = "aac"
         self._audio_bitrate: str = "128k"
@@ -66,9 +65,7 @@ class FFmpegCommand:
         position: str = "10:10",
     ) -> "FFmpegCommand":
         """添加水印。"""
-        self._filters.append(
-            f"movie={image_path}[wm];[in][wm]overlay={position}"
-        )
+        self._filters.append(f"movie={image_path}[wm];[in][wm]overlay={position}")
         return self
 
     def set_codec(
@@ -81,9 +78,7 @@ class FFmpegCommand:
         self._audio_codec = audio
         return self
 
-    def set_resolution(
-        self, width: int = 1920, height: int = 1080
-    ) -> "FFmpegCommand":
+    def set_resolution(self, width: int = 1920, height: int = 1080) -> "FFmpegCommand":
         """设置输出分辨率。"""
         self._width = width
         self._height = height
@@ -105,14 +100,22 @@ class FFmpegCommand:
             cmd.extend(["-vf", ",".join(self._filters)])
 
         # 编码
-        cmd.extend([
-            "-c:v", self._video_codec,
-            "-preset", self._preset,
-            "-c:a", self._audio_codec,
-            "-b:a", self._audio_bitrate,
-            "-r", str(self._fps),
-            "-s", f"{self._width}x{self._height}",
-        ])
+        cmd.extend(
+            [
+                "-c:v",
+                self._video_codec,
+                "-preset",
+                self._preset,
+                "-c:a",
+                self._audio_codec,
+                "-b:a",
+                self._audio_bitrate,
+                "-r",
+                str(self._fps),
+                "-s",
+                f"{self._width}x{self._height}",
+            ]
+        )
 
         # 额外参数
         cmd.extend(self._extra_args)
@@ -136,7 +139,7 @@ class FFmpegCommand:
             )
 
         try:
-            result = await asyncio.to_thread(_run)
+            await asyncio.to_thread(_run)
             logger.info("FFmpeg 执行成功: %s", self._output)
             return self._output  # type: ignore[return-value]
         except subprocess.CalledProcessError as exc:

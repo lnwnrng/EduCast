@@ -16,13 +16,11 @@ import {
 } from 'antd';
 import {
   CheckCircleOutlined,
-  CloseCircleOutlined,
   EditOutlined,
   FileTextOutlined,
   InboxOutlined,
   LoadingOutlined,
   ReloadOutlined,
-  UploadOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -34,18 +32,6 @@ import type { CourseIR } from '../../types/ir';
 
 const { Dragger } = Upload;
 const { Text, Title } = Typography;
-
-/** 任务状态对应的步骤索引 */
-const statusToStep: Record<string, number> = {
-  pending: 0,
-  parsing: 1,
-  scripting: 1,
-  reviewing: 2,
-  generating: 2,
-  composing: 2,
-  completed: 2,
-  failed: 1,
-};
 
 /** 状态中文描述 */
 const statusLabel: Record<string, string> = {
@@ -85,7 +71,6 @@ const UploadPage: React.FC = () => {
   const [projectId, setProjectId] = useState<string | null>(
     routeProjectId || null
   );
-  const [taskId, setTaskId] = useState<string | null>(null);
 
   // 任务状态轮询
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
@@ -106,40 +91,24 @@ const UploadPage: React.FC = () => {
     };
   }, []);
 
-  // ── 文件上传 ──────────────────────────────────────────
-  const handleUpload = useCallback(async (file: File) => {
-    setUploading(true);
-    setErrorMessage(null);
-
-    try {
-      const resp = await uploadDocument(file);
-      const data = resp.data.data;
-
-      setProjectId(data.project_id);
-      setTaskId(data.task_id);
-      setUploadedFile({
-        name: data.filename,
-        size: data.file_size,
-        type: data.file_type,
-      });
-      setCurrentStep(1);
-      setTaskStatus('parsing');
-
-      message.success('文件上传成功，开始解析...');
-
-      // 开始轮询任务状态
-      startPolling(data.task_id, data.project_id);
-    } catch (err: unknown) {
-      const errMsg =
-        err instanceof Error ? err.message : '上传失败，请重试';
-      setErrorMessage(errMsg);
-      message.error(errMsg);
-    } finally {
-      setUploading(false);
-    }
-
-    // 阻止 Ant Design 默认上传行为
-    return false;
+  // ── 加载解析结果 IR ───────────────────────────────────
+  const loadIR = useCallback(async (pid: string) => {
+    const attempt = async (): Promise<void> => {
+      setIrLoading(true);
+      try {
+        const resp = await getScript(pid);
+        const scriptData: ScriptResponse = resp.data;
+        setParsedIR(scriptData.ir);
+      } catch {
+        // IR 可能还没生成完，等待几秒后重试
+        setTimeout(() => {
+          void attempt();
+        }, 3000);
+      } finally {
+        setIrLoading(false);
+      }
+    };
+    await attempt();
   }, []);
 
   // ── 任务状态轮询 ──────────────────────────────────────
@@ -188,23 +157,45 @@ const UploadPage: React.FC = () => {
       poll();
       pollingRef.current = setInterval(poll, 2000);
     },
-    []
+    [loadIR]
   );
 
-  // ── 加载解析结果 IR ───────────────────────────────────
-  const loadIR = useCallback(async (pid: string) => {
-    setIrLoading(true);
-    try {
-      const resp = await getScript(pid);
-      const scriptData: ScriptResponse = resp.data;
-      setParsedIR(scriptData.ir);
-    } catch {
-      // IR 可能还没生成完，等待几秒后重试
-      setTimeout(() => loadIR(pid), 3000);
-    } finally {
-      setIrLoading(false);
-    }
-  }, []);
+  // ── 文件上传 ──────────────────────────────────────────
+  const handleUpload = useCallback(
+    async (file: File) => {
+      setUploading(true);
+      setErrorMessage(null);
+
+      try {
+        const resp = await uploadDocument(file);
+        const data = resp.data.data;
+
+        setProjectId(data.project_id);
+        setUploadedFile({
+          name: data.filename,
+          size: data.file_size,
+          type: data.file_type,
+        });
+        setCurrentStep(1);
+        setTaskStatus('parsing');
+
+        message.success('文件上传成功，开始解析...');
+
+        // 开始轮询任务状态
+        startPolling(data.task_id, data.project_id);
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : '上传失败，请重试';
+        setErrorMessage(errMsg);
+        message.error(errMsg);
+      } finally {
+        setUploading(false);
+      }
+
+      // 阻止 Ant Design 默认上传行为
+      return false;
+    },
+    [startPolling]
+  );
 
   // ── 跳转到脚本编辑器 ─────────────────────────────────
   const goToScriptEditor = useCallback(() => {
@@ -217,7 +208,6 @@ const UploadPage: React.FC = () => {
   const handleReset = useCallback(() => {
     setCurrentStep(0);
     setProjectId(null);
-    setTaskId(null);
     setUploadedFile(null);
     setTaskStatus('pending');
     setTaskProgress(0);

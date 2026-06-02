@@ -7,8 +7,6 @@
   - validate_ir 校验规则
 """
 
-import pytest
-
 from app.ir.schema import (
     ChapterIR,
     CourseIR,
@@ -25,7 +23,6 @@ from app.ir.schema import (
     VisualSpec,
 )
 from app.ir.validator import validate_ir
-
 
 # ── CourseIR 构建测试 ────────────────────────────────────
 
@@ -253,9 +250,7 @@ class TestIRValidator:
                                     order=1,
                                     scene_type=SceneType.SLIDE,
                                     narration_text="旁白内容",
-                                    visual_spec=VisualSpec(
-                                        slide_ref="slide_1.png"
-                                    ),
+                                    visual_spec=VisualSpec(slide_ref="slide_1.png"),
                                 ),
                             ],
                         ),
@@ -341,17 +336,13 @@ class TestIRValidator:
                                     order=1,
                                     scene_type=SceneType.SLIDE,
                                     narration_text="旁白1",
-                                    visual_spec=VisualSpec(
-                                        slide_ref="s1.png"
-                                    ),
+                                    visual_spec=VisualSpec(slide_ref="s1.png"),
                                 ),
                                 SceneIR(
                                     order=3,  # 跳过了 2
                                     scene_type=SceneType.SLIDE,
                                     narration_text="旁白3",
-                                    visual_spec=VisualSpec(
-                                        slide_ref="s3.png"
-                                    ),
+                                    visual_spec=VisualSpec(slide_ref="s3.png"),
                                 ),
                             ],
                         ),
@@ -432,9 +423,7 @@ class TestIRValidator:
                                     order=1,
                                     scene_type=SceneType.SLIDE,
                                     narration_text="",  # 空旁白
-                                    visual_spec=VisualSpec(
-                                        slide_ref="s.png"
-                                    ),
+                                    visual_spec=VisualSpec(slide_ref="s.png"),
                                 ),
                             ],
                         ),

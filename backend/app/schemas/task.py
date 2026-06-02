@@ -1,7 +1,7 @@
 """任务 Schema。"""
 
 from datetime import datetime
-from typing import Any, Optional
+from typing import Any
 from uuid import UUID
 
 from pydantic import BaseModel, Field
@@ -11,9 +11,7 @@ class TaskCreate(BaseModel):
     """创建任务请求。"""
 
     task_type: str = Field(default="full_pipeline", description="任务类型")
-    config: Optional[dict[str, Any]] = Field(
-        default=None, description="生成配置"
-    )
+    config: dict[str, Any] | None = Field(default=None, description="生成配置")
 
 
 class TaskResponse(BaseModel):
@@ -26,11 +24,11 @@ class TaskResponse(BaseModel):
     task_type: str
     status: str
     progress: int
-    error_message: Optional[str] = None
+    error_message: str | None = None
     estimated_cost: float
     actual_cost: float
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None
 
 
 class TaskStatusResponse(BaseModel):
@@ -39,7 +37,7 @@ class TaskStatusResponse(BaseModel):
     id: UUID
     status: str
     progress: int
-    error_message: Optional[str] = None
+    error_message: str | None = None
     estimated_cost: float
     actual_cost: float
 
@@ -52,12 +50,12 @@ class SubTaskResponse(BaseModel):
     id: UUID
     task_id: UUID
     subtask_type: str
-    scene_id: Optional[str] = None
+    scene_id: str | None = None
     status: str
     progress: int
-    provider_name: Optional[str] = None
-    result_url: Optional[str] = None
+    provider_name: str | None = None
+    result_url: str | None = None
     cost: float
     retry_count: int
-    error_message: Optional[str] = None
+    error_message: str | None = None
     created_at: datetime

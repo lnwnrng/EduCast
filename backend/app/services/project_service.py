@@ -1,6 +1,6 @@
 """项目服务 — 项目 CRUD 业务逻辑。"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -15,9 +15,7 @@ class ProjectService:
     """项目 CRUD 服务。"""
 
     @staticmethod
-    async def create_project(
-        db: AsyncSession, data: ProjectCreate
-    ) -> Project:
+    async def create_project(db: AsyncSession, data: ProjectCreate) -> Project:
         """创建新项目。"""
         project = Project(
             title=data.title,
@@ -32,15 +30,11 @@ class ProjectService:
         return project
 
     @staticmethod
-    async def get_project(
-        db: AsyncSession, project_id: UUID
-    ) -> Project:
+    async def get_project(db: AsyncSession, project_id: UUID) -> Project:
         """获取项目详情。"""
         project = await db.get(Project, project_id)
         if project is None or project.deleted_at is not None:
-            raise ResourceNotFoundException(
-                f"项目不存在: {project_id}"
-            )
+            raise ResourceNotFoundException(f"项目不存在: {project_id}")
         return project
 
     @staticmethod
@@ -51,9 +45,7 @@ class ProjectService:
     ) -> tuple[list[Project], int]:
         """分页查询项目列表。"""
         # 总数
-        count_stmt = select(func.count(Project.id)).where(
-            Project.deleted_at.is_(None)
-        )
+        count_stmt = select(func.count(Project.id)).where(Project.deleted_at.is_(None))
         total = (await db.execute(count_stmt)).scalar() or 0
 
         # 分页数据
@@ -85,10 +77,8 @@ class ProjectService:
         return project
 
     @staticmethod
-    async def delete_project(
-        db: AsyncSession, project_id: UUID
-    ) -> None:
+    async def delete_project(db: AsyncSession, project_id: UUID) -> None:
         """软删除项目。"""
         project = await ProjectService.get_project(db, project_id)
-        project.deleted_at = datetime.now(timezone.utc)
+        project.deleted_at = datetime.now(UTC)
         await db.flush()

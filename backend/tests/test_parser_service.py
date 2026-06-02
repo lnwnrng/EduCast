@@ -7,20 +7,14 @@
   - 错误状态更新
 """
 
-import io
 import json
 import os
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
-from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ir.schema import ChapterIR, CourseIR, KnowledgePointIR, SceneIR, SceneType
-from app.models.project import Project
-from app.models.task import Task
 from app.services.parser_service import ParserService
-
 
 # ── fixtures ─────────────────────────────────────────────
 
@@ -73,6 +67,7 @@ class TestIRPersistence:
         """保存和加载 IR。"""
         # 修改 storage root 为临时目录
         from app.config import settings
+
         original_root = settings.STORAGE_ROOT
         settings.STORAGE_ROOT = str(tmp_path / "storage")
 
@@ -102,14 +97,12 @@ class TestIRPersistence:
 
             # 保存
             project_id = "test-project-123"
-            ir_path = await parser_service.save_ir(
-                ir, project_id, version=1
-            )
+            ir_path = await parser_service.save_ir(ir, project_id, version=1)
             assert os.path.exists(ir_path)
             assert "v1.json" in ir_path
 
             # 验证文件内容
-            with open(ir_path, "r", encoding="utf-8") as f:
+            with open(ir_path, encoding="utf-8") as f:
                 data = json.load(f)
             assert data["title"] == "测试课程"
 
@@ -128,6 +121,7 @@ class TestIRPersistence:
     ) -> None:
         """加载最新版本的 IR。"""
         from app.config import settings
+
         original_root = settings.STORAGE_ROOT
         settings.STORAGE_ROOT = str(tmp_path / "storage")
 
@@ -162,6 +156,7 @@ class TestIRPersistence:
     ) -> None:
         """加载不存在的 IR 返回 None。"""
         from app.config import settings
+
         original_root = settings.STORAGE_ROOT
         settings.STORAGE_ROOT = str(tmp_path / "storage")
 
@@ -177,17 +172,16 @@ class TestIRPersistence:
     ) -> None:
         """保存的 IR JSON 应格式化（indent=2）。"""
         from app.config import settings
+
         original_root = settings.STORAGE_ROOT
         settings.STORAGE_ROOT = str(tmp_path / "storage")
 
         try:
             ir = CourseIR(title="格式化测试")
             project_id = "format-test"
-            ir_path = await parser_service.save_ir(
-                ir, project_id, version=1
-            )
+            ir_path = await parser_service.save_ir(ir, project_id, version=1)
 
-            with open(ir_path, "r", encoding="utf-8") as f:
+            with open(ir_path, encoding="utf-8") as f:
                 content = f.read()
 
             # 应该是格式化的 JSON（有换行和缩进）

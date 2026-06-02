@@ -27,19 +27,13 @@ class Resource(BaseMixin, Base):
     title: Mapped[str] = mapped_column(String(255))
     file_path: Mapped[str] = mapped_column(String(500))
     file_size: Mapped[int] = mapped_column(Integer, default=0)
-    mime_type: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True
-    )
+    mime_type: Mapped[str | None] = mapped_column(String(100), nullable=True)
     version: Mapped[int] = mapped_column(Integer, default=1)
-    parent_id: Mapped[Optional[uuid.UUID]] = mapped_column(
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("resources.id"), nullable=True
     )
-    metadata_json: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
-    )
-    watermark_applied: Mapped[bool] = mapped_column(
-        Boolean, default=False
-    )
+    metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
+    watermark_applied: Mapped[bool] = mapped_column(Boolean, default=False)
 
     # ── 关系 ─────────────────────────────────────────────
     project: Mapped["Project"] = relationship(back_populates="resources")

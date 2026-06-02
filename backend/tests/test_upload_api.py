@@ -9,15 +9,14 @@
 """
 
 import io
-import os
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.project import Project
-from app.models.task import Task
+PPTX_MIME = (
+    "application/vnd.openxmlformats-officedocument." "presentationml.presentation"
+)
 
 
 # ── 辅助函数 ─────────────────────────────────────────────
@@ -55,7 +54,7 @@ def _make_md_bytes() -> bytes:
 
 def _make_txt_bytes() -> bytes:
     """生成一个纯文本文件字节。"""
-    return "纯文本测试内容\n\n这是第二段。".encode("utf-8")
+    return "纯文本测试内容\n\n这是第二段。".encode()
 
 
 # ── 上传 API 测试 ────────────────────────────────────────
@@ -65,16 +64,14 @@ class TestUploadAPI:
     """文件上传 API 测试。"""
 
     @pytest.mark.asyncio
-    async def test_upload_pptx_success(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_pptx_success(self, client: AsyncClient) -> None:
         """上传 PPTX 文件成功。"""
         pptx_bytes = _make_pptx_bytes()
 
         resp = await client.post(
             "/api/v1/upload/document",
             files={
-                "file": ("test.pptx", pptx_bytes, "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+                "file": ("test.pptx", pptx_bytes, PPTX_MIME),
             },
         )
 
@@ -86,9 +83,7 @@ class TestUploadAPI:
         assert data["data"]["file_type"] == ".pptx"
 
     @pytest.mark.asyncio
-    async def test_upload_markdown_success(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_markdown_success(self, client: AsyncClient) -> None:
         """上传 Markdown 文件成功。"""
         md_bytes = _make_md_bytes()
 
@@ -105,9 +100,7 @@ class TestUploadAPI:
         assert data["data"]["project_id"]
 
     @pytest.mark.asyncio
-    async def test_upload_txt_success(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_txt_success(self, client: AsyncClient) -> None:
         """上传纯文本文件成功。"""
         txt_bytes = _make_txt_bytes()
 
@@ -123,9 +116,7 @@ class TestUploadAPI:
         assert data["data"]["file_type"] == ".txt"
 
     @pytest.mark.asyncio
-    async def test_upload_unsupported_type(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_unsupported_type(self, client: AsyncClient) -> None:
         """上传不支持的文件类型应返回 422 错误。"""
         resp = await client.post(
             "/api/v1/upload/document",
@@ -137,9 +128,7 @@ class TestUploadAPI:
         assert resp.status_code == 422
 
     @pytest.mark.asyncio
-    async def test_upload_empty_file(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_empty_file(self, client: AsyncClient) -> None:
         """上传空文件应返回 422 错误。"""
         resp = await client.post(
             "/api/v1/upload/document",
@@ -162,7 +151,7 @@ class TestUploadAPI:
         resp = await client.post(
             "/api/v1/upload/document",
             files={
-                "file": ("math.pptx", pptx_bytes, "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+                "file": ("math.pptx", pptx_bytes, PPTX_MIME),
             },
         )
 
@@ -176,16 +165,14 @@ class TestUploadAPI:
         assert project_data["title"] == "math"
 
     @pytest.mark.asyncio
-    async def test_upload_creates_task(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_creates_task(self, client: AsyncClient) -> None:
         """上传应创建新 Task。"""
         pptx_bytes = _make_pptx_bytes()
 
         resp = await client.post(
             "/api/v1/upload/document",
             files={
-                "file": ("lesson.pptx", pptx_bytes, "application/vnd.openxmlformats-officedocument.presentationml.presentation"),
+                "file": ("lesson.pptx", pptx_bytes, PPTX_MIME),
             },
         )
 
@@ -197,9 +184,7 @@ class TestUploadAPI:
         assert task_resp.status_code == 200
 
     @pytest.mark.asyncio
-    async def test_upload_returns_file_info(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_upload_returns_file_info(self, client: AsyncClient) -> None:
         """上传应返回文件信息。"""
         txt_bytes = _make_txt_bytes()
 
@@ -224,9 +209,7 @@ class TestScriptsAPI:
     """脚本 (IR) 管理 API 测试。"""
 
     @pytest.mark.asyncio
-    async def test_get_script_not_found(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_get_script_not_found(self, client: AsyncClient) -> None:
         """获取不存在的脚本应返回 404。"""
         # 先创建一个项目
         create_resp = await client.post(
@@ -235,15 +218,11 @@ class TestScriptsAPI:
         )
         project_id = create_resp.json()["id"]
 
-        resp = await client.get(
-            f"/api/v1/scripts/projects/{project_id}/script"
-        )
+        resp = await client.get(f"/api/v1/scripts/projects/{project_id}/script")
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_generate_script_without_ir(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_generate_script_without_ir(self, client: AsyncClient) -> None:
         """在无 IR 的项目上触发编排应返回 404。"""
         create_resp = await client.post(
             "/api/v1/projects/",
@@ -257,9 +236,7 @@ class TestScriptsAPI:
         assert resp.status_code == 404
 
     @pytest.mark.asyncio
-    async def test_approve_script(
-        self, client: AsyncClient
-    ) -> None:
+    async def test_approve_script(self, client: AsyncClient) -> None:
         """审核通过脚本（当前为 stub）。"""
         create_resp = await client.post(
             "/api/v1/projects/",

@@ -20,9 +20,7 @@ class VideoComposer:
     底画面 + 旁白音频 + 数字人画中画 + 字幕 + 水印 + 转场
     """
 
-    async def compose(
-        self, scenes: list[dict], output_path: str
-    ) -> str:
+    async def compose(self, scenes: list[dict], output_path: str) -> str:
         """合成视频。
 
         TODO(P1): 实现 FFmpeg 合成:

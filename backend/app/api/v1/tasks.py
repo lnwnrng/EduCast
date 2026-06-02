@@ -6,7 +6,6 @@ from fastapi import APIRouter, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
-from app.schemas.common import SuccessResponse
 from app.schemas.task import SubTaskResponse, TaskCreate, TaskResponse
 from app.services.task_service import TaskService
 
@@ -51,9 +50,7 @@ async def get_subtasks(
     return [SubTaskResponse.model_validate(s) for s in subtasks]
 
 
-@router.post(
-    "/tasks/{task_id}/retry", response_model=TaskResponse
-)
+@router.post("/tasks/{task_id}/retry", response_model=TaskResponse)
 async def retry_task(
     task_id: UUID,
     db: AsyncSession = Depends(get_db),

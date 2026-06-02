@@ -1,7 +1,7 @@
 """任务与子任务模型。"""
 
 import uuid
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -24,22 +24,14 @@ class Task(BaseMixin, Base):
     project_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("projects.id"),
     )
-    task_type: Mapped[str] = mapped_column(
-        String(50), default="full_pipeline"
-    )
+    task_type: Mapped[str] = mapped_column(String(50), default="full_pipeline")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    error_message: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
-    )
-    ir_snapshot_path: Mapped[Optional[str]] = mapped_column(
-        String(500), nullable=True
-    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
+    ir_snapshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)
     actual_cost: Mapped[float] = mapped_column(Float, default=0.0)
-    config_json: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
-    )
+    config_json: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── 关系 ─────────────────────────────────────────────
     project: Mapped["Project"] = relationship(back_populates="tasks")
@@ -61,28 +53,16 @@ class SubTask(BaseMixin, Base):
         ForeignKey("tasks.id"),
     )
     subtask_type: Mapped[str] = mapped_column(String(50))
-    scene_id: Mapped[Optional[str]] = mapped_column(
-        String(36), nullable=True
-    )
+    scene_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     status: Mapped[str] = mapped_column(String(20), default="pending")
     progress: Mapped[int] = mapped_column(Integer, default=0)
-    provider_name: Mapped[Optional[str]] = mapped_column(
-        String(100), nullable=True
-    )
-    provider_task_id: Mapped[Optional[str]] = mapped_column(
-        String(200), nullable=True
-    )
-    result_url: Mapped[Optional[str]] = mapped_column(
-        String(500), nullable=True
-    )
+    provider_name: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    provider_task_id: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    result_url: Mapped[str | None] = mapped_column(String(500), nullable=True)
     cost: Mapped[float] = mapped_column(Float, default=0.0)
-    input_hash: Mapped[Optional[str]] = mapped_column(
-        String(64), nullable=True
-    )
+    input_hash: Mapped[str | None] = mapped_column(String(64), nullable=True)
     retry_count: Mapped[int] = mapped_column(Integer, default=0)
-    error_message: Mapped[Optional[str]] = mapped_column(
-        Text, nullable=True
-    )
+    error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     # ── 关系 ─────────────────────────────────────────────
     task: Mapped["Task"] = relationship(back_populates="subtasks")

@@ -1,7 +1,6 @@
 """任务服务 — 任务创建、状态管理、重试逻辑。"""
 
 import json
-from datetime import datetime, timezone
 from uuid import UUID
 
 from sqlalchemy import select
@@ -25,9 +24,7 @@ class TaskService:
         task = Task(
             project_id=project_id,
             task_type=data.task_type,
-            config_json=(
-                json.dumps(data.config) if data.config else None
-            ),
+            config_json=(json.dumps(data.config) if data.config else None),
         )
         db.add(task)
         await db.flush()
@@ -43,9 +40,7 @@ class TaskService:
         return task
 
     @staticmethod
-    async def get_subtasks(
-        db: AsyncSession, task_id: UUID
-    ) -> list[SubTask]:
+    async def get_subtasks(db: AsyncSession, task_id: UUID) -> list[SubTask]:
         """获取子任务列表。"""
         stmt = (
             select(SubTask)
@@ -71,9 +66,7 @@ class TaskService:
         return task
 
     @staticmethod
-    async def retry_task(
-        db: AsyncSession, task_id: UUID
-    ) -> Task:
+    async def retry_task(db: AsyncSession, task_id: UUID) -> Task:
         """重试失败的任务。"""
         task = await TaskService.get_task(db, task_id)
         if task.status != "failed":

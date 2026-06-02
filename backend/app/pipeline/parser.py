@@ -8,13 +8,11 @@
   3. 教学层: 生成初步分镜（slide → scene 映射）
 """
 
-import io
 import logging
 import os
 import re
 from pathlib import Path
-from typing import Optional
-from uuid import uuid4
+from typing import TYPE_CHECKING
 
 from app.exceptions import ParseException
 from app.ir.schema import (
@@ -25,6 +23,9 @@ from app.ir.schema import (
     SceneType,
     VisualSpec,
 )
+
+if TYPE_CHECKING:
+    import pdfplumber  # 仅用于类型注解；运行时在 _parse_pdf 内惰性导入
 
 logger = logging.getLogger(__name__)
 
@@ -75,7 +76,7 @@ class DocumentParser:
         self,
         file_path: str,
         file_type: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> CourseIR:
         """解析文档，返回 IR 草稿。
 
@@ -116,22 +117,15 @@ class DocumentParser:
         logger.info(
             "文档解析完成: %d 章节, %d 知识点, %d 分镜",
             len(ir.chapters),
-            sum(
-                len(ch.knowledge_points)
-                for ch in ir.chapters
-            ),
-            sum(
-                len(kp.scenes)
-                for ch in ir.chapters
-                for kp in ch.knowledge_points
-            ),
+            sum(len(ch.knowledge_points) for ch in ir.chapters),
+            sum(len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points),
         )
         return ir
 
     # ── PPTX 解析 ────────────────────────────────────────
 
     async def _parse_pptx(
-        self, file_path: str, project_id: Optional[str] = None
+        self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 PPTX 文件。
 
@@ -141,7 +135,6 @@ class DocumentParser:
         - 图片保存到 storage/{project_id}/slides/
         """
         from pptx import Presentation
-        from pptx.util import Emu
 
         logger.info("PPTX 解析: %s", file_path)
         prs = Presentation(file_path)
@@ -170,9 +163,7 @@ class DocumentParser:
             )
 
             # 检测是否为章节分界幻灯片
-            is_chapter_break = any(
-                kw in layout_name for kw in title_layout_keywords
-            )
+            is_chapter_break = any(kw in layout_name for kw in title_layout_keywords)
 
             # 提取标题
             title = ""
@@ -209,12 +200,8 @@ class DocumentParser:
                             f"slide_{page_number}_img_{len(image_paths) + 1}"
                             f".{img_ext}"
                         )
-                        img_path = os.path.join(
-                            slide_img_dir, img_filename
-                        )
-                        os.makedirs(
-                            os.path.dirname(img_path), exist_ok=True
-                        )
+                        img_path = os.path.join(slide_img_dir, img_filename)
+                        os.makedirs(os.path.dirname(img_path), exist_ok=True)
                         with open(img_path, "wb") as f:
                             f.write(image.blob)
                         image_paths.append(img_path)
@@ -240,14 +227,12 @@ class DocumentParser:
             raise ParseException("PPTX 文件中没有幻灯片")
 
         # 构建 IR
-        return self._build_ir_from_slides(
-            slides, Path(file_path).stem, project_id
-        )
+        return self._build_ir_from_slides(slides, Path(file_path).stem, project_id)
 
     # ── PDF 解析 ─────────────────────────────────────────
 
     async def _parse_pdf(
-        self, file_path: str, project_id: Optional[str] = None
+        self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 PDF 文件。
 
@@ -283,9 +268,7 @@ class DocumentParser:
                     if title_detected:
                         title = title_detected
                         # 如果标题是整页唯一内容或占主导 → 章节分界
-                        remaining_text = full_text.replace(
-                            title, "", 1
-                        ).strip()
+                        remaining_text = full_text.replace(title, "", 1).strip()
                         if not remaining_text or len(remaining_text) < 20:
                             is_chapter_break = True
                         body_lines = [remaining_text] if remaining_text else []
@@ -302,15 +285,9 @@ class DocumentParser:
                 image_paths: list[str] = []
                 try:
                     for img_idx, img in enumerate(page.images):
-                        img_filename = (
-                            f"page_{page_number}_img_{img_idx + 1}.png"
-                        )
-                        img_path = os.path.join(
-                            slide_img_dir, img_filename
-                        )
-                        os.makedirs(
-                            os.path.dirname(img_path), exist_ok=True
-                        )
+                        img_filename = f"page_{page_number}_img_{img_idx + 1}.png"
+                        img_path = os.path.join(slide_img_dir, img_filename)
+                        os.makedirs(os.path.dirname(img_path), exist_ok=True)
                         # pdfplumber 的图片对象包含 bbox 信息
                         # 实际图片提取需要 PyMuPDF，这里记录位置信息
                         image_paths.append(img_path)
@@ -329,9 +306,7 @@ class DocumentParser:
                 )
                 slides.append(parsed)
 
-        return self._build_ir_from_slides(
-            slides, Path(file_path).stem, project_id
-        )
+        return self._build_ir_from_slides(slides, Path(file_path).stem, project_id)
 
     def _detect_pdf_title(self, page: "pdfplumber.page.Page") -> str:
         """检测 PDF 页面中的大号标题文本。"""
@@ -341,7 +316,9 @@ class DocumentParser:
                 return ""
 
             # 计算字符大小分布
-            sizes = [float(c.get("size", 0)) for c in chars if c.get("text", "").strip()]
+            sizes = [
+                float(c.get("size", 0)) for c in chars if c.get("text", "").strip()
+            ]
             if not sizes:
                 return ""
 
@@ -352,8 +329,7 @@ class DocumentParser:
             title_chars = [
                 c
                 for c in chars
-                if float(c.get("size", 0)) >= threshold
-                and c.get("text", "").strip()
+                if float(c.get("size", 0)) >= threshold and c.get("text", "").strip()
             ]
 
             if title_chars:
@@ -375,7 +351,7 @@ class DocumentParser:
     # ── DOCX 解析 ────────────────────────────────────────
 
     async def _parse_docx(
-        self, file_path: str, project_id: Optional[str] = None
+        self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 DOCX 文件。
 
@@ -394,14 +370,12 @@ class DocumentParser:
             raise ParseException("DOCX 文件内容为空")
 
         # 将 DOCX 文本按段落切分，映射为 Markdown 风格再走 Markdown 解析
-        return self._build_ir_from_text(
-            raw_text, Path(file_path).stem, project_id
-        )
+        return self._build_ir_from_text(raw_text, Path(file_path).stem, project_id)
 
     # ── Markdown 解析 ────────────────────────────────────
 
     async def _parse_markdown(
-        self, file_path: str, project_id: Optional[str] = None
+        self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 Markdown 文件。
 
@@ -412,20 +386,18 @@ class DocumentParser:
         """
         logger.info("Markdown 解析: %s", file_path)
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         if not content.strip():
             raise ParseException("Markdown 文件内容为空")
 
-        return self._build_ir_from_markdown(
-            content, Path(file_path).stem, project_id
-        )
+        return self._build_ir_from_markdown(content, Path(file_path).stem, project_id)
 
     # ── 纯文本解析 ───────────────────────────────────────
 
     async def _parse_text(
-        self, file_path: str, project_id: Optional[str] = None
+        self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析纯文本文件。
 
@@ -433,15 +405,13 @@ class DocumentParser:
         """
         logger.info("纯文本解析: %s", file_path)
 
-        with open(file_path, "r", encoding="utf-8") as f:
+        with open(file_path, encoding="utf-8") as f:
             content = f.read()
 
         if not content.strip():
             raise ParseException("文本文件内容为空")
 
-        return self._build_ir_from_text(
-            content, Path(file_path).stem, project_id
-        )
+        return self._build_ir_from_text(content, Path(file_path).stem, project_id)
 
     # ── IR 构建辅助方法 ──────────────────────────────────
 
@@ -449,7 +419,7 @@ class DocumentParser:
         self,
         slides: list[ParsedSlide],
         title: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> CourseIR:
         """从解析的幻灯片列表构建 IR。
 
@@ -472,16 +442,12 @@ class DocumentParser:
             ch_title = chapter_title or f"第{chapter_order}章"
 
             # 将幻灯片分组为知识点
-            kps = self._slides_to_knowledge_points(
-                current_chapter_slides
-            )
+            kps = self._slides_to_knowledge_points(current_chapter_slides)
 
             chapter = ChapterIR(
                 title=ch_title,
                 order=chapter_order,
-                source_pages=[
-                    s.page_number for s in current_chapter_slides
-                ],
+                source_pages=[s.page_number for s in current_chapter_slides],
                 knowledge_points=kps,
             )
             chapters.append(chapter)
@@ -616,7 +582,7 @@ class DocumentParser:
         self,
         content: str,
         title: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> CourseIR:
         """从 Markdown 内容构建 IR。
 
@@ -636,7 +602,7 @@ class DocumentParser:
         for match in heading_pattern.finditer(content):
             # 之前未归属的内容
             if last_end == 0 and match.start() > 0:
-                prefix = content[:match.start()].strip()
+                prefix = content[: match.start()].strip()
                 if prefix:
                     sections.append((0, "", prefix))
 
@@ -647,9 +613,9 @@ class DocumentParser:
             # 找到下一个标题或文件末尾之间的内容
             next_match = heading_pattern.search(content, match.end())
             if next_match:
-                body = content[match.end(): next_match.start()].strip()
+                body = content[match.end() : next_match.start()].strip()
             else:
-                body = content[match.end():].strip()
+                body = content[match.end() :].strip()
 
             sections.append((level, heading_title, body))
 
@@ -683,15 +649,11 @@ class DocumentParser:
                 _flush_md_chapter()
                 current_chapter_title = sec_title
                 if body:
-                    kp = self._text_to_knowledge_point(
-                        sec_title or "概述", body
-                    )
+                    kp = self._text_to_knowledge_point(sec_title or "概述", body)
                     current_kps.append(kp)
             elif level == 2:
                 # ## 标题 → 新知识点
-                kp = self._text_to_knowledge_point(
-                    sec_title, body
-                )
+                kp = self._text_to_knowledge_point(sec_title, body)
                 current_kps.append(kp)
             else:
                 # ### 及以下 → 合并到当前知识点
@@ -706,9 +668,7 @@ class DocumentParser:
                         )
                         current_kps[-1].scenes.append(scene)
                 elif body:
-                    kp = self._text_to_knowledge_point(
-                        sec_title, body
-                    )
+                    kp = self._text_to_knowledge_point(sec_title, body)
                     current_kps.append(kp)
 
         _flush_md_chapter()
@@ -723,15 +683,11 @@ class DocumentParser:
         self,
         content: str,
         title: str,
-        project_id: Optional[str] = None,
+        project_id: str | None = None,
     ) -> CourseIR:
         """从纯文本构建 IR — 按段落切分。"""
         # 按双换行分段
-        paragraphs = [
-            p.strip()
-            for p in re.split(r"\n\s*\n", content)
-            if p.strip()
-        ]
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
 
         if not paragraphs:
             raise ParseException("文本内容为空")
@@ -748,9 +704,7 @@ class DocumentParser:
 
         kp = KnowledgePointIR(
             title=title,
-            key_points=[
-                p[:80] for p in paragraphs[:10]
-            ],
+            key_points=[p[:80] for p in paragraphs[:10]],
             scenes=scenes,
         )
 
@@ -762,16 +716,10 @@ class DocumentParser:
 
         return CourseIR(title=title, chapters=[chapter])
 
-    def _text_to_knowledge_point(
-        self, title: str, body: str
-    ) -> KnowledgePointIR:
+    def _text_to_knowledge_point(self, title: str, body: str) -> KnowledgePointIR:
         """将标题+正文转为知识点。"""
         # 按段落拆分为多个场景
-        paragraphs = [
-            p.strip()
-            for p in re.split(r"\n\s*\n", body)
-            if p.strip()
-        ]
+        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
 
         if not paragraphs:
             paragraphs = [body.strip()] if body.strip() else [""]
@@ -813,10 +761,8 @@ class DocumentParser:
             scenes=scenes,
         )
 
-    def _get_slide_dir(self, project_id: Optional[str] = None) -> str:
+    def _get_slide_dir(self, project_id: str | None = None) -> str:
         """获取幻灯片图片存储目录。"""
         if project_id:
-            return os.path.join(
-                self._storage_root, project_id, "slides"
-            )
+            return os.path.join(self._storage_root, project_id, "slides")
         return os.path.join(self._storage_root, "slides")

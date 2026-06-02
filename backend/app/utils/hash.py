@@ -2,10 +2,9 @@
 
 import hashlib
 import json
-from typing import Union
 
 
-def compute_input_hash(data: Union[dict, str, bytes]) -> str:
+def compute_input_hash(data: dict | str | bytes) -> str:
     """计算输入数据的 SHA256 摘要。
 
     用于:

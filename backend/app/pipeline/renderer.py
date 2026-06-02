@@ -8,9 +8,7 @@ logger = logging.getLogger(__name__)
 class SlideRenderer:
     """课件渲染器。"""
 
-    async def render_slide(
-        self, slide_ref: str, output_path: str
-    ) -> str:
+    async def render_slide(self, slide_ref: str, output_path: str) -> str:
         """将课件页渲染为图片/视频底图。
 
         TODO(P1): 实现课件页 → 图片渲染:

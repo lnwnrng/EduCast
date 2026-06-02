@@ -1,7 +1,7 @@
 """Pytest 共享 fixtures。"""
 
 import asyncio
-from typing import AsyncGenerator
+from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
 import pytest
@@ -83,9 +83,7 @@ async def client(
         test_session_factory,
     ):
         transport = ASGITransport(app=app)
-        async with AsyncClient(
-            transport=transport, base_url="http://test"
-        ) as ac:
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
             yield ac
 
     app.dependency_overrides.clear()

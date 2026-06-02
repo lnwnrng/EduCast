@@ -1,7 +1,6 @@
 """Provider 路由器 — 降级链管理与自动切换。"""
 
 import logging
-from typing import Optional
 
 from app.providers.base import BaseProvider, ProviderResult, RoutingStrategy
 
@@ -24,13 +23,11 @@ class ProviderRouter:
 
     async def execute(self, request: dict) -> ProviderResult:
         """执行请求 — 按降级链逐个尝试。"""
-        last_error: Optional[Exception] = None
+        last_error: Exception | None = None
 
         for provider in self._select_providers():
             try:
-                logger.info(
-                    "尝试 Provider: %s", provider.provider_name
-                )
+                logger.info("尝试 Provider: %s", provider.provider_name)
                 task_id = await provider.submit(request)
                 result = await provider.get_result(task_id)
                 logger.info(

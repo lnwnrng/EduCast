@@ -1,6 +1,6 @@
 """项目（课程）模型。"""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from sqlalchemy import String, Text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
@@ -20,7 +20,7 @@ class Project(BaseMixin, Base):
     title: Mapped[str] = mapped_column(String(255))
     subject: Mapped[str] = mapped_column(String(100), default="")
     grade: Mapped[str] = mapped_column(String(50), default="")
-    description: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    description: Mapped[str | None] = mapped_column(Text, nullable=True)
     template: Mapped[str] = mapped_column(String(50), default="micro_lecture")
     status: Mapped[str] = mapped_column(String(20), default="draft")
 

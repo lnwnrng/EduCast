@@ -1,7 +1,6 @@
 """资源 Schema。"""
 
 from datetime import datetime
-from typing import Optional
 from uuid import UUID
 
 from pydantic import BaseModel
@@ -18,8 +17,8 @@ class ResourceResponse(BaseModel):
     title: str
     file_path: str
     file_size: int
-    mime_type: Optional[str] = None
+    mime_type: str | None = None
     version: int
     watermark_applied: bool
     created_at: datetime
-    updated_at: Optional[datetime] = None
+    updated_at: datetime | None = None

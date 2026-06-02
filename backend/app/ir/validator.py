@@ -23,9 +23,7 @@ def validate_ir(ir: CourseIR) -> list[str]:
             errors.append(f"章节 #{ch_idx + 1} 标题不能为空")
 
         if not chapter.knowledge_points:
-            errors.append(
-                f"章节 '{chapter.title}' 至少包含一个知识点"
-            )
+            errors.append(f"章节 '{chapter.title}' 至少包含一个知识点")
             continue
 
         for kp_idx, kp in enumerate(chapter.knowledge_points):
@@ -35,9 +33,7 @@ def validate_ir(ir: CourseIR) -> list[str]:
                 )
 
             if not kp.scenes:
-                errors.append(
-                    f"知识点 '{kp.title}' 至少包含一个分镜"
-                )
+                errors.append(f"知识点 '{kp.title}' 至少包含一个分镜")
                 continue
 
             # 校验分镜序号连续性
@@ -52,9 +48,7 @@ def validate_ir(ir: CourseIR) -> list[str]:
 
                 # 校验分镜内容
                 if not scene.narration_text:
-                    errors.append(
-                        f"分镜 '{scene.scene_id}' 旁白文本不能为空"
-                    )
+                    errors.append(f"分镜 '{scene.scene_id}' 旁白文本不能为空")
 
                 # 校验画面规格与类型匹配
                 if (

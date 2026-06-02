@@ -11,17 +11,13 @@
   - IR 构建: slide → scene 映射
 """
 
-import os
-import tempfile
 from pathlib import Path
 
 import pytest
-import pytest_asyncio
 
 from app.exceptions import ParseException
 from app.ir.schema import CourseIR, SceneType
 from app.pipeline.parser import DocumentParser, ParsedSlide
-
 
 # ── 测试 fixtures ────────────────────────────────────────
 
@@ -36,7 +32,6 @@ def parser(tmp_path: Path) -> DocumentParser:
 def sample_pptx(tmp_path: Path) -> str:
     """创建一个包含 3 页的测试 PPTX 文件。"""
     from pptx import Presentation
-    from pptx.util import Inches
 
     prs = Presentation()
 
@@ -226,9 +221,7 @@ class TestPPTXParser:
 
         # 至少应该有场景
         total_scenes = sum(
-            len(kp.scenes)
-            for ch in ir.chapters
-            for kp in ch.knowledge_points
+            len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points
         )
         assert total_scenes >= 1
 
@@ -272,9 +265,7 @@ class TestPPTXParser:
         assert isinstance(ir, CourseIR)
         assert len(ir.chapters) >= 1
         total_scenes = sum(
-            len(kp.scenes)
-            for ch in ir.chapters
-            for kp in ch.knowledge_points
+            len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points
         )
         assert total_scenes >= 1
 
@@ -339,11 +330,7 @@ class TestMarkdownParser:
         """Markdown ## 标题应映射为知识点。"""
         ir = await parser.parse(sample_markdown, ".md")
 
-        kp_titles = [
-            kp.title
-            for ch in ir.chapters
-            for kp in ch.knowledge_points
-        ]
+        kp_titles = [kp.title for ch in ir.chapters for kp in ch.knowledge_points]
         assert any("数组" in t for t in kp_titles)
         assert any("链表" in t for t in kp_titles)
 
@@ -399,9 +386,7 @@ class TestTextParser:
         ir = await parser.parse(sample_text, ".txt")
 
         total_scenes = sum(
-            len(kp.scenes)
-            for ch in ir.chapters
-            for kp in ch.knowledge_points
+            len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points
         )
         # 多个段落 → 多个场景
         assert total_scenes >= 2
@@ -443,17 +428,13 @@ class TestErrorHandling:
     """解析器错误处理测试。"""
 
     @pytest.mark.asyncio
-    async def test_unsupported_extension(
-        self, parser: DocumentParser
-    ) -> None:
+    async def test_unsupported_extension(self, parser: DocumentParser) -> None:
         """不支持的文件类型应抛出 ParseException。"""
         with pytest.raises(ParseException, match="不支持的文件类型"):
             await parser.parse("test.xyz", ".xyz")
 
     @pytest.mark.asyncio
-    async def test_file_not_found(
-        self, parser: DocumentParser
-    ) -> None:
+    async def test_file_not_found(self, parser: DocumentParser) -> None:
         """文件不存在应抛出 ParseException。"""
         with pytest.raises(ParseException, match="文件不存在"):
             await parser.parse("/nonexistent/file.pptx", ".pptx")

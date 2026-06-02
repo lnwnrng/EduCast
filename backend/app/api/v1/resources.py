@@ -1,6 +1,5 @@
 """资源管理 API。"""
 
-from typing import Optional
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, Query
@@ -14,12 +13,10 @@ from app.services.resource_service import ResourceService
 router = APIRouter(prefix="/resources", tags=["资源管理"])
 
 
-@router.get(
-    "/", response_model=PaginatedResponse[ResourceResponse]
-)
+@router.get("/", response_model=PaginatedResponse[ResourceResponse])
 async def list_resources(
-    project_id: Optional[UUID] = None,
-    resource_type: Optional[str] = None,
+    project_id: UUID | None = None,
+    resource_type: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -29,32 +26,24 @@ async def list_resources(
         db, project_id, resource_type, page, page_size
     )
     return PaginatedResponse(
-        items=[
-            ResourceResponse.model_validate(r) for r in resources
-        ],
+        items=[ResourceResponse.model_validate(r) for r in resources],
         total=total,
         page=page,
         page_size=page_size,
     )
 
 
-@router.get(
-    "/{resource_id}", response_model=ResourceResponse
-)
+@router.get("/{resource_id}", response_model=ResourceResponse)
 async def get_resource(
     resource_id: UUID,
     db: AsyncSession = Depends(get_db),
 ) -> ResourceResponse:
     """获取资源详情。"""
-    resource = await ResourceService.get_resource(
-        db, resource_id
-    )
+    resource = await ResourceService.get_resource(db, resource_id)
     return ResourceResponse.model_validate(resource)
 
 
-@router.delete(
-    "/{resource_id}", response_model=SuccessResponse
-)
+@router.delete("/{resource_id}", response_model=SuccessResponse)
 async def delete_resource(
     resource_id: UUID,
     db: AsyncSession = Depends(get_db),

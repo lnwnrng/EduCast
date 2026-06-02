@@ -32,7 +32,7 @@ const Projects: React.FC = () => {
         pageSize: resp.data.page_size,
         total: resp.data.total,
       });
-    } catch (err) {
+    } catch {
       message.error('获取项目列表失败');
     } finally {
       setLoading(false);
@@ -43,7 +43,10 @@ const Projects: React.FC = () => {
     fetchProjects();
   }, []);
 
-  const handleTableChange = (newPagination: any) => {
+  const handleTableChange = (newPagination: {
+    current?: number;
+    pageSize?: number;
+  }) => {
     fetchProjects(newPagination.current, newPagination.pageSize);
   };
 
@@ -52,7 +55,7 @@ const Projects: React.FC = () => {
       await deleteProject(id);
       message.success('删除成功');
       fetchProjects(pagination.current, pagination.pageSize);
-    } catch (err) {
+    } catch {
       message.error('删除失败');
     }
   };
@@ -108,7 +111,7 @@ const Projects: React.FC = () => {
     {
       title: '操作',
       key: 'actions',
-      render: (_: any, record: Project) => {
+      render: (_: unknown, record: Project) => {
         return (
           <Space>
             <Button

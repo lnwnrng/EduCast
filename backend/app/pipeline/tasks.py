@@ -1,7 +1,8 @@
 """流水线任务编排 — 全流程异步任务管理。
 
 任务状态机:
-    PENDING → PARSING → SCRIPTING → REVIEWING → GENERATING → COMPOSING → COMPLETED / FAILED
+    PENDING → PARSING → SCRIPTING → REVIEWING
+    → GENERATING → COMPOSING → COMPLETED / FAILED
 
 P1 阶段使用 FastAPI BackgroundTasks，后续可迁移至 Celery。
 """
@@ -32,9 +33,7 @@ async def run_full_pipeline(
 
     TODO(P1): 完整实现各阶段逻辑
     """
-    logger.info(
-        "启动全流程流水线: task=%s, project=%s", task_id, project_id
-    )
+    logger.info("启动全流程流水线: task=%s, project=%s", task_id, project_id)
 
     try:
         # ── 1. PARSING ───────────────────────────────────
@@ -68,9 +67,7 @@ async def run_full_pipeline(
 
     except Exception as exc:
         logger.error("[%s] 流水线失败: %s", task_id, exc)
-        await _update_task_status(
-            db, task_id, "failed", -1, str(exc)
-        )
+        await _update_task_status(db, task_id, "failed", -1, str(exc))
 
 
 async def _update_task_status(

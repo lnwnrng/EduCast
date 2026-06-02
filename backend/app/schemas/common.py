@@ -1,6 +1,6 @@
 """通用 Pydantic v2 响应 Schema。"""
 
-from typing import Any, Generic, Optional, TypeVar
+from typing import Any, Generic, TypeVar
 
 from pydantic import BaseModel, Field
 
@@ -20,11 +20,11 @@ class ErrorResponse(BaseModel):
     """统一错误响应。"""
 
     detail: str = Field(description="错误描述")
-    error_code: Optional[str] = Field(default=None, description="错误码")
+    error_code: str | None = Field(default=None, description="错误码")
 
 
 class SuccessResponse(BaseModel):
     """通用成功响应。"""
 
     message: str = Field(description="成功消息")
-    data: Optional[Any] = Field(default=None, description="附加数据")
+    data: Any | None = Field(default=None, description="附加数据")
