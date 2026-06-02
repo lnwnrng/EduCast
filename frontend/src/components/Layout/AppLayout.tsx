@@ -128,14 +128,15 @@ const AppLayout: React.FC = () => {
             智能教学视频生产平台
           </Title>
         </Header>
-        <Content style={{ margin: 24, overflow: 'auto' }}>
+        <Content style={{ padding: '0 24px 24px 24px' }}>
           <div
             style={{
               padding: 24,
               background: '#fff',
               borderRadius: 24,
               boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-              minHeight: 'calc(100vh - 160px)',
+              height: 'calc(100vh - 152px)',
+              overflow: 'auto',
             }}
           >
             <Outlet />

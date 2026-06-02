@@ -32,15 +32,7 @@ a {
   min-height: 100vh;
 }
 
-.ant-layout-sider {
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.05);
-}
 
-.ant-layout-content {
-  padding: 24px;
-  margin: 0;
-  min-height: 280px;
-}
 
 /* 页面过渡 */
 .page-enter {
