@@ -17,6 +17,7 @@ import {
   Tag,
   Typography,
   message,
+  Table,
 } from 'antd';
 import {
   CheckOutlined,
@@ -41,6 +42,7 @@ import {
   updateScript,
 } from '../../api/scripts';
 import type { CourseIR, ChapterIR, KnowledgePointIR, SceneIR } from '../../types/ir';
+import type { Project } from '../../types/project';
 
 const { TextArea } = Input;
 const { Text, Title } = Typography;
@@ -82,6 +84,8 @@ const ScriptEditor: React.FC = () => {
   const [saving, setSaving] = useState(false);
   const [ir, setIR] = useState<CourseIR | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projectsList, setProjectsList] = useState<Project[]>([]);
+  const [listPagination, setListPagination] = useState({ current: 1, pageSize: 10, total: 0 });
 
   // 当前选中的分镜
   const [selectedScene, setSelectedScene] = useState<{
@@ -92,35 +96,35 @@ const ScriptEditor: React.FC = () => {
 
   const navigate = useNavigate();
 
-  // ── 加载 IR ────────────────────────────────────────────
+  // ── 加载数据 ────────────────────────────────────────────
   useEffect(() => {
+    if (!projectId) {
+      // 没提供 ID，则加载项目列表
+      const fetchList = async (page = 1, pageSize = 10) => {
+        setLoading(true);
+        try {
+          const resp = await getProjects(page, pageSize);
+          setProjectsList(resp.data.items);
+          setListPagination({
+            current: resp.data.page,
+            pageSize: resp.data.page_size,
+            total: resp.data.total,
+          });
+        } catch {
+          setError('获取脚本列表失败');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchList();
+      return;
+    }
+
+    // 提供了 ID，则加载具体脚本
     const loadIR = async () => {
       setLoading(true);
-
-      let targetProjectId = projectId;
-      
-      // 如果没有指定 projectId (比如从侧边栏点击进入)，则尝试获取最新项目
-      if (!targetProjectId) {
-        try {
-          const resp = await getProjects(1, 1);
-          if (resp.data.items && resp.data.items.length > 0) {
-            targetProjectId = resp.data.items[0].id;
-            navigate(`/projects/${targetProjectId}/script`, { replace: true });
-            return; // 导航后组件会重新渲染，这里直接返回
-          }
-        } catch {
-          // 获取项目列表失败，静默处理，走下面的 error 逻辑
-        }
-      }
-
-      if (!targetProjectId) {
-        setLoading(false);
-        setError('暂无项目记录，请先在「上传课件」页面上传');
-        return;
-      }
-
       try {
-        const resp = await getScript(targetProjectId);
+        const resp = await getScript(projectId);
         setIR(resp.data.ir);
         // 默认选中第一个分镜
         if (resp.data.ir.chapters.length > 0) {
@@ -140,7 +144,7 @@ const ScriptEditor: React.FC = () => {
     };
 
     loadIR();
-  }, [projectId, navigate]);
+  }, [projectId]);
 
   // ── 获取当前选中的分镜 ────────────────────────────────
   const currentScene: SceneIR | null =
@@ -229,11 +233,86 @@ const ScriptEditor: React.FC = () => {
     );
   }
 
-  if (error || !ir) {
+  if (error || (!projectId && projectsList.length === 0) || (projectId && !ir)) {
     return (
       <div>
-        <PageHeader title="脚本编辑器" subtitle="编辑分镜脚本与讲稿" />
+        <PageHeader title="脚本编辑器" subtitle={projectId ? "编辑分镜脚本与讲稿" : "选择需要编辑脚本的项目"} />
         <Empty description={error || '暂无脚本数据，请先上传课件'} />
+      </div>
+    );
+  }
+
+  // ── 如果未指定 projectId，渲染列表页面 ──────────────────
+  if (!projectId) {
+    const columns = [
+      {
+        title: '课程名称',
+        dataIndex: 'title',
+        key: 'title',
+        render: (text: string) => <Text strong>{text || '未命名课程'}</Text>,
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        key: 'status',
+        render: (status: string) => {
+          if (status === 'reviewing') return <Tag color="warning">待审核 (可编辑)</Tag>;
+          if (status === 'scripting') return <Tag color="processing">编排中</Tag>;
+          if (['generating', 'composing', 'completed'].includes(status)) return <Tag color="success">已审核</Tag>;
+          return <Tag color="default">{status}</Tag>;
+        }
+      },
+      {
+        title: '创建时间',
+        dataIndex: 'created_at',
+        key: 'created_at',
+        render: (text: string) => new Date(text).toLocaleString(),
+      },
+      {
+        title: '操作',
+        key: 'actions',
+        render: (_: any, record: Project) => (
+          <Button
+            type="primary"
+            size="small"
+            icon={<EditOutlined />}
+            onClick={() => navigate(`/projects/${record.id}/script`)}
+          >
+            编辑脚本
+          </Button>
+        )
+      }
+    ];
+
+    const fetchList = async (page: number, pageSize: number) => {
+      setLoading(true);
+      try {
+        const resp = await getProjects(page, pageSize);
+        setProjectsList(resp.data.items);
+        setListPagination({
+          current: resp.data.page,
+          pageSize: resp.data.page_size,
+          total: resp.data.total,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div>
+        <PageHeader title="脚本编辑器" subtitle="选择需要编辑脚本的项目" />
+        <Card>
+          <Table
+            columns={columns}
+            dataSource={projectsList}
+            rowKey="id"
+            loading={loading}
+            pagination={listPagination}
+            onChange={(pag) => fetchList(pag.current || 1, pag.pageSize || 10)}
+            locale={{ emptyText: <Text type="secondary">暂无脚本记录</Text> }}
+          />
+        </Card>
       </div>
     );
   }
@@ -250,8 +329,8 @@ const ScriptEditor: React.FC = () => {
         }
         extra={
           <Space>
-            <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/projects')}>
-              返回项目列表
+            <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/script')}>
+              返回列表
             </Button>
             <Button
               icon={<SaveOutlined />}

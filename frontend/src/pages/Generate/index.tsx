@@ -1,12 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Steps, Progress, Empty } from 'antd';
-import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined } from '@ant-design/icons';
+import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Steps, Progress, Empty, Table, Tag } from 'antd';
+import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined, VideoCameraOutlined, EditOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getProject, getProjects } from '../../api/projects';
 import { approveScript } from '../../api/scripts';
 import { getTask } from '../../api/tasks';
 import type { Task, TaskStatus } from '../../types/task';
+import type { Project } from '../../types/project';
 
 const { Title, Text } = Typography;
 
@@ -18,6 +19,8 @@ const GeneratePage: React.FC = () => {
   const [submitting, setSubmitting] = useState(false);
   const [project, setProject] = useState<any>(null);
   const [error, setError] = useState<string | null>(null);
+  const [projectsList, setProjectsList] = useState<Project[]>([]);
+  const [listPagination, setListPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   
   // Status and Polling
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
@@ -25,39 +28,32 @@ const GeneratePage: React.FC = () => {
   const [taskId, setTaskId] = useState<string | null>(null);
 
   useEffect(() => {
+    if (!projectId) {
+      const fetchList = async (page = 1, pageSize = 10) => {
+        setLoading(true);
+        try {
+          const resp = await getProjects(page, pageSize);
+          setProjectsList(resp.data.items);
+          setListPagination({
+            current: resp.data.page,
+            pageSize: resp.data.page_size,
+            total: resp.data.total,
+          });
+        } catch {
+          setError('获取项目列表失败');
+        } finally {
+          setLoading(false);
+        }
+      };
+      fetchList();
+      return;
+    }
+
     const fetchProject = async () => {
       setLoading(true);
-      let targetProjectId = projectId;
-      
-      if (!targetProjectId) {
-        try {
-          const resp = await getProjects(1, 1);
-          if (resp.data.items && resp.data.items.length > 0) {
-            targetProjectId = resp.data.items[0].id;
-            navigate(`/projects/${targetProjectId}/generate`, { replace: true });
-            return;
-          }
-        } catch {
-          // ignore
-        }
-      }
-
-      if (!targetProjectId) {
-        setLoading(false);
-        setError('暂无项目记录，请先在「上传课件」页面上传');
-        return;
-      }
-
       try {
-        const resp = await getProject(targetProjectId);
+        const resp = await getProject(projectId);
         setProject(resp.data);
-        
-        // If it's already generating, composing or completed, fetch its task
-        if (['generating', 'composing', 'completed', 'failed'].includes(resp.data.status)) {
-          // Typically we would get taskId from project or active task endpoint,
-          // for MVP we can check if we have it or start polling recent tasks.
-          // In a real scenario, the backend might return the active task ID with the project.
-        }
       } catch (err) {
         setError('加载项目失败');
       } finally {
@@ -65,7 +61,7 @@ const GeneratePage: React.FC = () => {
       }
     };
     fetchProject();
-  }, [projectId, navigate]);
+  }, [projectId]);
 
   const handleStartGeneration = async (values: any) => {
     if (!projectId) return;
@@ -101,11 +97,86 @@ const GeneratePage: React.FC = () => {
     );
   }
 
-  if (error || !project) {
+  if (error || (!projectId && projectsList.length === 0) || (projectId && !project)) {
     return (
       <div>
-        <PageHeader title="配置视频生成" subtitle="设置生成参数以渲染视频" />
+        <PageHeader title="视频生成" subtitle={projectId ? "设置生成参数以渲染视频" : "选择需要生成视频的项目"} />
         <Empty description={error || '暂无项目数据，请先上传课件'} />
+      </div>
+    );
+  }
+
+  // ── 如果未指定 projectId，渲染列表页面 ──────────────────
+  if (!projectId) {
+    const columns = [
+      {
+        title: '课程名称',
+        dataIndex: 'title',
+        key: 'title',
+        render: (text: string) => <Text strong>{text || '未命名课程'}</Text>,
+      },
+      {
+        title: '状态',
+        dataIndex: 'status',
+        key: 'status',
+        render: (status: string) => {
+          if (['reviewing', 'scripting', 'parsing'].includes(status)) return <Tag color="warning">待生成</Tag>;
+          if (['generating', 'composing'].includes(status)) return <Tag color="processing">生成中</Tag>;
+          if (status === 'completed') return <Tag color="success">已完成</Tag>;
+          return <Tag color="default">{status}</Tag>;
+        }
+      },
+      {
+        title: '创建时间',
+        dataIndex: 'created_at',
+        key: 'created_at',
+        render: (text: string) => new Date(text).toLocaleString(),
+      },
+      {
+        title: '操作',
+        key: 'actions',
+        render: (_: any, record: Project) => (
+          <Button
+            type="primary"
+            size="small"
+            icon={<VideoCameraOutlined />}
+            onClick={() => navigate(`/projects/${record.id}/generate`)}
+          >
+            {['generating', 'composing', 'completed'].includes(record.status) ? '查看生成结果' : '配置生成'}
+          </Button>
+        )
+      }
+    ];
+
+    const fetchList = async (page: number, pageSize: number) => {
+      setLoading(true);
+      try {
+        const resp = await getProjects(page, pageSize);
+        setProjectsList(resp.data.items);
+        setListPagination({
+          current: resp.data.page,
+          pageSize: resp.data.page_size,
+          total: resp.data.total,
+        });
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    return (
+      <div>
+        <PageHeader title="视频生成" subtitle="选择需要生成视频的项目" />
+        <Card>
+          <Table
+            columns={columns}
+            dataSource={projectsList}
+            rowKey="id"
+            loading={loading}
+            pagination={listPagination}
+            onChange={(pag) => fetchList(pag.current || 1, pag.pageSize || 10)}
+            locale={{ emptyText: <Text type="secondary">暂无项目记录</Text> }}
+          />
+        </Card>
       </div>
     );
   }
@@ -117,7 +188,7 @@ const GeneratePage: React.FC = () => {
          <PageHeader
           title="生成进度"
           subtitle={project.title}
-          extra={<Button onClick={() => navigate('/projects')}>返回列表</Button>}
+          extra={<Button onClick={() => navigate('/generate')}>返回列表</Button>}
         />
         <Card>
           <div style={{ textAlign: 'center', padding: '40px 0' }}>
@@ -150,7 +221,7 @@ const GeneratePage: React.FC = () => {
       <PageHeader
         title="配置视频生成"
         subtitle={project?.title || '未命名课程'}
-        extra={<Button onClick={() => navigate('/projects')}>返回列表</Button>}
+        extra={<Button onClick={() => navigate('/generate')}>返回列表</Button>}
       />
 
       <Card title="生成参数设置" style={{ maxWidth: 800, margin: '0 auto' }}>
