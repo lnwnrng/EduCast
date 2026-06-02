@@ -50,10 +50,11 @@
 - [x] **单元测试与集成测试 (73 tests all passing)**：覆盖 IR Schema、IR 校验器、四种解析器、解析服务 IR 持久化、上传 API、脚本 API。
 - [x] **前端交互**：完善 Upload 页面（三步向导：上传→解析轮询→结果校对），ScriptEditor 页面（加载真实 IR、章节/知识点/分镜树形浏览、分镜编辑表单、保存/审核），新增 upload.ts / scripts.ts API 层。
 
-### 模块二：大模型脚本编排 (LLM Scriptwriter Module)
-- [ ] **LLM Provider 接入 (`providers/llm/zhipu.py`)**：使用智谱 GLM-4-Flash API，实现 `generate_script` 接口封装。
-- [ ] **编排逻辑 (`pipeline/scriptwriter.py`)**：编写结构化 Prompt，将第一版 IR 输入给大模型，生成包含分镜（数字人/课件页/生成式画面）、口播讲稿、字幕文本及时间预估的详细版 IR。
-- [ ] **前端审核**：在 `ScriptEditor` 页面完整渲染 IR 数据，允许教师进行图文、口播词及画面类型的二次调整并保存。
+### 模块二：大模型脚本编排 (LLM Scriptwriter Module) ✅
+- [x] **LLM Provider 接入 (`providers/llm/zhipu.py`)**：用 httpx 接入智谱 **GLM-4.7-Flash**（免费档）chat/completions，实现 `chat()`（关闭混合思考、可选 JSON 输出）与统一 Provider 接口；`providers/llm/__init__.py` 提供 `get_llm_provider()` 工厂（无 Key 返回 None 以降级）。`ProviderResult` 扩展 `content`/token 字段；新增配置 `ZHIPU_MODEL`/`ZHIPU_BASE_URL`/`LLM_TIMEOUT`。
+- [x] **编排逻辑 (`pipeline/scriptwriter.py`)**：逐知识点构造结构化 Prompt → 调用 LLM → 健壮 `extract_json`（`utils/json_parse.py`）解析 → 按 order **就地合并**回 IR（保留 scene_id/slide_ref/来源页）。产出：口语化讲稿、精炼字幕、画面类型重判、生成式 `gen_prompt`、公式 `latex_steps`、知识点标签、随堂练习题、课程元信息推断。含单点失败/无 Key 的降级兜底。`services/scriptwriter_service.py` 协调任务状态与 IR 版本；**上传解析后自动接续编排**（`upload.py`），并提供手动「重新编排」端点（`scripts.py: generate_script` 返回 task_id 供轮询）。
+- [x] **前端审核**：`ScriptEditor` 新增「AI 重新编排」按钮（触发+轮询+重载）、课程元信息标签、生成式提示词编辑、公式步骤展示、随堂练习题区块。
+- 测试：新增 `test_json_parse` / `test_scriptwriter`（注入 FakeLLM）/ `test_zhipu_provider`（httpx MockTransport），后端 **89 tests 全通过**，前端 vite 构建通过。
 
 ### 模块三：基础渲染与合成 (Renderer & Composer Module)
 - [ ] **TTS 配音生成 (`providers/tts/edge_tts_provider.py`)**：解析 IR 中的 `narration_text`，批量请求 Edge-TTS 生成音频，并获取时长。

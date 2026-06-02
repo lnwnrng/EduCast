@@ -1,6 +1,5 @@
-import React, { useCallback, useEffect, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
-  Alert,
   Badge,
   Button,
   Card,
@@ -20,7 +19,6 @@ import {
   Table,
 } from 'antd';
 import {
-  CheckOutlined,
   EditOutlined,
   ExperimentOutlined,
   FileImageOutlined,
@@ -37,11 +35,12 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getProjects } from '../../api/projects';
 import {
-  approveScript,
+  generateScript,
   getScript,
   updateScript,
 } from '../../api/scripts';
-import type { CourseIR, ChapterIR, KnowledgePointIR, SceneIR } from '../../types/ir';
+import { getTask } from '../../api/tasks';
+import type { CourseIR, KnowledgePointIR, SceneIR } from '../../types/ir';
 import type { Project } from '../../types/project';
 
 const { TextArea } = Input;
@@ -82,6 +81,8 @@ const ScriptEditor: React.FC = () => {
   // ── State ──────────────────────────────────────────────
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [orchestrating, setOrchestrating] = useState(false);
+  const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
   const [ir, setIR] = useState<CourseIR | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [projectsList, setProjectsList] = useState<Project[]>([]);
@@ -165,7 +166,24 @@ const ScriptEditor: React.FC = () => {
           selectedScene.kpIdx
         ].scenes[selectedScene.sceneIdx];
 
-      (scene as Record<string, unknown>)[field] = value;
+      (scene as unknown as Record<string, unknown>)[field] = value;
+      setIR(newIR);
+    },
+    [ir, selectedScene]
+  );
+
+  // ── 更新分镜画面规格字段（嵌套 visual_spec）──────────
+  const updateVisualSpecField = useCallback(
+    (field: string, value: string) => {
+      if (!ir || !selectedScene) return;
+
+      const newIR = structuredClone(ir);
+      const scene =
+        newIR.chapters[selectedScene.chapterIdx].knowledge_points[
+          selectedScene.kpIdx
+        ].scenes[selectedScene.sceneIdx];
+
+      (scene.visual_spec as unknown as Record<string, unknown>)[field] = value;
       setIR(newIR);
     },
     [ir, selectedScene]
@@ -190,16 +208,75 @@ const ScriptEditor: React.FC = () => {
     }
   }, [ir, projectId]);
 
-  // ── 审核通过 ──────────────────────────────────────────
-  const handleApprove = useCallback(async () => {
+  // ── 清理轮询 ──────────────────────────────────────────
+  useEffect(() => {
+    return () => {
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+    };
+  }, []);
+
+  // ── 重新加载 IR ───────────────────────────────────────
+  const reloadIR = useCallback(async () => {
     if (!projectId) return;
     try {
-      await approveScript(projectId);
-      message.success('脚本审核通过');
+      const resp = await getScript(projectId);
+      setIR(resp.data.ir);
     } catch {
-      message.error('审核操作失败');
+      message.error('重新加载脚本失败');
     }
   }, [projectId]);
+
+  // ── AI 重新编排（手动触发 GLM 编排 + 轮询 + 重载）────────
+  const handleReorchestrate = useCallback(async () => {
+    if (!projectId) return;
+    setOrchestrating(true);
+    try {
+      const resp = await generateScript(projectId);
+      const taskId: string | undefined = resp.data?.data?.task_id;
+      if (!taskId) {
+        setOrchestrating(false);
+        message.error('未能创建编排任务');
+        return;
+      }
+      message.info('AI 正在重新编排讲稿，请稍候...');
+
+      if (pollingRef.current) {
+        clearInterval(pollingRef.current);
+      }
+      const poll = async () => {
+        try {
+          const t = await getTask(taskId);
+          const status = t.data.status;
+          if (
+            status === 'reviewing' ||
+            status === 'completed' ||
+            status === 'failed'
+          ) {
+            if (pollingRef.current) {
+              clearInterval(pollingRef.current);
+              pollingRef.current = null;
+            }
+            setOrchestrating(false);
+            if (status === 'failed') {
+              message.error('AI 编排失败，请重试');
+            } else {
+              await reloadIR();
+              message.success('AI 编排完成，已更新脚本');
+            }
+          }
+        } catch {
+          // 轮询出错，静默处理（下次重试）
+        }
+      };
+      poll();
+      pollingRef.current = setInterval(poll, 2000);
+    } catch {
+      message.error('触发编排失败');
+      setOrchestrating(false);
+    }
+  }, [projectId, reloadIR]);
 
   // ── 统计 ──────────────────────────────────────────────
   const stats = ir
@@ -271,7 +348,7 @@ const ScriptEditor: React.FC = () => {
       {
         title: '操作',
         key: 'actions',
-        render: (_: any, record: Project) => (
+        render: (_: unknown, record: Project) => (
           <Button
             type="link"
             size="small"
@@ -318,6 +395,8 @@ const ScriptEditor: React.FC = () => {
   }
 
   // ── 渲染 ──────────────────────────────────────────────
+  if (!ir) return null;
+
   return (
     <div>
       <PageHeader
@@ -331,6 +410,13 @@ const ScriptEditor: React.FC = () => {
           <Space>
             <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/script')}>
               返回列表
+            </Button>
+            <Button
+              icon={<RobotOutlined />}
+              loading={orchestrating}
+              onClick={handleReorchestrate}
+            >
+              AI 重新编排
             </Button>
             <Button
               icon={<SaveOutlined />}
@@ -349,6 +435,16 @@ const ScriptEditor: React.FC = () => {
           </Space>
         }
       />
+
+      {(ir.subject || ir.grade || ir.target_audience) && (
+        <Space wrap style={{ marginBottom: 16 }}>
+          {ir.subject && <Tag color="blue">学科：{ir.subject}</Tag>}
+          {ir.grade && <Tag color="green">年级：{ir.grade}</Tag>}
+          {ir.target_audience && (
+            <Tag color="purple">受众：{ir.target_audience}</Tag>
+          )}
+        </Space>
+      )}
 
       <Row gutter={16}>
         {/* ── 左侧: 分镜列表 ─────────────────────────── */}
@@ -510,6 +606,36 @@ const ScriptEditor: React.FC = () => {
                   />
                 </Form.Item>
 
+                {currentScene.scene_type === 'generative_clip' && (
+                  <Form.Item label="生成式画面提示词">
+                    <TextArea
+                      value={currentScene.visual_spec?.gen_prompt || ''}
+                      rows={2}
+                      placeholder="描述要生成的画面，如：数学课堂、简洁、粉笔风格"
+                      onChange={(e) =>
+                        updateVisualSpecField('gen_prompt', e.target.value)
+                      }
+                      showCount
+                    />
+                  </Form.Item>
+                )}
+
+                {currentScene.scene_type === 'formula_animation' &&
+                  (currentScene.visual_spec?.latex_steps?.length ?? 0) > 0 && (
+                    <Form.Item label="公式推导步骤 (LaTeX)">
+                      <Space direction="vertical" style={{ width: '100%' }}>
+                        {currentScene.visual_spec.latex_steps.map((step, i) => (
+                          <Input
+                            key={i}
+                            value={step}
+                            disabled
+                            prefix={<FunctionOutlined />}
+                          />
+                        ))}
+                      </Space>
+                    </Form.Item>
+                  )}
+
                 {currentScene.visual_spec?.slide_ref && (
                   <Form.Item label="课件页引用">
                     <Input
@@ -556,6 +682,80 @@ const ScriptEditor: React.FC = () => {
           )}
         </Col>
       </Row>
+
+      {(() => {
+        const kpsWithQuiz: KnowledgePointIR[] = [];
+        ir.chapters.forEach((ch) =>
+          ch.knowledge_points.forEach((kp) => {
+            if (kp.quiz_seeds && kp.quiz_seeds.length > 0) {
+              kpsWithQuiz.push(kp);
+            }
+          })
+        );
+        if (kpsWithQuiz.length === 0) return null;
+
+        return (
+          <Card
+            title={
+              <Space>
+                <ExperimentOutlined />
+                <span>随堂练习题</span>
+                <Badge
+                  count={kpsWithQuiz.reduce(
+                    (s, kp) => s + kp.quiz_seeds.length,
+                    0
+                  )}
+                  style={{ backgroundColor: '#722ed1' }}
+                />
+              </Space>
+            }
+            size="small"
+            style={{ marginTop: 16 }}
+          >
+            <Collapse ghost>
+              {kpsWithQuiz.map((kp) => (
+                <Collapse.Panel
+                  key={kp.kp_id}
+                  header={
+                    <Text strong>
+                      {kp.title}（{kp.quiz_seeds.length} 题）
+                    </Text>
+                  }
+                >
+                  <List
+                    size="small"
+                    dataSource={kp.quiz_seeds}
+                    renderItem={(q, i) => (
+                      <List.Item>
+                        <div style={{ width: '100%' }}>
+                          <Space align="start">
+                            <Text strong>
+                              {i + 1}. {q.question}
+                            </Text>
+                            <Tag color="purple">{q.question_type}</Tag>
+                          </Space>
+                          {q.answer && (
+                            <div style={{ marginTop: 4 }}>
+                              <Text type="secondary">答案：{q.answer}</Text>
+                            </div>
+                          )}
+                          {q.explanation && (
+                            <div style={{ marginTop: 2 }}>
+                              <Text type="secondary">
+                                解析：{q.explanation}
+                              </Text>
+                            </div>
+                          )}
+                        </div>
+                      </List.Item>
+                    )}
+                  />
+                </Collapse.Panel>
+              ))}
+            </Collapse>
+          </Card>
+        );
+      })()}
     </div>
   );
 };

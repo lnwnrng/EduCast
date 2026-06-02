@@ -9,19 +9,39 @@
 
 from uuid import UUID
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, BackgroundTasks, Depends
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.database import async_session_factory
 from app.exceptions import ResourceNotFoundException
 from app.ir.schema import CourseIR
 from app.ir.validator import validate_ir
+from app.models.task import Task
 from app.schemas.common import SuccessResponse
 from app.services.parser_service import ParserService
+from app.services.scriptwriter_service import ScriptwriterService
 
 router = APIRouter(prefix="/scripts", tags=["脚本管理"])
 
 _parser_service = ParserService()
+
+
+async def _run_orchestrate_in_background(
+    project_id: str,
+    task_id: str,
+) -> None:
+    """后台执行 LLM 脚本编排（独立 DB session）。"""
+    async with async_session_factory() as db:
+        try:
+            await ScriptwriterService().orchestrate(
+                project_id=project_id,
+                task_id=task_id,
+                db=db,
+            )
+        except Exception:
+            # orchestrate 内部已处理错误状态更新
+            pass
 
 
 @router.get("/projects/{project_id}/script")
@@ -35,9 +55,7 @@ async def get_script(
     """
     ir = await _parser_service.load_ir(str(project_id))
     if ir is None:
-        raise ResourceNotFoundException(
-            f"项目 {project_id} 尚未生成 IR 脚本"
-        )
+        raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR 脚本")
     return {
         "project_id": str(project_id),
         "ir": ir.model_dump(),
@@ -58,9 +76,7 @@ async def update_script(
     try:
         ir = CourseIR.model_validate(ir_data)
     except Exception as exc:
-        raise ResourceNotFoundException(
-            f"IR 数据格式错误: {exc}"
-        ) from exc
+        raise ResourceNotFoundException(f"IR 数据格式错误: {exc}") from exc
 
     # 验证完整性
     errors = validate_ir(ir)
@@ -71,9 +87,7 @@ async def update_script(
     ir.version = new_version
 
     # 保存
-    ir_path = await _parser_service.save_ir(
-        ir, str(project_id), version=new_version
-    )
+    ir_path = await _parser_service.save_ir(ir, str(project_id), version=new_version)
 
     return SuccessResponse(
         message="脚本已更新",
@@ -88,22 +102,40 @@ async def update_script(
 @router.post("/projects/{project_id}/script/generate")
 async def generate_script(
     project_id: UUID,
+    background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> SuccessResponse:
-    """触发 LLM 脚本编排。
+    """触发 LLM 脚本编排（手动「重新编排」）。
 
-    TODO(模块二): 创建编排任务，调用 ScriptWriter。
+    创建一个 scripting 任务并在后台调用 ScriptWriter（GLM-4.7-Flash），
+    返回 task_id 供前端轮询进度。
     """
     # 确认 IR 存在
     ir = await _parser_service.load_ir(str(project_id))
     if ir is None:
-        raise ResourceNotFoundException(
-            f"项目 {project_id} 尚未生成 IR，请先上传课件"
-        )
+        raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR，请先上传课件")
+
+    # 创建编排任务
+    task = Task(
+        project_id=project_id,
+        task_type="scripting",
+        status="pending",
+    )
+    db.add(task)
+    await db.flush()
+    await db.refresh(task)
+    await db.commit()
+
+    # 后台执行编排（独立 session）
+    background_tasks.add_task(
+        _run_orchestrate_in_background,
+        project_id=str(project_id),
+        task_id=str(task.id),
+    )
 
     return SuccessResponse(
-        message="脚本编排任务已创建（待模块二实现）",
-        data={"project_id": str(project_id)},
+        message="脚本编排任务已创建",
+        data={"project_id": str(project_id), "task_id": str(task.id)},
     )
 
 
@@ -116,6 +148,4 @@ async def approve_script(
 
     TODO(模块三): 更新任务状态为 GENERATING。
     """
-    return SuccessResponse(
-        message="脚本审核通过，即将开始生成（待模块三实现）"
-    )
+    return SuccessResponse(message="脚本审核通过，即将开始生成（待模块三实现）")

@@ -27,6 +27,11 @@ class Settings(BaseSettings):
     COGVIDEO_API_KEY: str = ""
     DIGITAL_HUMAN_API_KEY: str = ""
 
+    # ── LLM（智谱 GLM）──────────────────────────────────────
+    ZHIPU_MODEL: str = "glm-4.7-flash"
+    ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
+    LLM_TIMEOUT: float = 60.0
+
     # ── TTS ─────────────────────────────────────────────────
     EDGE_TTS_VOICE: str = "zh-CN-XiaoxiaoNeural"
 

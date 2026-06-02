@@ -10,7 +10,6 @@
 import json
 import logging
 import os
-from typing import Optional
 from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -30,9 +29,7 @@ class ParserService:
     """文档解析服务。"""
 
     def __init__(self) -> None:
-        self._parser = DocumentParser(
-            storage_root=settings.STORAGE_ROOT
-        )
+        self._parser = DocumentParser(storage_root=settings.STORAGE_ROOT)
 
     async def parse_document(
         self,
@@ -41,6 +38,8 @@ class ParserService:
         project_id: str,
         task_id: str,
         db: AsyncSession,
+        advance_status: str = "reviewing",
+        advance_progress: int = 40,
     ) -> CourseIR:
         """执行完整的文档解析流程。
 
@@ -48,7 +47,7 @@ class ParserService:
         2. 调用解析器
         3. 保存 IR JSON
         4. 更新 Task.ir_snapshot_path
-        5. 更新 Task 状态 → reviewing
+        5. 更新 Task 状态 → advance_status
 
         Args:
             file_path: 上传文件路径
@@ -56,15 +55,16 @@ class ParserService:
             project_id: 项目 ID
             task_id: 任务 ID
             db: 数据库会话
+            advance_status: 解析成功后推进到的状态（默认 reviewing；链式接
+                LLM 编排时传 "scripting"，避免前端在此处提前停轮询）。
+            advance_progress: 解析成功后的进度百分比。
 
         Returns:
             生成的 CourseIR
         """
         try:
             # 1. 更新任务状态 → parsing
-            await self._update_task(
-                db, task_id, status="parsing", progress=10
-            )
+            await self._update_task(db, task_id, status="parsing", progress=10)
 
             # 2. 调用解析器
             logger.info(
@@ -72,9 +72,7 @@ class ParserService:
                 project_id,
                 file_path,
             )
-            ir = await self._parser.parse(
-                file_path, file_type, project_id
-            )
+            ir = await self._parser.parse(file_path, file_type, project_id)
 
             # 3. 补充 IR 元信息
             ir.course_id = project_id
@@ -82,28 +80,22 @@ class ParserService:
             # 4. 校验 IR
             errors = validate_ir(ir)
             if errors:
-                logger.warning(
-                    "IR 校验警告 (非致命): %s", errors
-                )
+                logger.warning("IR 校验警告 (非致命): %s", errors)
 
             # 5. 保存 IR JSON
-            ir_path = await self.save_ir(
-                ir, project_id, version=1
-            )
+            ir_path = await self.save_ir(ir, project_id, version=1)
 
             # 6. 更新任务
             await self._update_task(
                 db,
                 task_id,
-                status="reviewing",
-                progress=40,
+                status=advance_status,
+                progress=advance_progress,
                 ir_snapshot_path=ir_path,
             )
 
             # 7. 更新项目状态
-            await self._update_project_status(
-                db, project_id, status="reviewing"
-            )
+            await self._update_project_status(db, project_id, status=advance_status)
 
             logger.info(
                 "解析完成: project=%s, ir_path=%s",
@@ -114,12 +106,13 @@ class ParserService:
 
         except ParseException:
             await self._update_task(
-                db, task_id, status="failed", progress=0,
+                db,
+                task_id,
+                status="failed",
+                progress=0,
                 error_message="文档解析失败",
             )
-            await self._update_project_status(
-                db, project_id, status="failed"
-            )
+            await self._update_project_status(db, project_id, status="failed")
             raise
 
         except Exception as exc:
@@ -130,12 +123,13 @@ class ParserService:
                 exc_info=True,
             )
             await self._update_task(
-                db, task_id, status="failed", progress=0,
+                db,
+                task_id,
+                status="failed",
+                progress=0,
                 error_message=str(exc),
             )
-            await self._update_project_status(
-                db, project_id, status="failed"
-            )
+            await self._update_project_status(db, project_id, status="failed")
             raise ParseException(f"解析失败: {exc}") from exc
 
     async def save_ir(
@@ -151,9 +145,7 @@ class ParserService:
         Returns:
             IR 文件路径
         """
-        ir_dir = os.path.join(
-            settings.STORAGE_ROOT, project_id, "ir"
-        )
+        ir_dir = os.path.join(settings.STORAGE_ROOT, project_id, "ir")
         os.makedirs(ir_dir, exist_ok=True)
         ir_path = os.path.join(ir_dir, f"v{version}.json")
 
@@ -167,8 +159,8 @@ class ParserService:
     async def load_ir(
         self,
         project_id: str,
-        version: Optional[int] = None,
-    ) -> Optional[CourseIR]:
+        version: int | None = None,
+    ) -> CourseIR | None:
         """从文件系统加载 IR JSON。
 
         Args:
@@ -178,9 +170,7 @@ class ParserService:
         Returns:
             CourseIR 或 None（文件不存在）
         """
-        ir_dir = os.path.join(
-            settings.STORAGE_ROOT, project_id, "ir"
-        )
+        ir_dir = os.path.join(settings.STORAGE_ROOT, project_id, "ir")
 
         if version is not None:
             ir_path = os.path.join(ir_dir, f"v{version}.json")
@@ -191,12 +181,12 @@ class ParserService:
         if not ir_path or not os.path.exists(ir_path):
             return None
 
-        with open(ir_path, "r", encoding="utf-8") as f:
+        with open(ir_path, encoding="utf-8") as f:
             data = json.load(f)
 
         return CourseIR.model_validate(data)
 
-    def _find_latest_ir(self, ir_dir: str) -> Optional[str]:
+    def _find_latest_ir(self, ir_dir: str) -> str | None:
         """查找目录中最新版本的 IR 文件。"""
         if not os.path.exists(ir_dir):
             return None
@@ -206,9 +196,7 @@ class ParserService:
             if fname.startswith("v") and fname.endswith(".json"):
                 try:
                     v = int(fname[1:-5])  # v1.json → 1
-                    versions.append(
-                        (v, os.path.join(ir_dir, fname))
-                    )
+                    versions.append((v, os.path.join(ir_dir, fname)))
                 except ValueError:
                     continue
 
@@ -224,8 +212,8 @@ class ParserService:
         task_id: str,
         status: str,
         progress: int,
-        ir_snapshot_path: Optional[str] = None,
-        error_message: Optional[str] = None,
+        ir_snapshot_path: str | None = None,
+        error_message: str | None = None,
     ) -> None:
         """更新任务状态。"""
         try:

@@ -6,7 +6,6 @@
 
 from abc import ABC, abstractmethod
 from enum import Enum
-from typing import Optional
 
 from pydantic import BaseModel, Field
 
@@ -19,13 +18,17 @@ class ProviderResult(BaseModel):
         default="pending",
         description="状态: pending | processing | completed | failed",
     )
-    result_url: Optional[str] = Field(
-        default=None, description="产物 URL"
+    result_url: str | None = Field(default=None, description="产物 URL")
+    content: str | None = Field(
+        default=None,
+        description="文本类产物（如 LLM 生成内容），区别于 result_url",
     )
     cost: float = Field(default=0.0, description="本次调用费用")
-    error_msg: Optional[str] = Field(
-        default=None, description="错误信息"
+    prompt_tokens: int | None = Field(default=None, description="输入 token 数（LLM）")
+    completion_tokens: int | None = Field(
+        default=None, description="输出 token 数（LLM）"
     )
+    error_msg: str | None = Field(default=None, description="错误信息")
 
 
 class RoutingStrategy(str, Enum):

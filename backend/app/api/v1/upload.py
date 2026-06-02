@@ -14,12 +14,13 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_settings
 from app.config import Settings
 from app.database import async_session_factory
-from app.exceptions import ParseException, ValidationException
+from app.exceptions import ValidationException
 from app.models.project import Project
 from app.models.task import Task
 from app.pipeline.parser import SUPPORTED_EXTENSIONS
 from app.schemas.common import SuccessResponse
 from app.services.parser_service import ParserService
+from app.services.scriptwriter_service import ScriptwriterService
 
 router = APIRouter(prefix="/upload", tags=["文件上传"])
 
@@ -30,23 +31,37 @@ async def _run_parse_in_background(
     project_id: str,
     task_id: str,
 ) -> None:
-    """后台执行文档解析。
+    """后台执行 文档解析 → LLM 脚本编排。
+
+    解析成功后状态推进到 scripting，紧接着自动跑 LLM 编排，最终落到
+    reviewing 待教师审核（模块二「上传后自动编排」）。
 
     注意: 后台任务必须创建自己的 DB session，
     不能复用请求 handler 的 session（响应后已关闭）。
     """
     async with async_session_factory() as db:
         try:
-            service = ParserService()
-            await service.parse_document(
+            await ParserService().parse_document(
                 file_path=file_path,
                 file_type=file_type,
                 project_id=project_id,
                 task_id=task_id,
                 db=db,
+                advance_status="scripting",
+                advance_progress=45,
             )
         except Exception:
-            # parse_document 内部已处理错误状态更新
+            # parse_document 内部已处理错误状态更新，解析失败则不再编排
+            return
+
+        try:
+            await ScriptwriterService().orchestrate(
+                project_id=project_id,
+                task_id=task_id,
+                db=db,
+            )
+        except Exception:
+            # orchestrate 内部已处理错误状态更新
             pass
 
 
