@@ -48,7 +48,7 @@
 - [x] **上传 API 增强 (`api/v1/upload.py`)**：上传后自动创建 Project + Task，通过 BackgroundTasks 触发后台解析。
 - [x] **脚本 API 实现 (`api/v1/scripts.py`)**：实现 IR 加载（get_script）和更新（update_script, 含版本管理与校验）。
 - [x] **单元测试与集成测试 (73 tests all passing)**：覆盖 IR Schema、IR 校验器、四种解析器、解析服务 IR 持久化、上传 API、脚本 API。
-- [ ] **前端交互**：完善 `Upload` 页面，实现文件上传进度条、解析状态轮询，并最终跳转至脚本编辑器。
+- [x] **前端交互**：完善 Upload 页面（三步向导：上传→解析轮询→结果校对），ScriptEditor 页面（加载真实 IR、章节/知识点/分镜树形浏览、分镜编辑表单、保存/审核），新增 upload.ts / scripts.ts API 层。
 
 ### 模块二：大模型脚本编排 (LLM Scriptwriter Module)
 - [ ] **LLM Provider 接入 (`providers/llm/zhipu.py`)**：使用智谱 GLM-4-Flash API，实现 `generate_script` 接口封装。
