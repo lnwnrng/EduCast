@@ -91,7 +91,7 @@ const AppLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderBottom: '1px solid rgba(0,0,0,0.04)',
+            borderBottom: '1px solid #e8eef5',
           }}
         >
           <Title
@@ -118,10 +118,10 @@ const AppLayout: React.FC = () => {
         <Header
           style={{
             padding: '0 24px',
-            background: '#fff',
+            background: 'linear-gradient(90deg, #f0f5ff 0%, #ffffff 100%)',
             display: 'flex',
             alignItems: 'center',
-            boxShadow: '0 1px 4px rgba(0,0,0,0.08)',
+            borderBottom: '1px solid #e8eef5',
             position: 'sticky',
             top: 0,
             zIndex: 10,
