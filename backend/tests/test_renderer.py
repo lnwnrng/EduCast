@@ -15,6 +15,36 @@ def _assert_valid_png(path: str, width: int = 1920, height: int = 1080) -> None:
         assert im.mode == "RGB"
 
 
+def test_render_scene_with_real_background(tmp_path: Path) -> None:
+    """命中真实页图：缩放铺满作底，字幕仍叠加，输出 1080p。"""
+    bg = tmp_path / "page_1.png"
+    Image.new("RGB", (1280, 720), (30, 60, 120)).save(bg)
+
+    out = str(tmp_path / "scene_bg.png")
+    SlideRenderer().render_scene(
+        title="忽略的标题",
+        body_lines=["忽略的正文"],
+        subtitle="这条字幕应当叠加在真实页图上",
+        background_path=str(bg),
+        watermark="课影",
+        output_path=out,
+    )
+    _assert_valid_png(out)
+
+
+def test_render_scene_missing_background_falls_back(tmp_path: Path) -> None:
+    """background_path 不存在 → 回退文本合成，不崩。"""
+    out = str(tmp_path / "scene_fallback.png")
+    SlideRenderer().render_scene(
+        title="标题",
+        body_lines=["要点一", "要点二"],
+        subtitle="字幕",
+        background_path=str(tmp_path / "nope.png"),
+        output_path=out,
+    )
+    _assert_valid_png(out)
+
+
 def test_render_scene_produces_1080p_png(tmp_path: Path) -> None:
     out = str(tmp_path / "scene.png")
     result = SlideRenderer().render_scene(

@@ -12,7 +12,7 @@ CompositionService 负责从 ``SceneIR`` 映射，便于单元测试。
 import logging
 import os
 
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.config import settings
 
@@ -130,11 +130,28 @@ class SlideRenderer:
         output_path: str,
         watermark: str | None = None,
         badge: str | None = None,
+        background_path: str | None = None,
     ) -> str:
-        """渲染单个分镜底画面为 PNG（1920×1080）。"""
+        """渲染单个分镜底画面为 PNG（1920×1080）。
+
+        命中真实页图（``background_path`` 存在）时，以其缩放铺满作底，仅叠加字幕条
+        与水印（不再文本合成标题/正文）；否则由 IR 文本合成课件页。
+        """
+        margin = int(self._w * 0.062)
+
+        if background_path and os.path.exists(background_path):
+            img = self._make_background(background_path)
+            draw = ImageDraw.Draw(img)
+            if subtitle and subtitle.strip():
+                self._draw_subtitle(
+                    img, draw, subtitle.strip(), self._font(int(self._h * 0.038)), margin
+                )
+            if watermark:
+                self._draw_watermark(draw, watermark, margin)
+            return self._save(img, output_path)
+
         img = Image.new("RGBA", (self._w, self._h), (*self.BG_COLOR, 255))
         draw = ImageDraw.Draw(img)
-        margin = int(self._w * 0.062)
 
         title_font = self._font(int(self._h * 0.056))
         body_font = self._font(int(self._h * 0.040))
@@ -220,16 +237,31 @@ class SlideRenderer:
 
         # 水印
         if watermark:
-            wm_font = self._font(int(self._h * 0.024))
-            wm_w = int(draw.textlength(watermark, font=wm_font))
-            draw.text(
-                (self._w - margin - wm_w, int(self._h * 0.04)),
-                watermark,
-                font=wm_font,
-                fill=self.WATERMARK_FG,
-            )
+            self._draw_watermark(draw, watermark, margin)
 
         return self._save(img, output_path)
+
+    def _make_background(self, background_path: str) -> Image.Image:
+        """把真实页图缩放铺满 1920×1080（保持比例 + 白底居中）。"""
+        canvas = Image.new("RGBA", (self._w, self._h), (255, 255, 255, 255))
+        photo = Image.open(background_path).convert("RGBA")
+        fitted = ImageOps.contain(photo, (self._w, self._h))
+        ox = (self._w - fitted.width) // 2
+        oy = (self._h - fitted.height) // 2
+        canvas.alpha_composite(fitted, (ox, oy))
+        return canvas
+
+    def _draw_watermark(
+        self, draw: ImageDraw.ImageDraw, text: str, margin: int
+    ) -> None:
+        wm_font = self._font(int(self._h * 0.024))
+        wm_w = int(draw.textlength(text, font=wm_font))
+        draw.text(
+            (self._w - margin - wm_w, int(self._h * 0.04)),
+            text,
+            font=wm_font,
+            fill=self.WATERMARK_FG,
+        )
 
     def _draw_subtitle(
         self,
