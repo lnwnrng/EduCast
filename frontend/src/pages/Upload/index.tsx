@@ -321,7 +321,7 @@ const UploadPage: React.FC = () => {
             <p className="ant-upload-text">
               {uploading ? '正在上传...' : '点击或拖拽文件到此区域上传'}
             </p>
-            <p className="ant-upload-hint">
+            <div className="ant-upload-hint">
               <Space wrap style={{ marginTop: 8 }}>
                 {FILE_TYPES.map((ft) => (
                   <Tag key={ft.ext} color={ft.color}>
@@ -329,7 +329,7 @@ const UploadPage: React.FC = () => {
                   </Tag>
                 ))}
               </Space>
-            </p>
+            </div>
           </Dragger>
         </Card>
       )}

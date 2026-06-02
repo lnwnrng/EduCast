@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_settings
 from app.config import Settings
+from app.database import async_session_factory
 from app.exceptions import ParseException, ValidationException
 from app.models.project import Project
 from app.models.task import Task
@@ -28,17 +29,25 @@ async def _run_parse_in_background(
     file_type: str,
     project_id: str,
     task_id: str,
-    db: AsyncSession,
 ) -> None:
-    """后台执行文档解析。"""
-    service = ParserService()
-    await service.parse_document(
-        file_path=file_path,
-        file_type=file_type,
-        project_id=project_id,
-        task_id=task_id,
-        db=db,
-    )
+    """后台执行文档解析。
+
+    注意: 后台任务必须创建自己的 DB session，
+    不能复用请求 handler 的 session（响应后已关闭）。
+    """
+    async with async_session_factory() as db:
+        try:
+            service = ParserService()
+            await service.parse_document(
+                file_path=file_path,
+                file_type=file_type,
+                project_id=project_id,
+                task_id=task_id,
+                db=db,
+            )
+        except Exception:
+            # parse_document 内部已处理错误状态更新
+            pass
 
 
 @router.post("/document", response_model=SuccessResponse)
@@ -104,14 +113,16 @@ async def upload_document(
     await db.flush()
     await db.refresh(task)
 
-    # 5. 触发后台解析
+    # 提交当前事务，确保 Project/Task 在后台任务可见
+    await db.commit()
+
+    # 5. 触发后台解析（使用独立 DB session）
     background_tasks.add_task(
         _run_parse_in_background,
         file_path=file_path,
         file_type=ext,
         project_id=str(project.id),
         task_id=str(task.id),
-        db=db,
     )
 
     # 6. 返回结果

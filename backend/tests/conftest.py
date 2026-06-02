@@ -2,6 +2,7 @@
 
 import asyncio
 from typing import AsyncGenerator
+from unittest.mock import patch
 
 import pytest
 import pytest_asyncio
@@ -57,19 +58,34 @@ async def db_session(
 
 @pytest_asyncio.fixture
 async def client(
+    async_engine,
     db_session: AsyncSession,
 ) -> AsyncGenerator[AsyncClient, None]:
-    """测试用 HTTP 客户端（覆盖数据库依赖）。"""
+    """测试用 HTTP 客户端（覆盖数据库依赖）。
+
+    同时 patch async_session_factory，使后台任务也使用测试 DB。
+    """
+    # 为后台任务创建基于测试引擎的 session factory
+    test_session_factory = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
 
     async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
         yield db_session
 
     app.dependency_overrides[get_db] = _override_get_db
 
-    transport = ASGITransport(app=app)
-    async with AsyncClient(
-        transport=transport, base_url="http://test"
-    ) as ac:
-        yield ac
+    # patch async_session_factory，让后台任务也用测试 DB
+    with patch(
+        "app.api.v1.upload.async_session_factory",
+        test_session_factory,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(
+            transport=transport, base_url="http://test"
+        ) as ac:
+            yield ac
 
     app.dependency_overrides.clear()
