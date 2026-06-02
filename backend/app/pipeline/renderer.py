@@ -144,7 +144,11 @@ class SlideRenderer:
             draw = ImageDraw.Draw(img)
             if subtitle and subtitle.strip():
                 self._draw_subtitle(
-                    img, draw, subtitle.strip(), self._font(int(self._h * 0.038)), margin
+                    img,
+                    draw,
+                    subtitle.strip(),
+                    self._font(int(self._h * 0.038)),
+                    margin,
                 )
             if watermark:
                 self._draw_watermark(draw, watermark, margin)

@@ -34,9 +34,7 @@ def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
     - digital_human：按旁白字数估口播时长 × 数字人费率。
     - generative_clip：按默认片段时长 × 生成式费率。
     """
-    clip_seconds = float(
-        (config or {}).get("clip_seconds", settings.GEN_CLIP_SECONDS)
-    )
+    clip_seconds = float((config or {}).get("clip_seconds", settings.GEN_CLIP_SECONDS))
     breakdown: dict[str, float] = {}
     total = 0.0
 
@@ -59,9 +57,7 @@ def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
     return CostEstimate(total=round(total, 4), breakdown=breakdown)
 
 
-async def check_quota(
-    db: AsyncSession, project_id: str, estimated: float
-) -> None:
+async def check_quota(db: AsyncSession, project_id: str, estimated: float) -> None:
     """配额护栏：超单任务上限或项目累计上限则抛 CostLimitException（→ 429）。"""
     if estimated > settings.MAX_COST_PER_TASK:
         raise CostLimitException(

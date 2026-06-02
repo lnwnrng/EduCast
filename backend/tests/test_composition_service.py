@@ -251,7 +251,9 @@ def test_real_slide_helper(tmp_path) -> None:
         order=1, scene_type=SceneType.SLIDE, visual_spec=VisualSpec(slide_ref=str(real))
     )
     scene_placeholder = SceneIR(
-        order=1, scene_type=SceneType.SLIDE, visual_spec=VisualSpec(slide_ref="slide_1.png")
+        order=1,
+        scene_type=SceneType.SLIDE,
+        visual_spec=VisualSpec(slide_ref="slide_1.png"),
     )
     assert _real_slide(scene_real) == str(real)
     assert _real_slide(scene_placeholder) is None

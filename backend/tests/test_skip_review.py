@@ -1,6 +1,5 @@
 """SKIP_REVIEW 一键全自动测试 — 验证接线（不重测合成本身）。"""
 
-from pathlib import Path
 from unittest.mock import AsyncMock
 
 import pytest

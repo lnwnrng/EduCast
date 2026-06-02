@@ -96,9 +96,7 @@ async def test_check_quota_over_project(db_session) -> None:
     db_session.add(project)
     await db_session.flush()
     # 已花费接近项目上限（默认 100）
-    db_session.add(
-        Task(project_id=project.id, status="completed", actual_cost=98.0)
-    )
+    db_session.add(Task(project_id=project.id, status="completed", actual_cost=98.0))
     await db_session.flush()
     with pytest.raises(CostLimitException):
         await check_quota(db_session, str(project.id), 5.0)

@@ -24,12 +24,7 @@ async def test_pdf_parse_sets_real_slide_ref(tmp_path: Path) -> None:
     parser = DocumentParser(storage_root=str(tmp_path / "storage"))
     ir = await parser.parse(pdf, ".pdf", project_id="proj1")
 
-    scenes = [
-        s
-        for ch in ir.chapters
-        for kp in ch.knowledge_points
-        for s in kp.scenes
-    ]
+    scenes = [s for ch in ir.chapters for kp in ch.knowledge_points for s in kp.scenes]
     assert scenes, "解析未产出任何分镜"
 
     real_refs = [
