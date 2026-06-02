@@ -21,10 +21,15 @@ import {
 import {
   CheckOutlined,
   EditOutlined,
+  ExperimentOutlined,
+  FileImageOutlined,
   FileTextOutlined,
+  FunctionOutlined,
   LoadingOutlined,
+  PlaySquareOutlined,
   RobotOutlined,
   SaveOutlined,
+  UserOutlined,
 } from '@ant-design/icons';
 import { useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -40,17 +45,24 @@ const { Text, Title } = Typography;
 
 /** 分镜类型选项 */
 const SCENE_TYPE_OPTIONS = [
-  { value: 'slide', label: '📄 课件页', color: 'blue' },
-  { value: 'formula_animation', label: '📐 公式动画', color: 'purple' },
-  { value: 'digital_human', label: '🧑‍🏫 数字人口播', color: 'green' },
-  { value: 'generative_clip', label: '🎬 生成式片段', color: 'orange' },
+  { value: 'slide', label: '课件页' },
+  { value: 'formula_animation', label: '公式动画' },
+  { value: 'digital_human', label: '数字人口播' },
+  { value: 'generative_clip', label: '生成式片段' },
 ];
 
+const sceneTypeIcon: Record<string, React.ReactNode> = {
+  slide: <FileImageOutlined />,
+  formula_animation: <FunctionOutlined />,
+  digital_human: <UserOutlined />,
+  generative_clip: <PlaySquareOutlined />,
+};
+
 const sceneTypeLabel: Record<string, string> = {
-  slide: '📄 课件页',
-  formula_animation: '📐 公式动画',
-  digital_human: '🧑‍🏫 数字人',
-  generative_clip: '🎬 生成式',
+  slide: '课件页',
+  formula_animation: '公式动画',
+  digital_human: '数字人',
+  generative_clip: '生成式',
 };
 
 const sceneTypeColor: Record<string, string> = {
@@ -304,14 +316,12 @@ const ScriptEditor: React.FC = () => {
                                 background: isSelected
                                   ? '#e6f7ff'
                                   : 'transparent',
-                                borderLeft: isSelected
-                                  ? '3px solid #1890ff'
-                                  : '3px solid transparent',
                                 transition: 'all 0.2s',
                               }}
                             >
                               <Space size={4}>
                                 <Tag
+                                  icon={sceneTypeIcon[scene.scene_type]}
                                   color={
                                     sceneTypeColor[scene.scene_type] ||
                                     'default'

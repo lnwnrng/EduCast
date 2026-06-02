@@ -69,6 +69,7 @@ frontend/
 4. **Ant Design 优先** — UI 组件优先使用 Ant Design，避免重复造轮子
 5. **响应式设计** — 使用 Ant Design Grid 系统，适配桌面/平板
 6. **错误边界** — 关键页面包裹 ErrorBoundary
+7. **禁止使用 Emoji** — 所有图标/标识一律使用 Ant Design `@ant-design/icons` 组件库中的图标，不得在代码中使用 Emoji 字符
 
 ## 状态管理策略
 - **服务端状态**: React Query（缓存、自动刷新、乐观更新）
