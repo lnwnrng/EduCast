@@ -5,6 +5,7 @@ import {
   UploadOutlined,
   EditOutlined,
   FolderOutlined,
+  PlaySquareOutlined,
   ProjectOutlined,
   PlaySquareFilled,
 } from '@ant-design/icons';
