@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Steps, Progress } from 'antd';
+import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Steps, Progress, Empty } from 'antd';
 import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -17,6 +17,7 @@ const GeneratePage: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [project, setProject] = useState<any>(null);
+  const [error, setError] = useState<string | null>(null);
   
   // Status and Polling
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
@@ -43,7 +44,7 @@ const GeneratePage: React.FC = () => {
 
       if (!targetProjectId) {
         setLoading(false);
-        message.warning('暂无项目记录，请先在「上传课件」页面上传');
+        setError('暂无项目记录，请先在「上传课件」页面上传');
         return;
       }
 
@@ -58,7 +59,7 @@ const GeneratePage: React.FC = () => {
           // In a real scenario, the backend might return the active task ID with the project.
         }
       } catch (err) {
-        message.error('加载项目失败');
+        setError('加载项目失败');
       } finally {
         setLoading(false);
       }
@@ -96,6 +97,15 @@ const GeneratePage: React.FC = () => {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0' }}>
         <Spin indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />} />
+      </div>
+    );
+  }
+
+  if (error || !project) {
+    return (
+      <div>
+        <PageHeader title="配置视频生成" subtitle="设置生成参数以渲染视频" />
+        <Empty description={error || '暂无项目数据，请先上传课件'} />
       </div>
     );
   }
