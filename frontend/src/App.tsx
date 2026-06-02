@@ -2,6 +2,7 @@ import React from 'react';
 import { Routes, Route } from 'react-router-dom';
 import AppLayout from './components/Layout/AppLayout';
 import Dashboard from './pages/Dashboard';
+import Projects from './pages/Projects';
 import UploadPage from './pages/Upload';
 import ScriptEditor from './pages/ScriptEditor';
 import GeneratePage from './pages/Generate';
@@ -13,7 +14,7 @@ const App: React.FC = () => {
     <Routes>
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
-        <Route path="/projects" element={<Dashboard />} />
+        <Route path="/projects" element={<Projects />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/projects/:id/upload" element={<UploadPage />} />
         <Route path="/script" element={<ScriptEditor />} />
