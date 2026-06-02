@@ -273,7 +273,7 @@ const ScriptEditor: React.FC = () => {
         key: 'actions',
         render: (_: any, record: Project) => (
           <Button
-            type="primary"
+            type="link"
             size="small"
             icon={<EditOutlined />}
             onClick={() => navigate(`/projects/${record.id}/script`)}

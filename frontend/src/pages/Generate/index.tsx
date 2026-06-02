@@ -137,7 +137,7 @@ const GeneratePage: React.FC = () => {
         key: 'actions',
         render: (_: any, record: Project) => (
           <Button
-            type="primary"
+            type="link"
             size="small"
             icon={<VideoCameraOutlined />}
             onClick={() => navigate(`/projects/${record.id}/generate`)}
