@@ -58,6 +58,13 @@ const AppLayout: React.FC = () => {
         onCollapse={toggleSidebar}
         theme="dark"
         width={220}
+        style={{
+          overflow: 'auto',
+          height: '100vh',
+          position: 'sticky',
+          top: 0,
+          left: 0,
+        }}
       >
         <div
           style={{
@@ -101,7 +108,7 @@ const AppLayout: React.FC = () => {
             智能教学视频生产平台
           </Title>
         </Header>
-        <Content style={{ margin: 24 }}>
+        <Content style={{ margin: 24, overflow: 'auto' }}>
           <div
             style={{
               padding: 24,
