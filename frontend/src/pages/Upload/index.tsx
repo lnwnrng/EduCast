@@ -449,7 +449,6 @@ const UploadPage: React.FC = () => {
                           padding: '8px 12px',
                           background: '#fafafa',
                           borderRadius: 6,
-                          borderLeft: '3px solid #1890ff',
                         }}
                       >
                         <Text strong>
