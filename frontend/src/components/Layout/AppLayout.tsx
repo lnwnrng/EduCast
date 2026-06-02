@@ -17,32 +17,32 @@ const { Title } = Typography;
 const menuItems = [
   {
     key: '/',
-    icon: <DashboardOutlined style={{ fontSize: 18 }} />,
+    icon: <DashboardOutlined />,
     label: '仪表盘',
   },
   {
     key: '/projects',
-    icon: <ProjectOutlined style={{ fontSize: 18 }} />,
+    icon: <ProjectOutlined />,
     label: '项目管理',
   },
   {
     key: '/upload',
-    icon: <UploadOutlined style={{ fontSize: 18 }} />,
+    icon: <UploadOutlined />,
     label: '上传课件',
   },
   {
     key: '/script',
-    icon: <EditOutlined style={{ fontSize: 18 }} />,
+    icon: <EditOutlined />,
     label: '脚本编辑',
   },
   {
     key: '/generate',
-    icon: <PlaySquareOutlined style={{ fontSize: 18 }} />,
+    icon: <PlaySquareOutlined />,
     label: '视频生成',
   },
   {
     key: '/resources',
-    icon: <FolderOutlined style={{ fontSize: 18 }} />,
+    icon: <FolderOutlined />,
     label: '资源管理',
   },
 ];

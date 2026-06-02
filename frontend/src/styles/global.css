@@ -84,3 +84,13 @@ a {
   color: #00000040;
   border-color: #d9d9d9;
 }
+
+/* 侧边栏菜单样式覆盖（确保折叠前后图标大小一致） */
+.ant-menu .ant-menu-item {
+  font-size: 15px !important;
+}
+
+.ant-menu .ant-menu-item .ant-menu-item-icon,
+.ant-menu .ant-menu-item .anticon {
+  font-size: 18px !important;
+}
