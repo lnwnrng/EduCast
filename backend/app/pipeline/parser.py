@@ -48,6 +48,7 @@ class ParsedSlide:
         image_paths: list[str] | None = None,
         is_chapter_break: bool = False,
         layout_name: str = "",
+        background_path: str = "",
     ) -> None:
         self.page_number = page_number
         self.title = title
@@ -56,6 +57,8 @@ class ParsedSlide:
         self.image_paths = image_paths or []
         self.is_chapter_break = is_chapter_break
         self.layout_name = layout_name
+        # 真实页图（PDF/PPTX 栅格化结果）；为空则由渲染器文本合成
+        self.background_path = background_path
 
     @property
     def has_content(self) -> bool:
@@ -226,6 +229,22 @@ class DocumentParser:
         if not slides:
             raise ParseException("PPTX 文件中没有幻灯片")
 
+        # 真实页图（可选，需 LibreOffice）：PPTX→PDF→逐页栅格化，按页序映射
+        try:
+            import tempfile
+
+            from app.pipeline.slide_raster import pptx_to_pdf, rasterize_pdf
+
+            with tempfile.TemporaryDirectory() as tmp_dir:
+                pdf_path = pptx_to_pdf(file_path, tmp_dir)
+                if pdf_path:
+                    backgrounds = rasterize_pdf(pdf_path, slide_img_dir, prefix="slide")
+                    for i, parsed_slide in enumerate(slides):
+                        if i < len(backgrounds):
+                            parsed_slide.background_path = backgrounds[i]
+        except Exception as exc:  # noqa: BLE001 — 真实页图失败则降级文本合成
+            logger.warning("PPTX 真实页图渲染失败，降级文本合成: %s", exc)
+
         # 构建 IR
         return self._build_ir_from_slides(slides, Path(file_path).stem, project_id)
 
@@ -247,6 +266,15 @@ class DocumentParser:
 
         slides: list[ParsedSlide] = []
         slide_img_dir = self._get_slide_dir(project_id)
+
+        # 真实页图：用 PyMuPDF 逐页栅格化（失败则降级为文本合成）
+        page_backgrounds: list[str] = []
+        try:
+            from app.pipeline.slide_raster import rasterize_pdf
+
+            page_backgrounds = rasterize_pdf(file_path, slide_img_dir, prefix="page")
+        except Exception as exc:  # noqa: BLE001 — 栅格化失败不阻断解析
+            logger.warning("PDF 栅格化失败，降级文本合成: %s", exc)
 
         with pdfplumber.open(file_path) as pdf:
             if not pdf.pages:
@@ -281,28 +309,19 @@ class DocumentParser:
                     line.strip() for line in body_lines if line.strip()
                 )
 
-                # 提取图片
-                image_paths: list[str] = []
-                try:
-                    for img_idx, img in enumerate(page.images):
-                        img_filename = f"page_{page_number}_img_{img_idx + 1}.png"
-                        img_path = os.path.join(slide_img_dir, img_filename)
-                        os.makedirs(os.path.dirname(img_path), exist_ok=True)
-                        # pdfplumber 的图片对象包含 bbox 信息
-                        # 实际图片提取需要 PyMuPDF，这里记录位置信息
-                        image_paths.append(img_path)
-                except Exception as e:
-                    logger.warning(
-                        "PDF 图片提取失败 (page %d): %s",
-                        page_number,
-                        e,
-                    )
+                # 真实页图（栅格化结果，按页索引对应；无则留空走文本合成）
+                background_path = (
+                    page_backgrounds[page_idx]
+                    if page_idx < len(page_backgrounds)
+                    else ""
+                )
 
                 parsed = ParsedSlide(
                     page_number=page_number,
                     title=title,
                     body_text=body_text,
                     is_chapter_break=is_chapter_break,
+                    background_path=background_path,
                 )
                 slides.append(parsed)
 
@@ -515,7 +534,7 @@ class DocumentParser:
                 subtitle = s.body_text or s.title or ""
 
                 visual_spec = VisualSpec(
-                    slide_ref=f"slide_{s.page_number}.png",
+                    slide_ref=s.background_path or f"slide_{s.page_number}.png",
                     image_refs=s.image_paths,
                 )
 
