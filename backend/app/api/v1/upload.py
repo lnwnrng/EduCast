@@ -12,13 +12,15 @@ from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_settings
-from app.config import Settings
+from app.config import Settings, settings
 from app.database import async_session_factory
-from app.exceptions import ValidationException
+from app.exceptions import CostLimitException, ValidationException
 from app.models.project import Project
 from app.models.task import Task
 from app.pipeline.parser import SUPPORTED_EXTENSIONS
 from app.schemas.common import SuccessResponse
+from app.services.composition_service import CompositionService
+from app.services.cost_service import check_quota, estimate_ir_cost
 from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
@@ -63,6 +65,42 @@ async def _run_parse_in_background(
         except Exception:
             # orchestrate 内部已处理错误状态更新
             pass
+
+        # 一键全自动：跨过人工审核直接生成（仍走成本护栏）
+        if settings.SKIP_REVIEW:
+            await _auto_generate(project_id, task_id, db)
+
+
+async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> None:
+    """SKIP_REVIEW 模式：预估成本 + 配额护栏 + 直接合成成片。"""
+    ir = await ParserService().load_ir(project_id)
+    if ir is None:
+        return
+    try:
+        estimate = estimate_ir_cost(ir)
+        await check_quota(db, project_id, estimate.total)
+    except CostLimitException as exc:
+        task = await db.get(Task, uuid.UUID(task_id))
+        if task:
+            task.status = "failed"
+            task.error_message = f"成本超限，已拦截自动生成: {exc.message}"
+            await db.commit()
+        return
+    except Exception:
+        return
+
+    task = await db.get(Task, uuid.UUID(task_id))
+    if task:
+        task.estimated_cost = estimate.total
+        await db.commit()
+
+    try:
+        await CompositionService().compose(
+            project_id=project_id, task_id=task_id, db=db
+        )
+    except Exception:
+        # compose 内部已处理错误状态更新
+        pass
 
 
 @router.post("/document", response_model=SuccessResponse)

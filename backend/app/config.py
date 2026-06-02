@@ -51,6 +51,10 @@ class Settings(BaseSettings):
     # ── Provider 路由 ──────────────────────────────────────
     DEFAULT_ROUTING_STRATEGY: str = "free_first"
 
+    # ── 流水线 ──────────────────────────────────────────────
+    # True 时上传后跨过人工审核，自动生成成片（演示用；默认保持人在环）
+    SKIP_REVIEW: bool = False
+
     # ── 成本护栏 ────────────────────────────────────────────
     MAX_COST_PER_TASK: float = 10.0
     MAX_COST_PER_PROJECT: float = 100.0
