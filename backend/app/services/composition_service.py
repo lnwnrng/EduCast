@@ -19,6 +19,7 @@ import zipfile
 from dataclasses import dataclass, field
 from uuid import UUID
 
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -192,8 +193,14 @@ class CompositionService:
             )
 
             # ── 收尾 ──
+            actual_cost = await self._sum_subtask_cost(db, task_uuid)
             await self._update_task(
-                db, task_id, "completed", 100, ir_snapshot_path=video_path
+                db,
+                task_id,
+                "completed",
+                100,
+                ir_snapshot_path=video_path,
+                actual_cost=actual_cost,
             )
             await self._update_project(db, project_id, "completed")
             shutil.rmtree(workspace, ignore_errors=True)
@@ -404,6 +411,7 @@ class CompositionService:
         progress: int,
         ir_snapshot_path: str | None = None,
         error_message: str | None = None,
+        actual_cost: float | None = None,
     ) -> None:
         pk = _to_uuid(task_id)
         if pk is None:
@@ -416,7 +424,20 @@ class CompositionService:
                 task.ir_snapshot_path = ir_snapshot_path
             if error_message is not None:
                 task.error_message = error_message
+            if actual_cost is not None:
+                task.actual_cost = actual_cost
             await db.commit()
+
+    async def _sum_subtask_cost(
+        self, db: AsyncSession, task_uuid: UUID | None
+    ) -> float:
+        """汇总该任务各子任务实际成本（模块三免费栈为 0，机制供后续复用）。"""
+        if task_uuid is None:
+            return 0.0
+        stmt = select(func.coalesce(func.sum(SubTask.cost), 0.0)).where(
+            SubTask.task_id == task_uuid
+        )
+        return float((await db.execute(stmt)).scalar() or 0.0)
 
     async def _update_project(
         self, db: AsyncSession, project_id: str, status: str

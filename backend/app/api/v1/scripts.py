@@ -20,6 +20,7 @@ from app.ir.validator import validate_ir
 from app.models.task import Task
 from app.schemas.common import SuccessResponse
 from app.services.composition_service import CompositionService
+from app.services.cost_service import check_quota, estimate_ir_cost
 from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
@@ -172,11 +173,16 @@ async def approve_script(
     if ir is None:
         raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR，无法生成视频")
 
+    # 成本护栏：生成前预估并校验配额（超额抛 CostLimitException → 429）
+    estimate = estimate_ir_cost(ir)
+    await check_quota(db, str(project_id), estimate.total)
+
     task = Task(
         project_id=project_id,
         task_type="full_pipeline",
         status="generating",
         progress=50,
+        estimated_cost=estimate.total,
     )
     db.add(task)
     await db.flush()
@@ -191,5 +197,9 @@ async def approve_script(
 
     return SuccessResponse(
         message="脚本审核通过，已开始生成视频",
-        data={"project_id": str(project_id), "task_id": str(task.id)},
+        data={
+            "project_id": str(project_id),
+            "task_id": str(task.id),
+            "estimated_cost": estimate.total,
+        },
     )
