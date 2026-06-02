@@ -93,8 +93,12 @@ a {
 }
 
 .ant-menu .ant-menu-item .ant-menu-item-icon,
-.ant-menu .ant-menu-item .anticon {
-  font-size: 18px !important;
+.ant-menu .ant-menu-item .anticon,
+.ant-menu .ant-menu-item svg {
+  font-size: 20px !important;
+  width: 20px !important;
+  height: 20px !important;
+  min-width: 20px !important;
 }
 
 /* 修改侧边栏底部折叠按钮的样式 */
