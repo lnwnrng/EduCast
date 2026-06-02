@@ -73,7 +73,7 @@ const AppLayout: React.FC = () => {
         collapsible
         collapsed={sidebarCollapsed}
         onCollapse={toggleSidebar}
-        theme="dark"
+        theme="light"
         width={220}
         style={{
           overflow: 'auto',
@@ -89,13 +89,13 @@ const AppLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderBottom: '1px solid rgba(255,255,255,0.1)',
+            borderBottom: '1px solid #f0f0f0',
           }}
         >
           <Title
             level={4}
             style={{
-              color: '#fff',
+              color: '#1677ff',
               margin: 0,
               fontSize: sidebarCollapsed ? 16 : 20,
             }}
@@ -104,7 +104,7 @@ const AppLayout: React.FC = () => {
           </Title>
         </div>
         <Menu
-          theme="dark"
+          theme="light"
           mode="inline"
           selectedKeys={[getSelectedKey(location.pathname)]}
           items={menuItems}
