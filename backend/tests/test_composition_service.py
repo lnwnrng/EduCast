@@ -26,6 +26,7 @@ from app.services.composition_service import (
     CompositionService,
     _chapter_spans,
     _flatten,
+    _real_slide,
 )
 from app.services.parser_service import ParserService
 from app.utils import ffmpeg as ffmpeg_mod
@@ -239,3 +240,56 @@ async def test_compose_missing_ir_marks_failed(db_session, tmp_path, monkeypatch
     )
     task = await db_session.get(Task, _uuid(task_id))
     assert task.status == "failed"
+
+
+def test_real_slide_helper(tmp_path) -> None:
+    from PIL import Image
+
+    real = tmp_path / "page_1.png"
+    Image.new("RGB", (10, 10), (0, 0, 0)).save(real)
+    scene_real = SceneIR(
+        order=1, scene_type=SceneType.SLIDE, visual_spec=VisualSpec(slide_ref=str(real))
+    )
+    scene_placeholder = SceneIR(
+        order=1, scene_type=SceneType.SLIDE, visual_spec=VisualSpec(slide_ref="slide_1.png")
+    )
+    assert _real_slide(scene_real) == str(real)
+    assert _real_slide(scene_placeholder) is None
+
+
+async def test_compose_with_real_slide_background(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """某分镜 slide_ref 指向真实页图时，合成仍成功出片。"""
+    from PIL import Image
+
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    project_id, task_id = await _seed(db_session)
+
+    bg = tmp_path / "real_page.png"
+    Image.new("RGB", (1280, 720), (20, 40, 80)).save(bg)
+
+    s1 = SceneIR(
+        order=1,
+        scene_type=SceneType.SLIDE,
+        narration_text="讲解。",
+        subtitle_text="字幕",
+        visual_spec=VisualSpec(slide_ref=str(bg)),
+    )
+    kp = KnowledgePointIR(title="知识点", scenes=[s1])
+    ch = ChapterIR(title="章", order=1, knowledge_points=[kp])
+    ir = CourseIR(course_id=project_id, title="真页图课程", version=1, chapters=[ch])
+    await ParserService().save_ir(ir, project_id, version=1)
+
+    await CompositionService(tts_provider=FakeTTS()).compose(
+        project_id, task_id, db_session
+    )
+
+    task = await db_session.get(Task, _uuid(task_id))
+    assert task.status == "completed"
+    renders = [
+        s
+        for s in (await db_session.execute(select(SubTask))).scalars().all()
+        if s.subtask_type == "render"
+    ]
+    assert renders and all(s.status == "completed" for s in renders)

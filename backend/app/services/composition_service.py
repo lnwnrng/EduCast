@@ -241,6 +241,7 @@ class CompositionService:
                 output_path=image_path,
                 watermark=watermark,
                 badge=_BADGES.get(scene.scene_type),
+                background_path=_real_slide(scene),
             )
             await self._add_subtask(
                 db, task_uuid, "render", scene.scene_id, "completed", image_path
@@ -482,6 +483,12 @@ def _body_lines(scene: SceneIR, kp: KnowledgePointIR) -> list[str]:
         return kp.key_points[:6]
     text = scene.narration_text or scene.subtitle_text
     return [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()][:6]
+
+
+def _real_slide(scene: SceneIR) -> str | None:
+    """slide_ref 指向真实存在的页图时返回其路径（否则 None → 文本合成）。"""
+    ref = scene.visual_spec.slide_ref
+    return ref if ref and os.path.exists(ref) else None
 
 
 def _first_image(scene: SceneIR) -> str | None:
