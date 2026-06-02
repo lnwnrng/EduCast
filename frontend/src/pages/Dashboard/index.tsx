@@ -19,6 +19,7 @@ const Dashboard: React.FC = () => {
   const [recentProjects, setRecentProjects] = useState<Project[]>([]);
   const [stats, setStats] = useState({ total: 0, active: 0, completed: 0 });
   const [loading, setLoading] = useState(false);
+  const [systemStatus, setSystemStatus] = useState<'normal' | 'error'>('normal');
 
   useEffect(() => {
     const fetchDashboardData = async () => {
@@ -41,8 +42,10 @@ const Dashboard: React.FC = () => {
           active: projects.filter(p => !['completed', 'failed'].includes(p.status)).length,
           completed: projects.filter(p => p.status === 'completed').length,
         });
+        setSystemStatus('normal');
       } catch (err) {
-        message.error('获取仪表盘数据失败');
+        setSystemStatus('error');
+        message.error('获取仪表盘数据失败，后端服务可能未启动或异常');
       } finally {
         setLoading(false);
       }
@@ -133,9 +136,9 @@ const Dashboard: React.FC = () => {
           <Card hoverable>
             <Statistic
               title="系统状态"
-              value="运行正常"
+              value={systemStatus === 'normal' ? '运行正常' : '服务异常'}
               prefix={<ApiOutlined />}
-              valueStyle={{ color: '#52c41a' }}
+              valueStyle={{ color: systemStatus === 'normal' ? '#52c41a' : '#f5222d' }}
             />
           </Card>
         </Col>
