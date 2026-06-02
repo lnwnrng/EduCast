@@ -5,8 +5,8 @@ import {
   UploadOutlined,
   EditOutlined,
   FolderOutlined,
-  VideoCameraOutlined,
   PlaySquareOutlined,
+  ProjectOutlined,
 } from '@ant-design/icons';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -22,7 +22,7 @@ const menuItems = [
   },
   {
     key: '/projects',
-    icon: <VideoCameraOutlined />,
+    icon: <ProjectOutlined />,
     label: '项目管理',
   },
   {
