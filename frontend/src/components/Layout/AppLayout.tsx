@@ -82,7 +82,6 @@ const AppLayout: React.FC = () => {
           top: 0,
           left: 0,
           background: 'linear-gradient(180deg, #f0f5ff 0%, #f9fbfd 100%)',
-          borderRight: '1px solid #e8eef5',
         }}
       >
         <div
@@ -91,7 +90,6 @@ const AppLayout: React.FC = () => {
             display: 'flex',
             alignItems: 'center',
             justifyContent: 'center',
-            borderBottom: '1px solid #e8eef5',
           }}
         >
           <Title
@@ -121,7 +119,6 @@ const AppLayout: React.FC = () => {
             background: 'linear-gradient(90deg, #f0f5ff 0%, #ffffff 100%)',
             display: 'flex',
             alignItems: 'center',
-            borderBottom: '1px solid #e8eef5',
             position: 'sticky',
             top: 0,
             zIndex: 10,
