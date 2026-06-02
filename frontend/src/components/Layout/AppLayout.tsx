@@ -68,7 +68,7 @@ const AppLayout: React.FC = () => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
+    <Layout style={{ height: '100vh', overflow: 'hidden', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
       <Sider
         collapsible
         collapsed={sidebarCollapsed}
@@ -128,21 +128,21 @@ const AppLayout: React.FC = () => {
             智能教学视频生产平台
           </Title>
         </Header>
-        <Content style={{ padding: '0 24px 24px 24px' }}>
+        <Content style={{ padding: '0 16px 12px 16px' }}>
           <div
             style={{
               padding: 24,
               background: '#fff',
               borderRadius: 24,
               boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-              height: 'calc(100vh - 152px)',
+              height: 'calc(100vh - 116px)',
               overflow: 'auto',
             }}
           >
             <Outlet />
           </div>
         </Content>
-        <Footer style={{ textAlign: 'center', color: '#999', background: 'transparent' }}>
+        <Footer style={{ textAlign: 'center', color: '#999', background: 'transparent', padding: '8px 0 16px 0', fontSize: '12px' }}>
           课影 EduCast ©2026 — 面向高校教学的智能视频生产平台
         </Footer>
       </Layout>
