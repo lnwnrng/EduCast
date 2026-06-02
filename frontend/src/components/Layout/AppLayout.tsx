@@ -68,7 +68,7 @@ const AppLayout: React.FC = () => {
   };
 
   return (
-    <Layout style={{ minHeight: '100vh' }}>
+    <Layout style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
       <Sider
         collapsible
         collapsed={sidebarCollapsed}
@@ -81,7 +81,7 @@ const AppLayout: React.FC = () => {
           position: 'sticky',
           top: 0,
           left: 0,
-          background: 'linear-gradient(180deg, #f0f5ff 0%, #f9fbfd 100%)',
+          background: 'transparent',
         }}
       >
         <div
@@ -112,11 +112,11 @@ const AppLayout: React.FC = () => {
           style={{ background: 'transparent', borderRight: 0 }}
         />
       </Sider>
-      <Layout>
+      <Layout style={{ background: 'transparent' }}>
         <Header
           style={{
             padding: '0 24px',
-            background: 'linear-gradient(90deg, #f0f5ff 0%, #ffffff 100%)',
+            background: 'transparent',
             display: 'flex',
             alignItems: 'center',
             position: 'sticky',
@@ -133,14 +133,15 @@ const AppLayout: React.FC = () => {
             style={{
               padding: 24,
               background: '#fff',
-              borderRadius: 8,
+              borderRadius: 24,
+              boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
               minHeight: 'calc(100vh - 160px)',
             }}
           >
             <Outlet />
           </div>
         </Content>
-        <Footer style={{ textAlign: 'center', color: '#999' }}>
+        <Footer style={{ textAlign: 'center', color: '#999', background: 'transparent' }}>
           课影 EduCast ©2026 — 面向高校教学的智能视频生产平台
         </Footer>
       </Layout>
