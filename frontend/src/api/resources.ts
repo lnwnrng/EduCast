@@ -23,3 +23,8 @@ export const getResource = (id: string) =>
 
 export const deleteResource = (id: string) =>
   apiClient.delete(`/resources/${id}`);
+
+/** 资源文件的下载/预览 URL（经 Vite 代理到后端，支持 Range 流式播放）。
+ *  download=false → 内联预览（<video>/<img>）；download=true → 强制下载。 */
+export const getResourceDownloadUrl = (id: string, download = false) =>
+  `/api/v1/resources/${id}/download${download ? '?download=true' : ''}`;
