@@ -58,6 +58,15 @@ class FakeTTS:
         return output_path
 
 
+class FakeFormula:
+    """假公式渲染器：写占位 mp4，避免在合成测试里跑真实 matplotlib。"""
+
+    async def render(self, steps, output_path: str, *, duration=None) -> str:
+        Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+        Path(output_path).write_bytes(b"formula")
+        return output_path
+
+
 @pytest.fixture
 def fake_ffmpeg(monkeypatch):
     """把 ffmpeg 原子操作替换为产出占位文件、固定时长 2.0s。"""
@@ -77,10 +86,25 @@ def fake_ffmpeg(monkeypatch):
         Path(out).write_bytes(b"muxed-video")
         return out
 
+    async def fake_video_clip(video, audio, out, **kw) -> str:
+        Path(out).write_bytes(b"clip")
+        return out
+
+    async def fake_kenburns(image, audio, out, **kw) -> str:
+        Path(out).write_bytes(b"clip")
+        return out
+
+    async def fake_pip(bg, fg, audio, out, **kw) -> str:
+        Path(out).write_bytes(b"clip")
+        return out
+
     monkeypatch.setattr(ffmpeg_mod, "probe_duration", fake_probe)
     monkeypatch.setattr(ffmpeg_mod, "image_audio_to_clip", fake_clip)
     monkeypatch.setattr(ffmpeg_mod, "concat_clips", fake_concat)
     monkeypatch.setattr(ffmpeg_mod, "mux_subtitle_and_chapters", fake_mux)
+    monkeypatch.setattr(ffmpeg_mod, "video_audio_to_clip", fake_video_clip)
+    monkeypatch.setattr(ffmpeg_mod, "image_to_kenburns_clip", fake_kenburns)
+    monkeypatch.setattr(ffmpeg_mod, "overlay_pip_clip", fake_pip)
 
 
 def _make_ir(project_id: str) -> CourseIR:
@@ -184,9 +208,9 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     await ParserService().save_ir(ir, project_id, version=1)
 
     fake_tts = FakeTTS()
-    await CompositionService(tts_provider=fake_tts).compose(
-        project_id, task_id, db_session
-    )
+    await CompositionService(
+        tts_provider=fake_tts, formula_renderer=FakeFormula()
+    ).compose(project_id, task_id, db_session)
 
     # 任务与项目状态
     task = await db_session.get(Task, _uuid(task_id))
@@ -215,12 +239,17 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     assert video.watermark_applied is True
     assert video.mime_type == "video/mp4"
 
-    # SubTask：每镜一条 render；tts 仅对有旁白且成功/失败者
+    # SubTask：按画面类型分发——s1/s3 课件页(render)、s2 公式(formula)、
+    # s4 数字人(digital_human，本地讲师默认开)；tts 仅对有旁白且成功/失败者
     subtasks = (await db_session.execute(select(SubTask))).scalars().all()
     renders = [s for s in subtasks if s.subtask_type == "render"]
+    formulas = [s for s in subtasks if s.subtask_type == "formula"]
+    dhs = [s for s in subtasks if s.subtask_type == "digital_human"]
     ttss = [s for s in subtasks if s.subtask_type == "tts"]
-    assert len(renders) == 4
+    assert len(renders) == 2  # s1、s3
     assert all(s.status == "completed" for s in renders)
+    assert len(formulas) == 1 and formulas[0].status == "completed"  # s2
+    assert len(dhs) == 1 and dhs[0].status == "completed"  # s4（旁白失败仍出画中画）
     # s1、s2 成功；s4 失败；s3 无旁白不产生 tts
     assert sorted(s.status for s in ttss) == ["completed", "completed", "failed"]
     assert fake_tts.synthesized == ["第一段讲解内容。", "推导过程讲解。"]
@@ -308,9 +337,9 @@ async def test_regenerate_produces_new_version(
     await ParserService().save_ir(_make_ir(project_id), project_id, version=1)
 
     # 第一次生成 → gen1
-    await CompositionService(tts_provider=FakeTTS()).compose(
-        project_id, task_id, db_session
-    )
+    await CompositionService(
+        tts_provider=FakeTTS(), formula_renderer=FakeFormula()
+    ).compose(project_id, task_id, db_session)
     # 第二次生成（新任务）→ gen2
     task2 = Task(
         project_id=_uuid(project_id), task_type="full_pipeline", status="generating"
@@ -318,9 +347,9 @@ async def test_regenerate_produces_new_version(
     db_session.add(task2)
     await db_session.flush()
     await db_session.commit()
-    await CompositionService(tts_provider=FakeTTS()).compose(
-        project_id, str(task2.id), db_session
-    )
+    await CompositionService(
+        tts_provider=FakeTTS(), formula_renderer=FakeFormula()
+    ).compose(project_id, str(task2.id), db_session)
 
     videos = [
         r
@@ -358,7 +387,9 @@ async def test_tts_voice_from_task_config(
     await ParserService().save_ir(_make_ir(pid), pid, version=1)
 
     fake_tts = FakeTTS()
-    await CompositionService(tts_provider=fake_tts).compose(pid, tid, db_session)
+    await CompositionService(
+        tts_provider=fake_tts, formula_renderer=FakeFormula()
+    ).compose(pid, tid, db_session)
 
     assert fake_tts.voices  # 有配音调用
     assert all(v == "zh-CN-YunxiNeural" for v in fake_tts.voices)

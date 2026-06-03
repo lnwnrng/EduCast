@@ -19,6 +19,13 @@ pdfplumber>=0.11.0
 mammoth>=1.8.0
 pillow>=11.0.0
 
+# Formula Animation
+# matplotlib: 公式渲染兜底（mathtext 渲染 LaTeX 步骤为图片，纯 wheel、无需装 LaTeX）
+matplotlib>=3.9.0
+# manim（可选，效果更佳的逐步推导动画）需另装且依赖系统 LaTeX(MiKTeX)/cairo：
+#   pip install manim   # 并安装 MiKTeX https://miktex.org/download
+# 未安装时公式分镜自动降级为 matplotlib 图片逐步显影，不影响出片。
+
 # TTS & HTTP
 edge-tts>=6.1.0
 httpx>=0.28.0

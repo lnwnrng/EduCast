@@ -30,7 +30,10 @@ export const updateScript = (projectId: string, irData: CourseIR) =>
 export const generateScript = (projectId: string) =>
   apiClient.post(`/scripts/projects/${projectId}/script/generate`);
 
-/** 审核通过脚本并开始生成（重复调用即重新生成）。config 可传 { tts_voice } */
+/**
+ * 审核通过脚本并开始生成（重复调用即重新生成）。
+ * config 可传 { tts_voice, use_digital_human, use_generative }
+ */
 export const approveScript = (
   projectId: string,
   config?: Record<string, unknown>

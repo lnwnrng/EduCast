@@ -261,6 +261,173 @@ async def image_audio_to_clip(
     return output_path
 
 
+# 画中画尺寸 → 前景宽度占成片宽度的比例（small/medium/large）
+_PIP_WIDTH_FRAC: dict[str, float] = {"small": 0.22, "medium": 0.30, "large": 0.40}
+
+
+def _audio_input(audio_path: str | None) -> tuple[list[str], str]:
+    """构造音频输入参数与其流标识。
+
+    有 ``audio_path`` 用之；否则用 ``anullsrc`` 生成静音轨。返回 (输入参数, map 标识)。
+    调用方需保证音频是最后一个输入（标识里的索引由 ``input_index`` 决定）。
+    """
+    if audio_path:
+        return ["-i", audio_path], "a"
+    return (
+        ["-f", "lavfi", "-i", "anullsrc=channel_layout=stereo:sample_rate=44100"],
+        "a",
+    )
+
+
+def _venc_tail(fps: int, output_path: str, *, duration: float) -> list[str]:
+    """统一的视频/音频编码尾参（与 image_audio_to_clip 同规格，便于 concat 拼接）。"""
+    return [
+        "-t",
+        str(duration if duration and duration > 0 else settings.SILENT_SCENE_DURATION),
+        "-c:v",
+        "libx264",
+        "-pix_fmt",
+        "yuv420p",
+        "-r",
+        str(fps),
+        "-c:a",
+        "aac",
+        "-b:a",
+        "128k",
+        "-ar",
+        "44100",
+        output_path,
+    ]
+
+
+async def video_audio_to_clip(
+    video_path: str,
+    audio_path: str | None,
+    output_path: str,
+    *,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    duration: float,
+) -> str:
+    """把一段已有视频（生成式片段/公式动画/数字人）归一化为标准单镜 MP4。
+
+    源视频缩放铺满 WxH（保比例 + 黑边），按 ``duration`` 截断；不足时循环补足
+    （``-stream_loop -1``）。音频取 ``audio_path``（旁白），无则静音轨。便于后续
+    concat demuxer 与课件页片段无损拼接。
+    """
+    vf = (
+        f"scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=black,setsar=1,fps={fps}"
+    )
+    args = [settings.FFMPEG_BIN, "-y", "-stream_loop", "-1", "-i", video_path]
+    audio_args, _ = _audio_input(audio_path)
+    args += audio_args
+    args += ["-vf", vf, "-map", "0:v", "-map", "1:a"]
+    args += _venc_tail(fps, output_path, duration=duration)
+    await _run(args)
+    return output_path
+
+
+async def image_to_kenburns_clip(
+    image_path: str,
+    audio_path: str | None,
+    output_path: str,
+    *,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    duration: float,
+) -> str:
+    """由静态图做 Ken-Burns 缓慢推近运镜，生成有动感的单镜 MP4。
+
+    用于「生成式片段」无 API/失败时的兜底——让概念底图也有镜头语言。预放大后
+    ``zoompan`` 缓慢推进，避免抖动。
+    """
+    secs = duration if duration and duration > 0 else settings.SILENT_SCENE_DURATION
+    frames = max(int(round(secs * fps)), 1)
+    vf = (
+        f"scale={width * 2}:-2,"
+        f"zoompan=z='min(zoom+0.0010,1.20)':d={frames}"
+        f":x='iw/2-(iw/zoom/2)':y='ih/2-(ih/zoom/2)':s={width}x{height}:fps={fps},"
+        f"setsar=1"
+    )
+    args = [settings.FFMPEG_BIN, "-y", "-loop", "1", "-i", image_path]
+    audio_args, _ = _audio_input(audio_path)
+    args += audio_args
+    args += ["-vf", vf, "-map", "0:v", "-map", "1:a"]
+    args += _venc_tail(fps, output_path, duration=secs)
+    await _run(args)
+    return output_path
+
+
+async def overlay_pip_clip(
+    background_path: str,
+    foreground_path: str,
+    audio_path: str | None,
+    output_path: str,
+    *,
+    position: str = "bottom_right",
+    size: str = "small",
+    fg_is_video: bool = False,
+    float_motion: bool = True,
+    width: int = 1920,
+    height: int = 1080,
+    fps: int = 30,
+    duration: float,
+) -> str:
+    """把讲师前景（头像图 / 云端口播视频）以画中画叠加到课件底图上。
+
+    用于「数字人」分镜：背景=课件页，前景按 ``size`` 缩放、按 ``position`` 定位
+    （四角/全屏）。前景为静态图时加轻微上下浮动制造「在讲」的动感（``float_motion``）。
+    音频取旁白，时长由 ``duration`` 决定。
+    """
+    secs = duration if duration and duration > 0 else settings.SILENT_SCENE_DURATION
+    margin = int(round(min(width, height) * 0.04))
+
+    args = [settings.FFMPEG_BIN, "-y", "-loop", "1", "-i", background_path]
+    if fg_is_video:
+        args += ["-stream_loop", "-1", "-i", foreground_path]
+    else:
+        args += ["-loop", "1", "-i", foreground_path]
+    audio_args, _ = _audio_input(audio_path)
+    args += audio_args  # 第三个输入 → 索引 2
+
+    bg_chain = (
+        f"[0:v]scale={width}:{height}:force_original_aspect_ratio=decrease,"
+        f"pad={width}:{height}:(ow-iw)/2:(oh-ih)/2:color=white,setsar=1,fps={fps}[bg]"
+    )
+
+    if position == "full_screen":
+        fg_chain = (
+            f"[1:v]scale={width}:{height}:force_original_aspect_ratio=increase,"
+            f"crop={width}:{height}[fg]"
+        )
+        x_expr, y_expr = "0", "0"
+    else:
+        fg_w = int(round(width * _PIP_WIDTH_FRAC.get(size, 0.22)))
+        fg_chain = f"[1:v]scale={fg_w}:-1[fg]"
+        if position == "bottom_left":
+            x_expr, y_base = str(margin), f"H-h-{margin}"
+        elif position == "top_right":
+            x_expr, y_base = f"W-w-{margin}", str(margin)
+        elif position == "top_left":
+            x_expr, y_base = str(margin), str(margin)
+        else:  # bottom_right（默认）
+            x_expr, y_base = f"W-w-{margin}", f"H-h-{margin}"
+        y_expr = (
+            f"{y_base}-8*sin(2*PI*t/3)" if float_motion and not fg_is_video else y_base
+        )
+
+    overlay = f"[bg][fg]overlay=x={x_expr}:y={y_expr}:format=auto[v]"
+    filter_complex = ";".join([bg_chain, fg_chain, overlay])
+
+    args += ["-filter_complex", filter_complex, "-map", "[v]", "-map", "2:a"]
+    args += _venc_tail(fps, output_path, duration=secs)
+    await _run(args)
+    return output_path
+
+
 async def concat_clips(
     clip_paths: list[str], output_path: str, *, faststart: bool = False
 ) -> str:

@@ -57,6 +57,8 @@ def test_estimate_potential_but_not_chargeable_without_keys(monkeypatch) -> None
     # 未配置付费 API Key → 潜在成本算满，实际计费为 0（降级免费课件页）
     monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
     monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
+    # CogVideoX 同平台会回退 ZHIPU_API_KEY，故一并清空以验证"全无付费能力"
+    monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
     ir = _ir_with(
         SceneType.SLIDE,
         SceneType.DIGITAL_HUMAN,

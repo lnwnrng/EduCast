@@ -32,6 +32,21 @@ class Settings(BaseSettings):
     ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
     LLM_TIMEOUT: float = 60.0
 
+    # ── 生成式片段（智谱 CogVideoX，模块五）─────────────────────
+    # CogVideoX 与 GLM 同平台；COGVIDEO_API_KEY 留空时回退用 ZHIPU_API_KEY
+    COGVIDEO_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
+    COGVIDEO_MODEL: str = "cogvideox-flash"
+    VIDEO_GEN_TIMEOUT: float = 300.0
+    VIDEO_GEN_POLL_INTERVAL: float = 5.0
+
+    # ── 数字人（模块四）─────────────────────────────────────
+    # 本地兜底讲师画中画的姓名条文本；接入真机 API 后由 Provider 决定形象
+    DIGITAL_HUMAN_AVATAR_NAME: str = "AI 讲师"
+
+    # ── 公式动画（公式渲染画面）────────────────────────────────
+    # auto: 探测到 manim+LaTeX 用 manim，否则降级图片显影; manim / image 可强制
+    FORMULA_ENGINE: str = "auto"
+
     # ── TTS ─────────────────────────────────────────────────
     EDGE_TTS_VOICE: str = "zh-CN-XiaoxiaoNeural"
 

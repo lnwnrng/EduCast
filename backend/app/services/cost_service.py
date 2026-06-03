@@ -36,7 +36,8 @@ def _is_billed(scene_type: SceneType) -> bool:
     if scene_type == SceneType.DIGITAL_HUMAN:
         return bool(settings.DIGITAL_HUMAN_API_KEY)
     if scene_type == SceneType.GENERATIVE_CLIP:
-        return bool(settings.COGVIDEO_API_KEY)
+        # CogVideoX 与 GLM 同平台：COGVIDEO_API_KEY 为空时回退用 ZHIPU_API_KEY
+        return bool(settings.COGVIDEO_API_KEY or settings.ZHIPU_API_KEY)
     return False
 
 
@@ -48,9 +49,20 @@ def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
     - generative_clip：按默认片段时长 × 生成式费率。
 
     返回潜在成本 ``total``（全算，供展示）与实际计费 ``chargeable``（仅已激活
-    付费能力，供配额护栏）。
+    付费能力且本次启用，供配额护栏）。
+
+    ``config`` 为 ``None`` 时按「潜在」口径（两类能力都视作启用），用于审核前的
+    成本预览；传入 ``config`` 时按用户**显式选择**计费：``use_generative`` /
+    ``use_digital_human`` 默认 false（未勾选即降级为免费兜底，不计费）。
     """
-    clip_seconds = float((config or {}).get("clip_seconds", settings.GEN_CLIP_SECONDS))
+    cfg = config or {}
+    clip_seconds = float(cfg.get("clip_seconds", settings.GEN_CLIP_SECONDS))
+    if config is None:
+        use_generative = use_digital_human = True
+    else:
+        use_generative = bool(cfg.get("use_generative", False))
+        use_digital_human = bool(cfg.get("use_digital_human", False))
+
     breakdown: dict[str, float] = {}
     total = 0.0
     chargeable = 0.0
@@ -59,18 +71,21 @@ def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
         for kp in chapter.knowledge_points:
             for scene in kp.scenes:
                 cost = 0.0
+                enabled = False
                 if scene.scene_type == SceneType.DIGITAL_HUMAN:
                     chars = len((scene.narration_text or "").strip())
                     duration = chars / settings.TTS_CHARS_PER_SEC
                     cost = _DIGITAL_HUMAN.estimate_cost({"duration_sec": duration})
+                    enabled = use_digital_human
                 elif scene.scene_type == SceneType.GENERATIVE_CLIP:
                     cost = _VIDEO_GEN.estimate_cost({"duration_sec": clip_seconds})
+                    enabled = use_generative
 
                 if cost:
                     key = scene.scene_type.value
                     breakdown[key] = round(breakdown.get(key, 0.0) + cost, 4)
                     total += cost
-                    if _is_billed(scene.scene_type):
+                    if enabled and _is_billed(scene.scene_type):
                         chargeable += cost
 
     return CostEstimate(

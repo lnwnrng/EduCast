@@ -66,6 +66,8 @@ frontend/build/
 # ========================
 storage/
 workspace/
+# 例外：前端「项目工作台」页面与该忽略规则同名，勿误忽略其源码
+!frontend/src/pages/Workspace/
 *.mp4
 *.mp3
 *.wav

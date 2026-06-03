@@ -68,19 +68,19 @@
 - 测试：新增 slide_raster / renderer / edge-tts / subtitles / composition / cost_service / monitoring / approve_quota / skip_review / ffmpeg 真机集成（断言 faststart）等，后端 **137 tests 全通过**，ruff/black 干净，前端 tsc/eslint/`npm run build` 全绿。
 - 设计/计划文档归档于 `docs/superpowers/`（spec + 实施计划）。
 
-### 模块四：数字人集成 (Digital Human Module)
-> 🔧 已铺垫：占位 Provider 已实现按时长 × 费率的 `estimate_cost`；成本护栏会在配置 `DIGITAL_HUMAN_API_KEY` 后**自动**对数字人分镜计费并拦截超额——接真实 API 时无需改护栏代码。当前 `digital_human` 分镜在模块三降级为课件页渲染。
-- [ ] **Provider 抽象设计**：针对腾讯云/硅基等第三方数字人 API 设计适配器接口（落地 `submit/poll/get_result`）。
-- [ ] **降级方案实现**：为了解决初期零预算问题，实现一个“占位”或“纯静态图+动嘴”的本地数字人 mock 方案。
-- [ ] **流水线整合**：当分镜为 `digital_human` 时，触发该任务节点，生成带 Alpha 通道或绿幕的口播视频，交由 FFmpeg 叠加（画中画）。
+### 模块四：数字人集成 (Digital Human Module) ✅（抽象层 + 本地兜底）
+> 本轮交付 **Provider 抽象 + 本地「讲师画中画」零成本兜底**；真机云 API（腾讯云数智人 / HeyGen / 硅基 DUIX）留作热插拔适配器（接口与文档已调研）。
+- [x] **Provider 抽象设计**：复用 `BaseProvider`（`submit/poll/get_result/estimate_cost`）。`providers/digital_human/__init__.py: get_digital_human_provider()` 按 `DIGITAL_HUMAN_API_KEY` 切换云端/兜底（本轮云端恒 None）；新增 vendor Provider 即热插拔，合成层与成本护栏零改动（计费已随 Key 自动生效）。
+- [x] **本地兜底实现 (`providers/digital_human/local.py`)**：`LocalDigitalHumanProvider.render_foreground` + `renderer.render_avatar` 渲染透明底讲师头像卡（字母徽章 + 姓名条 + 「讲解中」药丸），由 `overlay_pip_clip` 叠加为画中画（静态前景加轻微浮动动感，非真口型——诚实占位）。
+- [x] **流水线整合 (`composition_service._build_digital_human`)**：`digital_human` 分镜渲染课件底图 + 讲师前景 → `ffmpeg.overlay_pip_clip`（按 IR `pip_position/pip_size` 定位/缩放，支持四角/全屏）；前端「数字人讲师」开关（默认开、免费）。任一步失败降级纯课件页 + 旁白。
 
-### 模块五：生成式教学片段 (Generative Clip Module)
-> 🔧 已铺垫：占位 `video_gen` Provider 已实现按时长 × 费率的 `estimate_cost`；成本护栏会在配置 `COGVIDEO_API_KEY` 后自动对 `generative_clip` 分镜计费拦截。当前该类分镜在模块三降级为课件页渲染（含 `gen_prompt` 文本展示）。
-- [ ] **生成 API 接入 (`providers/video_gen`)**：预留 Sora/可灵等视频生成 API 的适配逻辑，或调用免费的文生图 API 生成概念图片。
-- [ ] **自动配图逻辑**：针对“抽象概念引入”等分镜，自动提取关键词，调用外部 API 产生视觉素材并无缝插入视频时间轴。
+### 模块五：生成式教学片段 (Generative Clip Module) ✅（CogVideoX 真机 + 运镜兜底）
+> 接入**智谱 CogVideoX-Flash**（与 GLM 同平台同 Key，async REST）；无 Key/未开启/失败时降级为「概念图 Ken-Burns 运镜」。
+- [x] **生成 API 接入 (`providers/video_gen/cogvideox.py`)**：`CogVideoXProvider` 实现 `POST /videos/generations` → 轮询 `GET /async-result/{id}`（PROCESSING/SUCCESS/FAIL，带超时退避）→ httpx 下载 mp4 的 `generate()`。`get_video_gen_provider()` 优先 `COGVIDEO_API_KEY`、为空回退 `ZHIPU_API_KEY`；flash 档计费 0、正式档按时长 × 费率。
+- [x] **流水线整合 + 缓存 (`composition_service._build_generative`)**：`generative_clip` 分镜按 `gen_prompt` 生成（`sha256(模型+提示词)` 命中 `storage/_cache/video_gen` 复用，避免重复付费）→ `video_audio_to_clip` 归一化并叠加旁白（旁白更长则循环补足）；未开启/无 Key/失败 → 概念底图 `image_to_kenburns_clip` 运镜兜底。前端「生成式片段」开关 + 成本预估透传（仅开启且配 Key 才计费）。
 
 ### 模块六：教学评估与增强 (Assessment & Enhancement Module) 
 *(视进度与答辩需求选做)*
 - [~] **课后题库生成**：模块二的 LLM 编排已为每个知识点生成 `quiz_seeds`（题干/题型/答案/解析）并入 IR；**待做**：独立的「题库」前端页与导出（题目筛选、按知识点浏览、导出文档）。
-- [ ] **公式与代码动画**：接入 `manim` 对公式推导/代码讲解分镜生成程序化动画。当前 `formula_animation` 分镜降级为课件页文本展示（`renderer.render_formula_animation` 为占位）。
+- [x] **公式渲染画面 (`pipeline/formula.py`)**：`FormulaRenderer` **manim 优先 + 自动降级**——`FORMULA_ENGINE=auto` 时探测 `manim`+系统 LaTeX 可用则逐行 `Write`/`Indicate` 推导；否则走**纯 pip 图片显影**（matplotlib mathtext 把每步渲染为 PNG，按「累计展示前 k 行、第 k 行高亮」拼显影视频，CJK 字体复用课件渲染器探测，非法 mathtext 退化纯文本）。`composition_service._build_formula` 用 `video_audio_to_clip` 叠加旁白（旁白驱动时长），空步骤/失败降级课件页。`renderer.render_formula_animation` 仍保留为最终静态兜底。
 - [x] **打包导出**：模块三的 `composition_service` 已在出片时自动打包 **zip**（成片 + SRT + VTT + 封面 + IR 快照），并作为 `archive` 资源入库、可在资源管理/预览页下载。

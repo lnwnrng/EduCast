@@ -349,6 +349,62 @@ class SlideRenderer:
 
         return self._save(img, output_path)
 
+    # ── 数字人讲师头像（模块四本地兜底）──────────────────────
+
+    def render_avatar(self, *, name: str = "AI 讲师", output_path: str) -> str:
+        """渲染一张透明底的讲师头像卡 PNG，供数字人分镜作画中画前景。
+
+        无外部二进制资源：深色圆角卡 + 白底圆形 + 姓名首字母字母徽章 + 姓名条 +
+        「讲解中」状态药丸。透明底以便 ``overlay_pip_clip`` 叠加到课件页上。
+        """
+        w, h = 540, 680
+        img = Image.new("RGBA", (w, h), (0, 0, 0, 0))
+        draw = ImageDraw.Draw(img)
+
+        # 卡片底
+        draw.rounded_rectangle(
+            [4, 4, w - 4, h - 4], radius=36, fill=(*self.HEADER_COLOR, 235)
+        )
+        # 头像圆
+        cx, cy, r = w // 2, int(h * 0.40), int(w * 0.34)
+        draw.ellipse([cx - r, cy - r, cx + r, cy + r], fill=(255, 255, 255, 255))
+        # 首字母字母徽章
+        initial = name.strip()[:1] if name and name.strip() else "讲"
+        mono_font = self._font(int(r * 1.15))
+        draw.text(
+            (cx, cy), initial, font=mono_font, fill=(*self.ACCENT, 255), anchor="mm"
+        )
+        # 姓名条
+        name_font = self._font(int(h * 0.062))
+        draw.text(
+            (cx, int(h * 0.80)),
+            name,
+            font=name_font,
+            fill=(255, 255, 255, 255),
+            anchor="mm",
+        )
+        # 「讲解中」状态药丸
+        pill_font = self._font(int(h * 0.034))
+        pill_text = "● 讲解中"
+        pw = int(draw.textlength(pill_text, font=pill_font)) + 40
+        ph = int(h * 0.06)
+        px = cx - pw // 2
+        py = int(h * 0.88)
+        draw.rounded_rectangle(
+            [px, py, px + pw, py + ph], radius=ph // 2, fill=(*self.ACCENT, 255)
+        )
+        draw.text(
+            (cx, py + ph // 2),
+            pill_text,
+            font=pill_font,
+            fill=(255, 255, 255, 255),
+            anchor="mm",
+        )
+
+        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
+        img.save(output_path)
+        return output_path
+
     # ── 公式动画（P3 占位）────────────────────────────────────
 
     def render_formula_animation(self, latex_steps: list[str], output_path: str) -> str:

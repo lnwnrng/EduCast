@@ -31,7 +31,13 @@ router = APIRouter(prefix="/scripts", tags=["脚本管理"])
 
 
 class ApproveScriptRequest(BaseModel):
-    """审核放行请求体。config 可含 tts_voice 等生成参数（可选）。"""
+    """审核放行请求体。
+
+    config 可含生成参数（均可选）：
+    - ``tts_voice``：Edge-TTS 音色。
+    - ``use_generative``：是否用 CogVideoX 真生成「生成式片段」（默认 false=运镜兜底）。
+    - ``use_digital_human``：是否渲染数字人讲师画中画（默认 false=纯课件页）。
+    """
 
     config: dict[str, Any] | None = None
 
@@ -185,11 +191,11 @@ async def approve_script(
     if ir is None:
         raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR，无法生成视频")
 
-    # 成本护栏：按"实际会计费"的成本校验配额（超额抛 CostLimitException → 429）
-    estimate = estimate_ir_cost(ir)
+    # 成本护栏：按用户本次选择的"实际会计费"成本校验配额（超额抛 → 429）
+    config = data.config if data else None
+    estimate = estimate_ir_cost(ir, config)
     await check_quota(db, str(project_id), estimate.chargeable)
 
-    config = data.config if data else None
     task = Task(
         project_id=project_id,
         task_type="full_pipeline",
