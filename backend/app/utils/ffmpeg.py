@@ -261,8 +261,14 @@ async def image_audio_to_clip(
     return output_path
 
 
-async def concat_clips(clip_paths: list[str], output_path: str) -> str:
-    """用 concat demuxer 无损拼接多个同参数 MP4 片段。"""
+async def concat_clips(
+    clip_paths: list[str], output_path: str, *, faststart: bool = False
+) -> str:
+    """用 concat demuxer 无损拼接多个同参数 MP4 片段。
+
+    ``faststart=True`` 时把 moov 原子前置（仅当 concat 结果即最终成片、不再二次
+    封装时需要），保证浏览器可流式播放/拖动进度。
+    """
     if not clip_paths:
         raise ValueError("没有可拼接的片段")
 
@@ -275,22 +281,24 @@ async def concat_clips(clip_paths: list[str], output_path: str) -> str:
     with open(list_path, "w", encoding="utf-8") as f:
         f.write("\n".join(lines) + "\n")
 
+    args = [
+        settings.FFMPEG_BIN,
+        "-y",
+        "-f",
+        "concat",
+        "-safe",
+        "0",
+        "-i",
+        list_path,
+        "-c",
+        "copy",
+    ]
+    if faststart:
+        args += ["-movflags", "+faststart"]
+    args.append(output_path)
+
     try:
-        await _run(
-            [
-                settings.FFMPEG_BIN,
-                "-y",
-                "-f",
-                "concat",
-                "-safe",
-                "0",
-                "-i",
-                list_path,
-                "-c",
-                "copy",
-                output_path,
-            ]
-        )
+        await _run(args)
     finally:
         if os.path.exists(list_path):
             os.remove(list_path)
@@ -327,6 +335,8 @@ async def mux_subtitle_and_chapters(
     args += ["-c", "copy"]
     if sub_idx is not None:
         args += ["-c:s", "mov_text"]
+    # moov 前置：这是最终成片步骤，保证浏览器可流式播放/拖动进度
+    args += ["-movflags", "+faststart"]
     args += [output_path]
 
     await _run(args)

@@ -35,7 +35,8 @@ class VideoComposer:
         logger.info("开始合成: %d 个分镜片段 → %s", len(clip_paths), output_path)
 
         if not (srt_path or chapter_metadata_path):
-            await ffmpeg.concat_clips(clip_paths, output_path)
+            # 无字幕/章节：concat 结果即成片，需前置 moov 以便浏览器流式播放
+            await ffmpeg.concat_clips(clip_paths, output_path, faststart=True)
             return output_path
 
         # 先拼接到临时文件，再复用软字幕/章节 metadata

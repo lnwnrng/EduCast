@@ -20,6 +20,13 @@ pytestmark = pytest.mark.skipif(
 )
 
 
+def _is_faststart(path: str) -> bool:
+    """moov 原子在 mdat 之前即为 faststart（浏览器可流式播放）。"""
+    data = Path(path).read_bytes()
+    moov, mdat = data.find(b"moov"), data.find(b"mdat")
+    return moov >= 0 and mdat >= 0 and moov < mdat
+
+
 async def test_clip_concat_and_probe(tmp_path: Path) -> None:
     renderer = SlideRenderer(width=640, height=360)
     clips = []
@@ -57,3 +64,25 @@ async def test_clip_concat_and_probe(tmp_path: Path) -> None:
     assert Path(out).exists()
     total = await ffmpeg.probe_duration(out)
     assert total > 1.5  # 两段各约 1s
+    # 成片必须 faststart，否则浏览器 <video> 无法流式播放/拖动
+    assert _is_faststart(out)
+
+
+async def test_concat_only_output_is_faststart(tmp_path: Path) -> None:
+    """无字幕/章节时 concat 直出成片也必须 faststart。"""
+    renderer = SlideRenderer(width=640, height=360)
+    clips = []
+    for i in range(2):
+        img = str(tmp_path / f"s{i}.png")
+        renderer.render_scene(title=f"镜{i}", body_lines=["x"], output_path=img)
+        clip = str(tmp_path / f"c{i}.mp4")
+        await ffmpeg.image_audio_to_clip(
+            img, None, clip, width=640, height=360, fps=24, duration=1.0
+        )
+        clips.append(clip)
+
+    out = str(tmp_path / "plain.mp4")
+    await VideoComposer().compose(clips, out)
+
+    assert Path(out).exists()
+    assert _is_faststart(out)
