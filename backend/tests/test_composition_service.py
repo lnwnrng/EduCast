@@ -46,11 +46,13 @@ class FakeTTS:
 
     def __init__(self) -> None:
         self.synthesized: list[str] = []
+        self.voices: list[str | None] = []
 
     async def synthesize(self, text: str, output_path: str, *, voice=None) -> str:
         if "FAIL" in text:
             raise RuntimeError("模拟配音失败")
         self.synthesized.append(text)
+        self.voices.append(voice)
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_bytes(b"fake-audio")
         return output_path
@@ -195,13 +197,13 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     project = await db_session.get(Project, _uuid(project_id))
     assert project.status == "completed"
 
-    # 产物文件
+    # 产物文件（按生成版本 gen{N} 命名）
     out = tmp_path / project_id / "output"
-    assert (out / "v1.mp4").exists()
-    assert (out / "v1.srt").exists()
-    assert (out / "v1.vtt").exists()
-    assert (out / "v1_cover.png").exists()
-    assert (tmp_path / project_id / "export" / "v1.zip").exists()
+    assert (out / "gen1.mp4").exists()
+    assert (out / "gen1.srt").exists()
+    assert (out / "gen1.vtt").exists()
+    assert (out / "gen1_cover.png").exists()
+    assert (tmp_path / project_id / "export" / "gen1.zip").exists()
     # workspace 已清理
     assert not (tmp_path / project_id / "workspace" / task_id).exists()
 
@@ -224,7 +226,7 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     assert fake_tts.synthesized == ["第一段讲解内容。", "推导过程讲解。"]
 
     # 字幕时间轴：s1/s2 各 2s（有音频），s3/s4 各 4s（静音降级）
-    srt = (out / "v1.srt").read_text(encoding="utf-8")
+    srt = (out / "gen1.srt").read_text(encoding="utf-8")
     assert "00:00:00,000 --> 00:00:02,000" in srt
     assert "00:00:02,000 --> 00:00:04,000" in srt
     assert "00:00:04,000 --> 00:00:08,000" in srt
@@ -295,3 +297,68 @@ async def test_compose_with_real_slide_background(
         if s.subtask_type == "render"
     ]
     assert renders and all(s.status == "completed" for s in renders)
+
+
+async def test_regenerate_produces_new_version(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """重新生成产出独立版本 gen2，视频资源 version 递增、记录 ir_version。"""
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    project_id, task_id = await _seed(db_session)
+    await ParserService().save_ir(_make_ir(project_id), project_id, version=1)
+
+    # 第一次生成 → gen1
+    await CompositionService(tts_provider=FakeTTS()).compose(
+        project_id, task_id, db_session
+    )
+    # 第二次生成（新任务）→ gen2
+    task2 = Task(
+        project_id=_uuid(project_id), task_type="full_pipeline", status="generating"
+    )
+    db_session.add(task2)
+    await db_session.flush()
+    await db_session.commit()
+    await CompositionService(tts_provider=FakeTTS()).compose(
+        project_id, str(task2.id), db_session
+    )
+
+    videos = [
+        r
+        for r in (await db_session.execute(select(Resource))).scalars().all()
+        if r.resource_type == "video"
+    ]
+    assert sorted(v.version for v in videos) == [1, 2]
+    assert (tmp_path / project_id / "output" / "gen2.mp4").exists()
+    # 视频资源记录了生成时的 IR 版本
+    import json as _json
+
+    metas = [_json.loads(v.metadata_json or "{}") for v in videos]
+    assert all(m.get("ir_version") == 1 for m in metas)
+
+
+async def test_tts_voice_from_task_config(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """approve 写入的 config.tts_voice 透传到 TTS synthesize。"""
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+
+    project = Project(title="音色测试", status="reviewing")
+    db_session.add(project)
+    await db_session.flush()
+    task = Task(
+        project_id=project.id,
+        task_type="full_pipeline",
+        status="generating",
+        config_json='{"tts_voice": "zh-CN-YunxiNeural"}',
+    )
+    db_session.add(task)
+    await db_session.flush()
+    await db_session.commit()
+    pid, tid = str(project.id), str(task.id)
+    await ParserService().save_ir(_make_ir(pid), pid, version=1)
+
+    fake_tts = FakeTTS()
+    await CompositionService(tts_provider=fake_tts).compose(pid, tid, db_session)
+
+    assert fake_tts.voices  # 有配音调用
+    assert all(v == "zh-CN-YunxiNeural" for v in fake_tts.voices)

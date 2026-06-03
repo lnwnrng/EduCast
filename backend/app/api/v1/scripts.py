@@ -7,9 +7,12 @@
   - POST /scripts/projects/{id}/script/approve  — 审核通过
 """
 
+import json
+from typing import Any
 from uuid import UUID
 
 from fastapi import APIRouter, BackgroundTasks, Depends
+from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -25,6 +28,13 @@ from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
 router = APIRouter(prefix="/scripts", tags=["脚本管理"])
+
+
+class ApproveScriptRequest(BaseModel):
+    """审核放行请求体。config 可含 tts_voice 等生成参数（可选）。"""
+
+    config: dict[str, Any] | None = None
+
 
 _parser_service = ParserService()
 
@@ -162,12 +172,14 @@ async def generate_script(
 async def approve_script(
     project_id: UUID,
     background_tasks: BackgroundTasks,
+    data: ApproveScriptRequest | None = None,
     db: AsyncSession = Depends(get_db),
 ) -> SuccessResponse:
     """审核通过脚本 — 人在环放行，触发模块三视频生成与合成。
 
     创建生成任务并在后台执行 CompositionService（配音 + 课件渲染 + FFmpeg 合成
-    + 入库），返回 task_id 供前端轮询进度。
+    + 入库），返回 task_id 供前端轮询进度。可选 body `{config:{tts_voice}}` 透传
+    生成参数（音色等）。重复调用即「重新生成」，产出新的成片版本。
     """
     ir = await _parser_service.load_ir(str(project_id))
     if ir is None:
@@ -177,12 +189,14 @@ async def approve_script(
     estimate = estimate_ir_cost(ir)
     await check_quota(db, str(project_id), estimate.chargeable)
 
+    config = data.config if data else None
     task = Task(
         project_id=project_id,
         task_type="full_pipeline",
         status="generating",
         progress=50,
         estimated_cost=estimate.chargeable,
+        config_json=(json.dumps(config, ensure_ascii=False) if config else None),
     )
     db.add(task)
     await db.flush()

@@ -14,6 +14,7 @@ from app.ir.schema import (
 from app.models.project import Project
 from app.models.task import Task
 from app.services.parser_service import ParserService
+from app.services.resource_service import ResourceService
 
 
 async def _seed_project_with_ir(db_session, tmp_path) -> str:
@@ -81,3 +82,59 @@ async def test_cost_estimate_without_ir_404(client: AsyncClient) -> None:
     project_id = create.json()["id"]
     resp = await client.get(f"/api/v1/projects/{project_id}/cost-estimate")
     assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_workspace_aggregate_and_stale(
+    client: AsyncClient, db_session, tmp_path, monkeypatch
+) -> None:
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    project = Project(title="工作台课程", status="completed")
+    db_session.add(project)
+    await db_session.flush()
+    pid = str(project.id)
+
+    scene = SceneIR(order=1, scene_type=SceneType.SLIDE, narration_text="讲解")
+    ir = CourseIR(
+        course_id=pid,
+        title="工作台课程",
+        version=1,
+        chapters=[
+            ChapterIR(
+                title="章",
+                order=1,
+                knowledge_points=[KnowledgePointIR(title="kp", scenes=[scene])],
+            )
+        ],
+    )
+    await ParserService().save_ir(ir, pid, version=1)
+    await ResourceService.create_resource(
+        db_session,
+        project.id,
+        "video",
+        "成片 第1版",
+        "gen1.mp4",
+        mime_type="video/mp4",
+        version=1,
+        metadata={"ir_version": 1},
+    )
+    await db_session.commit()
+
+    r = await client.get(f"/api/v1/projects/{pid}/workspace")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["has_ir"] is True
+    assert body["latest_ir_version"] == 1
+    assert len(body["videos"]) == 1
+    assert body["videos"][0]["version"] == 1
+    assert body["videos"][0]["ir_version"] == 1
+    assert body["is_stale"] is False
+    assert body["cost_estimate"] is not None
+
+    # 改脚本 → IR v2，成片仍基于 v1 → 过期
+    ir.version = 2
+    await ParserService().save_ir(ir, pid, version=2)
+    r2 = await client.get(f"/api/v1/projects/{pid}/workspace")
+    body2 = r2.json()
+    assert body2["latest_ir_version"] == 2
+    assert body2["is_stale"] is True

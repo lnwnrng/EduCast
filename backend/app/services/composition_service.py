@@ -11,6 +11,7 @@ FFmpeg 拼接为带字幕/章节/水印的 MP4，连同 SRT/VTT/封面/IR 打包
   app.utils.ffmpeg，单元测试通过 monkeypatch 脱离真实 FFmpeg 与网络。
 """
 
+import json
 import logging
 import os
 import re
@@ -25,6 +26,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.ir.schema import CourseIR, KnowledgePointIR, SceneIR, SceneType
 from app.models.project import Project
+from app.models.resource import Resource
 from app.models.task import SubTask, Task
 from app.pipeline.composer import VideoComposer
 from app.pipeline.renderer import SlideRenderer
@@ -109,6 +111,10 @@ class CompositionService:
             await self._update_task(db, task_id, "generating", 50)
             await self._update_project(db, project_id, "generating")
 
+            # 生成版本号（按现有视频数递增）与生成配置（如 TTS 音色）
+            gen = await self._next_gen_version(db, project_id)
+            voice = self._task_voice(await db.get(Task, _to_uuid(task_id)))
+
             root = settings.STORAGE_ROOT
             workspace = os.path.join(root, project_id, "workspace", task_id)
             output_dir = os.path.join(root, project_id, "output")
@@ -126,7 +132,7 @@ class CompositionService:
             total = len(flat)
             for i, fs in enumerate(flat):
                 clip = await self._build_scene_clip(
-                    db, task_uuid, fs, i, workspace, watermark
+                    db, task_uuid, fs, i, workspace, watermark, voice=voice
                 )
                 if clip is None:
                     continue
@@ -150,15 +156,15 @@ class CompositionService:
             segments = [(fs.start, fs.end, fs.subtitle) for fs in flat if fs.subtitle]
             chapters = _chapter_spans(flat)
 
-            srt_path = os.path.join(output_dir, f"v{ir.version}.srt")
-            vtt_path = os.path.join(output_dir, f"v{ir.version}.vtt")
+            srt_path = os.path.join(output_dir, f"gen{gen}.srt")
+            vtt_path = os.path.join(output_dir, f"gen{gen}.vtt")
             chapter_path = os.path.join(workspace, "chapters.txt")
             _write(srt_path, build_srt(segments))
             _write(vtt_path, build_vtt(segments))
             _write(chapter_path, build_chapter_metadata(chapters))
 
             # ── FFmpeg 合成 ──
-            video_path = os.path.join(output_dir, f"v{ir.version}.mp4")
+            video_path = os.path.join(output_dir, f"gen{gen}.mp4")
             await self._composer.compose(
                 clip_paths,
                 video_path,
@@ -167,7 +173,7 @@ class CompositionService:
             )
 
             # ── 封面 ──
-            cover_path = os.path.join(output_dir, f"v{ir.version}_cover.png")
+            cover_path = os.path.join(output_dir, f"gen{gen}_cover.png")
             self._renderer.render_cover(
                 title=ir.title or "教学视频",
                 subject=ir.subject,
@@ -177,7 +183,7 @@ class CompositionService:
 
             # ── zip 打包 ──
             await self._update_task(db, task_id, "composing", 92)
-            zip_path = os.path.join(export_dir, f"v{ir.version}.zip")
+            zip_path = os.path.join(export_dir, f"gen{gen}.zip")
             _bundle_zip(zip_path, ir, video_path, srt_path, vtt_path, cover_path)
 
             # ── 入库 ──
@@ -185,6 +191,7 @@ class CompositionService:
                 db,
                 project_id,
                 ir,
+                gen,
                 video_path=video_path,
                 srt_path=srt_path,
                 vtt_path=vtt_path,
@@ -231,6 +238,8 @@ class CompositionService:
         index: int,
         workspace: str,
         watermark: str,
+        *,
+        voice: str | None = None,
     ) -> tuple[str, float] | None:
         """渲染底图 + 配音 + 合成单镜片段，返回 (片段路径, 时长)。失败返回 None。"""
         scene = fs.scene
@@ -265,7 +274,7 @@ class CompositionService:
         used_audio: str | None = None
         if narration:
             try:
-                await self._tts.synthesize(narration, audio_path)
+                await self._tts.synthesize(narration, audio_path, voice=voice)
                 used_audio = audio_path
                 await self._add_subtask(
                     db,
@@ -313,6 +322,7 @@ class CompositionService:
         db: AsyncSession,
         project_id: str,
         ir: CourseIR,
+        gen: int,
         *,
         video_path: str,
         srt_path: str,
@@ -323,23 +333,27 @@ class CompositionService:
         pid = _to_uuid(project_id)
         if pid is None:
             return
-        v = ir.version
+        v = gen
         await ResourceService.create_resource(
             db,
             pid,
             "video",
-            f"{ir.title} 成片 v{v}",
+            f"{ir.title} 成片 第{v}版",
             video_path,
             mime_type="video/mp4",
             version=v,
             watermark_applied=True,
-            metadata={"subject": ir.subject, "grade": ir.grade},
+            metadata={
+                "subject": ir.subject,
+                "grade": ir.grade,
+                "ir_version": ir.version,
+            },
         )
         await ResourceService.create_resource(
             db,
             pid,
             "subtitle",
-            f"{ir.title} 字幕 SRT v{v}",
+            f"{ir.title} 字幕 SRT 第{v}版",
             srt_path,
             mime_type="application/x-subrip",
             version=v,
@@ -348,7 +362,7 @@ class CompositionService:
             db,
             pid,
             "subtitle",
-            f"{ir.title} 字幕 VTT v{v}",
+            f"{ir.title} 字幕 VTT 第{v}版",
             vtt_path,
             mime_type="text/vtt",
             version=v,
@@ -357,7 +371,7 @@ class CompositionService:
             db,
             pid,
             "image",
-            f"{ir.title} 封面 v{v}",
+            f"{ir.title} 封面 第{v}版",
             cover_path,
             mime_type="image/png",
             version=v,
@@ -366,7 +380,7 @@ class CompositionService:
             db,
             pid,
             "archive",
-            f"{ir.title} 打包 v{v}",
+            f"{ir.title} 打包 第{v}版",
             zip_path,
             mime_type="application/zip",
             version=v,
@@ -438,6 +452,30 @@ class CompositionService:
             SubTask.task_id == task_uuid
         )
         return float((await db.execute(stmt)).scalar() or 0.0)
+
+    async def _next_gen_version(self, db: AsyncSession, project_id: str) -> int:
+        """下一个成片版本号 = 该项目现有视频资源数 + 1（每次生成独立成版）。"""
+        pid = _to_uuid(project_id)
+        if pid is None:
+            return 1
+        stmt = select(func.count(Resource.id)).where(
+            Resource.project_id == pid,
+            Resource.resource_type == "video",
+            Resource.deleted_at.is_(None),
+        )
+        return int((await db.execute(stmt)).scalar() or 0) + 1
+
+    @staticmethod
+    def _task_voice(task: Task | None) -> str | None:
+        """从任务 config_json 取 TTS 音色（无则用默认）。"""
+        if task is None or not task.config_json:
+            return None
+        try:
+            cfg = json.loads(task.config_json)
+        except (ValueError, TypeError):
+            return None
+        voice = cfg.get("tts_voice")
+        return str(voice) if voice else None
 
     async def _update_project(
         self, db: AsyncSession, project_id: str, status: str
