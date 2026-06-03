@@ -25,7 +25,9 @@ import {
   ReloadOutlined,
   EditOutlined,
   DownloadOutlined,
-  ArrowLeftOutlined,
+  ArrowRightOutlined,
+  PlusOutlined,
+  UnorderedListOutlined,
   CheckCircleOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
@@ -34,9 +36,9 @@ import { getWorkspace } from '../../api/workspace';
 import { approveScript } from '../../api/scripts';
 import { getResourceDownloadUrl } from '../../api/resources';
 import { getProjects } from '../../api/projects';
-import { useAppStore } from '../../stores/appStore';
 import { statusMeta, lifecycleStep, IN_PROGRESS } from '../../utils/status';
 import type { WorkspaceData, VideoVersion } from '../../types/workspace';
+import type { Project } from '../../types/project';
 
 const { Text, Title } = Typography;
 
@@ -55,11 +57,8 @@ const sceneTypeLabels: Record<string, string> = {
 };
 
 const Workspace: React.FC = () => {
-  const { id: routeId } = useParams<{ id: string }>();
+  const { id: projectId } = useParams<{ id: string }>();
   const navigate = useNavigate();
-  const { currentProjectId, setCurrentProject } = useAppStore();
-  // 工作台可从侧边栏直达：URL 无 id 时回退到记忆的当前项目
-  const projectId = routeId ?? currentProjectId ?? undefined;
 
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -68,35 +67,18 @@ const Workspace: React.FC = () => {
   const [useDigitalHuman, setUseDigitalHuman] = useState(true);
   const [useGenerative, setUseGenerative] = useState(false);
   const [activeVersion, setActiveVersion] = useState<number | null>(null);
-  const [projectOptions, setProjectOptions] = useState<
-    { value: string; label: string }[]
-  >([]);
+  const [projects, setProjects] = useState<Project[]>([]);
+  const [projectsLoading, setProjectsLoading] = useState(false);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
-  // 进入某项目工作台即记住它，供「工作台」侧边栏入口直达
+  // 工作台首页（无 id）：拉全部项目做卡片列表
   useEffect(() => {
-    if (routeId) setCurrentProject(routeId);
-  }, [routeId, setCurrentProject]);
-
-  // 项目列表（供顶部切换器 / 无项目时的选择器）
-  useEffect(() => {
+    if (projectId) return;
+    setProjectsLoading(true);
     getProjects(1, 100)
-      .then((resp) =>
-        setProjectOptions(
-          resp.data.items.map((p) => ({
-            value: p.id,
-            label: p.title || '未命名课程',
-          }))
-        )
-      )
-      .catch(() => {});
-  }, []);
-
-  // 切换项目时重置局部状态
-  useEffect(() => {
-    setActiveVersion(null);
-    setData(null);
-    setLoading(true);
+      .then((resp) => setProjects(resp.data.items))
+      .catch(() => {})
+      .finally(() => setProjectsLoading(false));
   }, [projectId]);
 
   const load = useCallback(async () => {
@@ -162,39 +144,103 @@ const Workspace: React.FC = () => {
       </div>
     );
   }
-  // 侧边栏直达且无记忆项目 → 选择一个项目进入
+  // 工作台首页（无 id）：所有项目卡片列表 + 简单状态，点卡片进入
   if (!projectId) {
     return (
       <div>
-        <PageHeader title="项目工作台" subtitle="选择一个项目进入工作台" />
-        <Card>
-          {projectOptions.length ? (
-            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
-              <Text>请选择要进入工作台的项目：</Text>
-              <Select
-                showSearch
-                style={{ width: 360 }}
-                placeholder="选择项目"
-                options={projectOptions}
-                optionFilterProp="label"
-                onChange={(v) => navigate(`/projects/${v}`)}
-              />
-              <Button
-                type="link"
-                style={{ paddingLeft: 0 }}
-                onClick={() => navigate('/projects')}
-              >
-                或前往项目管理 →
-              </Button>
-            </Space>
-          ) : (
+        <PageHeader
+          title="项目工作台"
+          subtitle="选择一个项目进入工作台，或新建项目"
+          extra={
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={() => navigate('/upload')}
+            >
+              新建项目
+            </Button>
+          }
+        />
+        {projectsLoading ? (
+          <div style={{ textAlign: 'center', padding: '60px 0' }}>
+            <Spin indicator={<LoadingOutlined style={{ fontSize: 32 }} spin />} />
+          </div>
+        ) : projects.length === 0 ? (
+          <Card>
             <Empty description="暂无项目，请先上传课件创建项目">
               <Button type="primary" onClick={() => navigate('/upload')}>
                 去上传课件
               </Button>
             </Empty>
-          )}
-        </Card>
+          </Card>
+        ) : (
+          <Row gutter={[16, 16]}>
+            {projects.map((p) => {
+              const m = statusMeta(p.status);
+              const meta = [p.subject, p.grade].filter(Boolean).join(' · ');
+              return (
+                <Col xs={24} sm={12} lg={8} key={p.id}>
+                  <Card
+                    hoverable
+                    onClick={() => navigate(`/projects/${p.id}`)}
+                    style={{ borderRadius: 12, height: '100%' }}
+                  >
+                    <div
+                      style={{
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'flex-start',
+                        gap: 8,
+                      }}
+                    >
+                      <Text strong ellipsis style={{ fontSize: 16, flex: 1 }}>
+                        {p.title || '未命名课程'}
+                      </Text>
+                      <Tag
+                        icon={
+                          p.status === 'completed' ? (
+                            <CheckCircleOutlined />
+                          ) : undefined
+                        }
+                        color={m.color}
+                        style={{ marginRight: 0 }}
+                      >
+                        {m.label}
+                      </Tag>
+                    </div>
+                    <div style={{ marginTop: 8, minHeight: 18 }}>
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {meta || '—'}
+                      </Text>
+                    </div>
+                    <div
+                      style={{
+                        marginTop: 14,
+                        display: 'flex',
+                        justifyContent: 'space-between',
+                        alignItems: 'center',
+                      }}
+                    >
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        {p.created_at
+                          ? new Date(p.created_at).toLocaleDateString()
+                          : ''}
+                      </Text>
+                      <Button
+                        type="link"
+                        size="small"
+                        style={{ paddingRight: 0 }}
+                        icon={<ArrowRightOutlined />}
+                      >
+                        进入工作台
+                      </Button>
+                    </div>
+                  </Card>
+                </Col>
+              );
+            })}
+          </Row>
+        )}
       </div>
     );
   }
@@ -473,25 +519,17 @@ const Workspace: React.FC = () => {
         subtitle={subtitleText || undefined}
         extra={
           <Space>
-            {projectOptions.length > 1 && (
-              <Select
-                size="small"
-                showSearch
-                value={projectId}
-                style={{ width: 200 }}
-                options={projectOptions}
-                optionFilterProp="label"
-                onChange={(v) => navigate(`/projects/${v}`)}
-              />
-            )}
             <Tag
               icon={status === 'completed' ? <CheckCircleOutlined /> : undefined}
               color={meta.color}
             >
               {meta.label}
             </Tag>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/projects')}>
-              返回项目
+            <Button
+              icon={<UnorderedListOutlined />}
+              onClick={() => navigate('/workspace')}
+            >
+              返回列表
             </Button>
           </Space>
         }
