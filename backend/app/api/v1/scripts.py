@@ -173,16 +173,16 @@ async def approve_script(
     if ir is None:
         raise ResourceNotFoundException(f"项目 {project_id} 尚未生成 IR，无法生成视频")
 
-    # 成本护栏：生成前预估并校验配额（超额抛 CostLimitException → 429）
+    # 成本护栏：按"实际会计费"的成本校验配额（超额抛 CostLimitException → 429）
     estimate = estimate_ir_cost(ir)
-    await check_quota(db, str(project_id), estimate.total)
+    await check_quota(db, str(project_id), estimate.chargeable)
 
     task = Task(
         project_id=project_id,
         task_type="full_pipeline",
         status="generating",
         progress=50,
-        estimated_cost=estimate.total,
+        estimated_cost=estimate.chargeable,
     )
     db.add(task)
     await db.flush()
@@ -200,6 +200,7 @@ async def approve_script(
         data={
             "project_id": str(project_id),
             "task_id": str(task.id),
-            "estimated_cost": estimate.total,
+            "estimated_cost": estimate.chargeable,
+            "potential_cost": estimate.total,
         },
     )

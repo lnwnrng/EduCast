@@ -27,16 +27,33 @@ _DIGITAL_HUMAN = PlaceholderDigitalHumanProvider()
 _VIDEO_GEN = PlaceholderVideoGenProvider()
 
 
+def _is_billed(scene_type: SceneType) -> bool:
+    """该画面类型当前是否真的会调用付费 API（据 API Key 是否配置判断）。
+
+    未配置对应 Key 时，模块三会把该分镜降级为免费课件页渲染，不产生真实费用，
+    因此不计入配额护栏。接入模块 4/5 并填好 Key 后自动开始计费/拦截。
+    """
+    if scene_type == SceneType.DIGITAL_HUMAN:
+        return bool(settings.DIGITAL_HUMAN_API_KEY)
+    if scene_type == SceneType.GENERATIVE_CLIP:
+        return bool(settings.COGVIDEO_API_KEY)
+    return False
+
+
 def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
     """预估一份 IR 的生成成本（元）。
 
     - slide / formula_animation：本地渲染 + Edge-TTS，免费记 0。
     - digital_human：按旁白字数估口播时长 × 数字人费率。
     - generative_clip：按默认片段时长 × 生成式费率。
+
+    返回潜在成本 ``total``（全算，供展示）与实际计费 ``chargeable``（仅已激活
+    付费能力，供配额护栏）。
     """
     clip_seconds = float((config or {}).get("clip_seconds", settings.GEN_CLIP_SECONDS))
     breakdown: dict[str, float] = {}
     total = 0.0
+    chargeable = 0.0
 
     for chapter in ir.chapters:
         for kp in chapter.knowledge_points:
@@ -53,8 +70,14 @@ def estimate_ir_cost(ir: CourseIR, config: dict | None = None) -> CostEstimate:
                     key = scene.scene_type.value
                     breakdown[key] = round(breakdown.get(key, 0.0) + cost, 4)
                     total += cost
+                    if _is_billed(scene.scene_type):
+                        chargeable += cost
 
-    return CostEstimate(total=round(total, 4), breakdown=breakdown)
+    return CostEstimate(
+        total=round(total, 4),
+        chargeable=round(chargeable, 4),
+        breakdown=breakdown,
+    )
 
 
 async def check_quota(db: AsyncSession, project_id: str, estimated: float) -> None:

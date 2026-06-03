@@ -78,7 +78,7 @@ async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> Non
         return
     try:
         estimate = estimate_ir_cost(ir)
-        await check_quota(db, project_id, estimate.total)
+        await check_quota(db, project_id, estimate.chargeable)
     except CostLimitException as exc:
         task = await db.get(Task, uuid.UUID(task_id))
         if task:
@@ -91,7 +91,7 @@ async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> Non
 
     task = await db.get(Task, uuid.UUID(task_id))
     if task:
-        task.estimated_cost = estimate.total
+        task.estimated_cost = estimate.chargeable
         await db.commit()
 
     try:

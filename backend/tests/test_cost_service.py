@@ -53,8 +53,28 @@ def _ir_with(*scene_types: SceneType, narration: str = "") -> CourseIR:
     return CourseIR(title="c", chapters=[ch])
 
 
-def test_estimate_ir_cost_breakdown() -> None:
-    # 数字人旁白 40 字 → 40/4=10s × 0.5 = 5.0；生成式 5s × 1.0 = 5.0；slide=0
+def test_estimate_potential_but_not_chargeable_without_keys(monkeypatch) -> None:
+    # 未配置付费 API Key → 潜在成本算满，实际计费为 0（降级免费课件页）
+    monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
+    monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
+    ir = _ir_with(
+        SceneType.SLIDE,
+        SceneType.DIGITAL_HUMAN,
+        SceneType.GENERATIVE_CLIP,
+        narration="字" * 40,  # 40/4=10s × 0.5 = 5.0；生成式 5s × 1.0 = 5.0
+    )
+    est = estimate_ir_cost(ir)
+    assert est.breakdown.get("digital_human") == 5.0
+    assert est.breakdown.get("generative_clip") == 5.0
+    assert "slide" not in est.breakdown
+    assert est.total == 10.0
+    assert est.chargeable == 0.0
+
+
+def test_estimate_chargeable_when_providers_active(monkeypatch) -> None:
+    # 配好 Key（付费能力激活）→ 实际计费 = 潜在成本
+    monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "k")
+    monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "k")
     ir = _ir_with(
         SceneType.SLIDE,
         SceneType.DIGITAL_HUMAN,
@@ -62,16 +82,15 @@ def test_estimate_ir_cost_breakdown() -> None:
         narration="字" * 40,
     )
     est = estimate_ir_cost(ir)
-    assert est.breakdown.get("digital_human") == 5.0
-    assert est.breakdown.get("generative_clip") == 5.0
-    assert "slide" not in est.breakdown
     assert est.total == 10.0
+    assert est.chargeable == 10.0
 
 
 def test_estimate_free_stack_is_zero() -> None:
     ir = _ir_with(SceneType.SLIDE, SceneType.FORMULA_ANIMATION, narration="任意")
     est = estimate_ir_cost(ir)
     assert est.total == 0.0
+    assert est.chargeable == 0.0
     assert est.breakdown == {}
 
 

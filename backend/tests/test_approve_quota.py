@@ -37,14 +37,41 @@ async def test_approve_over_quota_returns_429(
 ) -> None:
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
     monkeypatch.setattr(settings, "MAX_COST_PER_PROJECT", 1.0)
+    # 激活数字人付费能力，使其计入实际计费 → 触发护栏
+    monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "demo-key")
     pid = await _seed_project(db_session)
-    # 数字人旁白 40 字 → 估算 5.0 > 项目上限 1.0
+    # 数字人旁白 40 字 → 实计费 5.0 > 项目上限 1.0
     await ParserService().save_ir(
         _ir(pid, SceneType.DIGITAL_HUMAN, "字" * 40), pid, version=1
     )
 
     resp = await client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
     assert resp.status_code == 429
+
+
+@pytest.mark.asyncio
+async def test_approve_digital_human_free_when_no_key(
+    client: AsyncClient, db_session, tmp_path, monkeypatch
+) -> None:
+    """未配置数字人 Key 时，数字人分镜不计费 → 不被拦截（修复"老是被拦"）。"""
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    monkeypatch.setattr(settings, "MAX_COST_PER_PROJECT", 1.0)
+    monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
+
+    async def _noop(project_id: str, task_id: str) -> None:
+        return None
+
+    monkeypatch.setattr(scripts_module, "_run_composition_in_background", _noop)
+    pid = await _seed_project(db_session)
+    await ParserService().save_ir(
+        _ir(pid, SceneType.DIGITAL_HUMAN, "字" * 40), pid, version=1
+    )
+
+    resp = await client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
+    assert resp.status_code == 200
+    data = resp.json()["data"]
+    assert data["estimated_cost"] == 0.0
+    assert data["potential_cost"] == 5.0
 
 
 @pytest.mark.asyncio
