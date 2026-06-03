@@ -21,23 +21,13 @@ import {
 } from '@ant-design/icons';
 import PageHeader from '../../components/common/PageHeader';
 import { getDashboard } from '../../api/monitoring';
+import { statusMeta } from '../../utils/status';
 import type { DashboardStats } from '../../types/cost';
 
 const { Text } = Typography;
 
-const statusConfig: Record<string, { color: string; label: string }> = {
-  pending: { color: 'default', label: '等待开始' },
-  parsing: { color: 'processing', label: '解析中' },
-  scripting: { color: 'processing', label: '脚本编排中' },
-  reviewing: { color: 'warning', label: '待审核' },
-  generating: { color: 'processing', label: '生成中' },
-  composing: { color: 'processing', label: '合成中' },
-  completed: { color: 'success', label: '已完成' },
-  failed: { color: 'error', label: '处理失败' },
-};
-
 const renderStatus = (status: string) => {
-  const cfg = statusConfig[status] || { color: 'default', label: status };
+  const cfg = statusMeta(status);
   return <Tag color={cfg.color}>{cfg.label}</Tag>;
 };
 
@@ -169,7 +159,7 @@ const Monitoring: React.FC = () => {
         {stats && Object.keys(stats.status_counts).length > 0 ? (
           <Space size={[8, 8]} wrap>
             {Object.entries(stats.status_counts).map(([status, count]) => {
-              const cfg = statusConfig[status] || { color: 'default', label: status };
+              const cfg = statusMeta(status);
               return (
                 <Tag color={cfg.color} key={status} style={{ padding: '4px 12px', fontSize: 14 }}>
                   {cfg.label}：{count}

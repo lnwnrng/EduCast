@@ -5,7 +5,6 @@ import {
   FolderKanban,
   FileUp,
   FileEdit,
-  Film,
   Library,
   Gauge,
 } from 'lucide-react';
@@ -37,11 +36,6 @@ const menuItems = [
     label: '脚本编辑',
   },
   {
-    key: '/generate',
-    icon: <Film size={20} strokeWidth={1.5} />,
-    label: '视频生成',
-  },
-  {
     key: '/resources',
     icon: <Library size={20} strokeWidth={1.5} />,
     label: '资源管理',
@@ -60,7 +54,6 @@ const AppLayout: React.FC = () => {
 
   const getSelectedKey = (pathname: string): string => {
     if (pathname.includes('/script')) return '/script';
-    if (pathname.includes('/generate')) return '/generate';
     if (pathname.includes('/upload')) return '/upload';
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';

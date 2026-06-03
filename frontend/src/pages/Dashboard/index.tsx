@@ -10,6 +10,7 @@ import {
 import { useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getProjects } from '../../api/projects';
+import { statusMeta } from '../../utils/status';
 import type { Project } from '../../types/project';
 
 const { Text } = Typography;
@@ -54,18 +55,6 @@ const Dashboard: React.FC = () => {
     fetchDashboardData();
   }, []);
 
-  // Status rendering map
-  const statusConfig: Record<string, { color: string; label: string }> = {
-    pending: { color: 'default', label: '等待开始' },
-    parsing: { color: 'processing', label: '解析中' },
-    scripting: { color: 'processing', label: '脚本编排中' },
-    reviewing: { color: 'warning', label: '待审核' },
-    generating: { color: 'processing', label: '生成中' },
-    composing: { color: 'processing', label: '合成中' },
-    completed: { color: 'success', label: '已完成' },
-    failed: { color: 'error', label: '处理失败' },
-  };
-
   const recentTaskColumns = [
     {
       title: '项目',
@@ -78,7 +67,7 @@ const Dashboard: React.FC = () => {
       dataIndex: 'status',
       key: 'status',
       render: (status: string) => {
-        const config = statusConfig[status] || { color: 'default', label: status };
+        const config = statusMeta(status);
         return <Tag color={config.color}>{config.label}</Tag>;
       },
     },

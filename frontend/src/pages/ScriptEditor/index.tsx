@@ -9,6 +9,7 @@ import {
   Form,
   Input,
   List,
+  Popconfirm,
   Row,
   Select,
   Space,
@@ -411,13 +412,17 @@ const ScriptEditor: React.FC = () => {
             <Button icon={<UnorderedListOutlined />} onClick={() => navigate('/script')}>
               返回列表
             </Button>
-            <Button
-              icon={<RobotOutlined />}
-              loading={orchestrating}
-              onClick={handleReorchestrate}
+            <Popconfirm
+              title="AI 重新编排"
+              description="将用 AI 重写讲稿/分镜，会覆盖你的手动修改，确定继续？"
+              okText="继续"
+              cancelText="取消"
+              onConfirm={handleReorchestrate}
             >
-              AI 重新编排
-            </Button>
+              <Button icon={<RobotOutlined />} loading={orchestrating}>
+                AI 重新编排
+              </Button>
+            </Popconfirm>
             <Button
               icon={<SaveOutlined />}
               loading={saving}
@@ -428,9 +433,9 @@ const ScriptEditor: React.FC = () => {
             <Button
               icon={<PlaySquareOutlined />}
               type="primary"
-              onClick={() => navigate(`/projects/${projectId}/generate`)}
+              onClick={() => navigate(`/projects/${projectId}`)}
             >
-              下一步：配置生成
+              下一步：去生成
             </Button>
           </Space>
         }
