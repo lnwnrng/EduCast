@@ -56,22 +56,31 @@
 - [x] **前端审核**：`ScriptEditor` 新增「AI 重新编排」按钮（触发+轮询+重载）、课程元信息标签、生成式提示词编辑、公式步骤展示、随堂练习题区块。
 - 测试：新增 `test_json_parse` / `test_scriptwriter`（注入 FakeLLM）/ `test_zhipu_provider`（httpx MockTransport），后端 **89 tests 全通过**，前端 vite 构建通过。
 
-### 模块三：基础渲染与合成 (Renderer & Composer Module)
-- [ ] **TTS 配音生成 (`providers/tts/edge_tts_provider.py`)**：解析 IR 中的 `narration_text`，批量请求 Edge-TTS 生成音频，并获取时长。
-- [ ] **课件静态渲染**：根据 IR 分镜指定的课件页（或背景色），生成静态背景图片或视频片段。
-- [ ] **FFmpeg 最终合成 (`utils/ffmpeg.py` & `pipeline/composer.py`)**：基于时间轴，将音频、背景图、通过 `srt` 生成的字幕组装成复杂的 FFmpeg Filtergraph 命令，输出最终的 MP4。
+### 模块三：基础渲染与合成 (Renderer & Composer Module) ✅
+- [x] **TTS 配音生成 (`providers/tts/edge_tts_provider.py`)**：实现 Edge-TTS 逐分镜配音（`synthesize` + 统一 Provider 接口 + `get_tts_provider` 工厂）；空旁白/失败降级为静音分镜，时长经 ffprobe 获取并驱动分镜。
+- [x] **课件静态渲染 (`pipeline/renderer.py`, Pillow)**：从 IR 文本合成 1920×1080 课件页（标题/要点 + 字幕烤入画面 + 水印 + 画面意图角标，CJK 字体自动探测兜底）；**PDF 用 PyMuPDF 栅格化为真实页图作底、PPTX 有 LibreOffice 时转 PDF 后同样出真实页图**（`pipeline/slide_raster.py`），无则降级文本合成；封面卡渲染。
+- [x] **字幕与章节 (`pipeline/subtitles.py`)**：SRT/VTT 生成 + FFmpeg 章节 metadata，时间轴由旁白音频时长累计驱动。
+- [x] **FFmpeg 最终合成 (`utils/ffmpeg.py` & `pipeline/composer.py`)**：逐分镜「静图 + 音频 → 片段」→ concat demuxer 拼接 → 软字幕(mov_text) + 章节复用 → **`-movflags +faststart` 前置 moov，浏览器可流式播放/拖动**。
+- [x] **合成编排服务 (`services/composition_service.py`)**：展平 IR → 逐镜渲染 + 配音（各记一条 SubTask）→ 合成 → 封面 → **zip 打包** → Resource 入库；单镜/配音失败均可降级。`approve_script` 人在环放行触发后台合成；新增 `GET /resources/{id}/download`（FileResponse + Range 流式）。
+- [x] **成本护栏与监控 (`services/cost_service.py`, `api/v1/monitoring.py`)**：生成前成本预估区分**潜在成本 vs 实际计费**（仅配置了付费 API Key 的能力才计费）+ 配额拦截（超额 429）+ 项目/全局成本与存储汇总端点（`/projects/{id}/cost-estimate`、`/projects/{id}/cost`、`/monitoring/dashboard`）；`approve` 记 `estimated/actual_cost`。
+- [x] **一键全自动 (`SKIP_REVIEW`)**：开启后上传即自动跨过人工审核直接出片（仍走成本护栏）；默认关闭保持人在环。
+- [x] **前端接通**：新增「**监控面板**」页（任务状态分布/累计成本/存储用量/最近任务）；「视频生成」页展示成本预估（潜在/实计费 + 免费降级提示）；「**成片预览**」页用原生 `<video>` 真正在线播放成片 + 中文 VTT 字幕轨 + 项目资源下载；「**资源管理**」页接通后端（列表/类型筛选/弹窗预览/下载/删除）。
+- 测试：新增 slide_raster / renderer / edge-tts / subtitles / composition / cost_service / monitoring / approve_quota / skip_review / ffmpeg 真机集成（断言 faststart）等，后端 **137 tests 全通过**，ruff/black 干净，前端 tsc/eslint/`npm run build` 全绿。
+- 设计/计划文档归档于 `docs/superpowers/`（spec + 实施计划）。
 
 ### 模块四：数字人集成 (Digital Human Module)
-- [ ] **Provider 抽象设计**：针对腾讯云/硅基等第三方数字人 API 设计适配器接口。
+> 🔧 已铺垫：占位 Provider 已实现按时长 × 费率的 `estimate_cost`；成本护栏会在配置 `DIGITAL_HUMAN_API_KEY` 后**自动**对数字人分镜计费并拦截超额——接真实 API 时无需改护栏代码。当前 `digital_human` 分镜在模块三降级为课件页渲染。
+- [ ] **Provider 抽象设计**：针对腾讯云/硅基等第三方数字人 API 设计适配器接口（落地 `submit/poll/get_result`）。
 - [ ] **降级方案实现**：为了解决初期零预算问题，实现一个“占位”或“纯静态图+动嘴”的本地数字人 mock 方案。
-- [ ] **流水线整合**：当分镜为 `digital_human` 时，触发该任务节点，生成带 Alpha 通道或绿幕的口播视频，交由 FFmpeg 叠加。
+- [ ] **流水线整合**：当分镜为 `digital_human` 时，触发该任务节点，生成带 Alpha 通道或绿幕的口播视频，交由 FFmpeg 叠加（画中画）。
 
 ### 模块五：生成式教学片段 (Generative Clip Module)
+> 🔧 已铺垫：占位 `video_gen` Provider 已实现按时长 × 费率的 `estimate_cost`；成本护栏会在配置 `COGVIDEO_API_KEY` 后自动对 `generative_clip` 分镜计费拦截。当前该类分镜在模块三降级为课件页渲染（含 `gen_prompt` 文本展示）。
 - [ ] **生成 API 接入 (`providers/video_gen`)**：预留 Sora/可灵等视频生成 API 的适配逻辑，或调用免费的文生图 API 生成概念图片。
 - [ ] **自动配图逻辑**：针对“抽象概念引入”等分镜，自动提取关键词，调用外部 API 产生视觉素材并无缝插入视频时间轴。
 
 ### 模块六：教学评估与增强 (Assessment & Enhancement Module) 
 *(视进度与答辩需求选做)*
-- [ ] **课后题库生成**：基于最终的 IR，利用 LLM 针对每个知识点生成包含单选、多选、解析的随堂测验。
-- [ ] **公式与代码动画**：尝试接入 `manim`，对于数学公式推导或代码讲解分镜，生成程序化动画视频替代静态课件。
-- [ ] **打包导出**：提供将视频、字幕、试题打包为标准归档包（如 ZIP）供用户下载的功能。
+- [~] **课后题库生成**：模块二的 LLM 编排已为每个知识点生成 `quiz_seeds`（题干/题型/答案/解析）并入 IR；**待做**：独立的「题库」前端页与导出（题目筛选、按知识点浏览、导出文档）。
+- [ ] **公式与代码动画**：接入 `manim` 对公式推导/代码讲解分镜生成程序化动画。当前 `formula_animation` 分镜降级为课件页文本展示（`renderer.render_formula_animation` 为占位）。
+- [x] **打包导出**：模块三的 `composition_service` 已在出片时自动打包 **zip**（成片 + SRT + VTT + 封面 + IR 快照），并作为 `archive` 资源入库、可在资源管理/预览页下载。
