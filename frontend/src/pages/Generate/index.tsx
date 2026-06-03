@@ -1,13 +1,22 @@
 import React, { useState, useEffect } from 'react';
-import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Progress, Empty, Table, Tag } from 'antd';
+import { Card, Form, Select, Button, Space, Typography, message, Switch, Alert, Spin, Progress, Empty, Table, Tag, Row, Col, Statistic } from 'antd';
 import { PlaySquareOutlined, LoadingOutlined, CheckCircleOutlined, VideoCameraOutlined } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getProject, getProjects } from '../../api/projects';
 import { approveScript } from '../../api/scripts';
+import { getCostEstimate } from '../../api/monitoring';
 import type { Project } from '../../types/project';
+import type { CostEstimate } from '../../types/cost';
 
 const { Title, Text } = Typography;
+
+const sceneTypeLabels: Record<string, string> = {
+  slide: '课件页',
+  formula_animation: '公式动画',
+  digital_human: '数字人',
+  generative_clip: '生成式片段',
+};
 
 const GeneratePage: React.FC = () => {
   const { id: projectId } = useParams<{ id: string }>();
@@ -22,6 +31,7 @@ const GeneratePage: React.FC = () => {
   
   // Status and Polling
   const [taskProgress, setTaskProgress] = useState(0);
+  const [estimate, setEstimate] = useState<CostEstimate | null>(null);
 
   useEffect(() => {
     if (!projectId) {
@@ -50,6 +60,15 @@ const GeneratePage: React.FC = () => {
       try {
         const resp = await getProject(projectId);
         setProject(resp.data);
+        // 解析完成后 IR 已就绪，拉取成本预估（pending/parsing 阶段 IR 尚未生成）
+        if (!['pending', 'parsing'].includes(resp.data.status)) {
+          try {
+            const e = await getCostEstimate(projectId);
+            setEstimate(e.data);
+          } catch {
+            /* IR 尚未就绪，忽略 */
+          }
+        }
       } catch {
         setError('加载项目失败');
       } finally {
@@ -218,6 +237,51 @@ const GeneratePage: React.FC = () => {
         subtitle={project?.title || '未命名课程'}
         extra={<Button onClick={() => navigate('/generate')}>返回列表</Button>}
       />
+
+      {estimate && (
+        <Card title="成本预估与配额" style={{ maxWidth: 800, margin: '0 auto 16px' }}>
+          <Row gutter={16}>
+            <Col span={12}>
+              <Statistic
+                title="潜在成本（接入付费 API 时）"
+                value={estimate.total}
+                precision={2}
+                suffix="元"
+                valueStyle={{ color: '#fa8c16' }}
+              />
+            </Col>
+            <Col span={12}>
+              <Statistic
+                title="本次实际计费"
+                value={estimate.chargeable}
+                precision={2}
+                suffix="元"
+                valueStyle={{ color: '#52c41a' }}
+              />
+            </Col>
+          </Row>
+
+          {Object.keys(estimate.breakdown).length > 0 && (
+            <div style={{ marginTop: 16 }}>
+              <Text type="secondary" style={{ marginRight: 8 }}>潜在成本构成：</Text>
+              {Object.entries(estimate.breakdown).map(([k, v]) => (
+                <Tag key={k} color="orange">
+                  {sceneTypeLabels[k] || k}：¥{v.toFixed(2)}
+                </Tag>
+              ))}
+            </div>
+          )}
+
+          {estimate.chargeable < estimate.total && (
+            <Alert
+              style={{ marginTop: 16 }}
+              type="success"
+              showIcon
+              message="数字人 / 生成式分镜暂未接入付费 API，将降级为免费课件页渲染，本次不产生费用。"
+            />
+          )}
+        </Card>
+      )}
 
       <Card title="生成参数设置" style={{ maxWidth: 800, margin: '0 auto' }}>
         <Alert

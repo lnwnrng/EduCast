@@ -7,6 +7,7 @@ import {
   FileEdit,
   Film,
   Library,
+  Gauge,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -45,6 +46,11 @@ const menuItems = [
     icon: <Library size={20} strokeWidth={1.5} />,
     label: '资源管理',
   },
+  {
+    key: '/monitoring',
+    icon: <Gauge size={20} strokeWidth={1.5} />,
+    label: '监控面板',
+  },
 ];
 
 const AppLayout: React.FC = () => {
@@ -58,6 +64,7 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/upload')) return '/upload';
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';
+    if (pathname.includes('/monitoring')) return '/monitoring';
     if (pathname === '/projects' || pathname.startsWith('/projects')) return '/projects';
     return pathname;
   };

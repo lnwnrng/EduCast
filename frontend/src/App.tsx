@@ -8,6 +8,7 @@ import ScriptEditor from './pages/ScriptEditor';
 import GeneratePage from './pages/Generate';
 import Preview from './pages/Preview';
 import Resources from './pages/Resources';
+import Monitoring from './pages/Monitoring';
 
 const App: React.FC = () => {
   return (
@@ -24,6 +25,7 @@ const App: React.FC = () => {
         <Route path="/preview" element={<Preview />} />
         <Route path="/projects/:id/preview" element={<Preview />} />
         <Route path="/resources" element={<Resources />} />
+        <Route path="/monitoring" element={<Monitoring />} />
       </Route>
     </Routes>
   );
