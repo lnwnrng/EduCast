@@ -33,6 +33,8 @@ import PageHeader from '../../components/common/PageHeader';
 import { getWorkspace } from '../../api/workspace';
 import { approveScript } from '../../api/scripts';
 import { getResourceDownloadUrl } from '../../api/resources';
+import { getProjects } from '../../api/projects';
+import { useAppStore } from '../../stores/appStore';
 import { statusMeta, lifecycleStep, IN_PROGRESS } from '../../utils/status';
 import type { WorkspaceData, VideoVersion } from '../../types/workspace';
 
@@ -53,8 +55,12 @@ const sceneTypeLabels: Record<string, string> = {
 };
 
 const Workspace: React.FC = () => {
-  const { id: projectId } = useParams<{ id: string }>();
+  const { id: routeId } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const { currentProjectId, setCurrentProject } = useAppStore();
+  // 工作台可从侧边栏直达：URL 无 id 时回退到记忆的当前项目
+  const projectId = routeId ?? currentProjectId ?? undefined;
+
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -62,10 +68,42 @@ const Workspace: React.FC = () => {
   const [useDigitalHuman, setUseDigitalHuman] = useState(true);
   const [useGenerative, setUseGenerative] = useState(false);
   const [activeVersion, setActiveVersion] = useState<number | null>(null);
+  const [projectOptions, setProjectOptions] = useState<
+    { value: string; label: string }[]
+  >([]);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
+  // 进入某项目工作台即记住它，供「工作台」侧边栏入口直达
+  useEffect(() => {
+    if (routeId) setCurrentProject(routeId);
+  }, [routeId, setCurrentProject]);
+
+  // 项目列表（供顶部切换器 / 无项目时的选择器）
+  useEffect(() => {
+    getProjects(1, 100)
+      .then((resp) =>
+        setProjectOptions(
+          resp.data.items.map((p) => ({
+            value: p.id,
+            label: p.title || '未命名课程',
+          }))
+        )
+      )
+      .catch(() => {});
+  }, []);
+
+  // 切换项目时重置局部状态
+  useEffect(() => {
+    setActiveVersion(null);
+    setData(null);
+    setLoading(true);
+  }, [projectId]);
+
   const load = useCallback(async () => {
-    if (!projectId) return;
+    if (!projectId) {
+      setLoading(false);
+      return;
+    }
     try {
       const resp = await getWorkspace(projectId);
       setData(resp.data);
@@ -121,6 +159,42 @@ const Workspace: React.FC = () => {
     return (
       <div style={{ textAlign: 'center', padding: '80px 0' }}>
         <Spin indicator={<LoadingOutlined style={{ fontSize: 36 }} spin />} />
+      </div>
+    );
+  }
+  // 侧边栏直达且无记忆项目 → 选择一个项目进入
+  if (!projectId) {
+    return (
+      <div>
+        <PageHeader title="项目工作台" subtitle="选择一个项目进入工作台" />
+        <Card>
+          {projectOptions.length ? (
+            <Space direction="vertical" size="middle" style={{ width: '100%' }}>
+              <Text>请选择要进入工作台的项目：</Text>
+              <Select
+                showSearch
+                style={{ width: 360 }}
+                placeholder="选择项目"
+                options={projectOptions}
+                optionFilterProp="label"
+                onChange={(v) => navigate(`/projects/${v}`)}
+              />
+              <Button
+                type="link"
+                style={{ paddingLeft: 0 }}
+                onClick={() => navigate('/projects')}
+              >
+                或前往项目管理 →
+              </Button>
+            </Space>
+          ) : (
+            <Empty description="暂无项目，请先上传课件创建项目">
+              <Button type="primary" onClick={() => navigate('/upload')}>
+                去上传课件
+              </Button>
+            </Empty>
+          )}
+        </Card>
       </div>
     );
   }
@@ -399,6 +473,17 @@ const Workspace: React.FC = () => {
         subtitle={subtitleText || undefined}
         extra={
           <Space>
+            {projectOptions.length > 1 && (
+              <Select
+                size="small"
+                showSearch
+                value={projectId}
+                style={{ width: 200 }}
+                options={projectOptions}
+                optionFilterProp="label"
+                onChange={(v) => navigate(`/projects/${v}`)}
+              />
+            )}
             <Tag
               icon={status === 'completed' ? <CheckCircleOutlined /> : undefined}
               color={meta.color}

@@ -3,6 +3,7 @@ import { Layout, Menu, Typography } from 'antd';
 import {
   LayoutDashboard,
   FolderKanban,
+  MonitorPlay,
   FileUp,
   FileEdit,
   Library,
@@ -24,6 +25,11 @@ const menuItems = [
     key: '/projects',
     icon: <FolderKanban size={20} strokeWidth={1.5} />,
     label: '项目管理',
+  },
+  {
+    key: '/workspace',
+    icon: <MonitorPlay size={20} strokeWidth={1.5} />,
+    label: '工作台',
   },
   {
     key: '/upload',
@@ -58,7 +64,10 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
-    if (pathname === '/projects' || pathname.startsWith('/projects')) return '/projects';
+    if (pathname === '/projects') return '/projects';
+    // 具体项目工作台（/projects/:id）与 /workspace 都高亮「工作台」
+    if (pathname.startsWith('/projects/') || pathname.startsWith('/workspace'))
+      return '/workspace';
     return pathname;
   };
 

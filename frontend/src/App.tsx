@@ -16,6 +16,8 @@ const App: React.FC = () => {
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
+        {/* 工作台：侧边栏直达（无 id 时用记忆的当前项目或显示选择器） */}
+        <Route path="/workspace" element={<Workspace />} />
         <Route path="/projects/:id" element={<Workspace />} />
         <Route path="/upload" element={<UploadPage />} />
         <Route path="/projects/:id/upload" element={<UploadPage />} />
