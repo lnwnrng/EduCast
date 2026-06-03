@@ -12,7 +12,9 @@ class CostEstimate(BaseModel):
     """
 
     total: float = Field(default=0.0, description="潜在预估总成本（含未接的付费能力）")
-    chargeable: float = Field(default=0.0, description="本次实际计费成本（仅已激活能力）")
+    chargeable: float = Field(
+        default=0.0, description="本次实际计费成本（仅已激活能力）"
+    )
     breakdown: dict[str, float] = Field(
         default_factory=dict, description="按画面类型分类的潜在成本明细"
     )
