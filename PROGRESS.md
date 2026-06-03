@@ -41,6 +41,10 @@
 
 为了确保功能完整对应《需求分析文档》中的 6 大核心模块，接下来的开发将分模块逐步推进，您可以按顺序逐一实现并进行测试：
 
+> **本轮（P2，2026-06-03）完成**：模块四（Provider 抽象 + 本地讲师画中画兜底）、模块五（智谱 **CogVideoX-Flash** 真机，复用现有 `ZHIPU_API_KEY`）、**公式渲染**（manim 优先 + matplotlib 图片显影兜底）。后端 **166 tests 全绿**、ruff/black 干净，前端 tsc/eslint/build 绿；真机 CogVideoX 出片 + 端到端四类分镜合成均已验证。已 commit `2069b2b`。
+>
+> **剩余（按需选做，未排期）**：模块六「题库」独立前端页与导出；（选）数字人**云端真机**接入（已选型，见模块四注）；（选）manim 真机渲染（装 MiKTeX 后 `FORMULA_ENGINE=auto` 自动启用）。
+
 ### 模块一：课件解析引擎 (Parser Module)
 - [x] **解析服务 (`pipeline/parser.py`)**：完整实现 PPTX（python-pptx: 标题/正文/备注/图片提取, 章节自动检测）、PDF（pdfplumber: 逐页文本/大号标题检测）、Markdown（标题层级拆分章节/知识点）、纯文本（段落切分）四种解析器。
 - [x] **IR 构建**：实现 slide → scene 映射、章节自动切分、知识点分组，生成标准四层 CourseIR 结构（草稿态）。
@@ -68,8 +72,11 @@
 - 测试：新增 slide_raster / renderer / edge-tts / subtitles / composition / cost_service / monitoring / approve_quota / skip_review / ffmpeg 真机集成（断言 faststart）等，后端 **137 tests 全通过**，ruff/black 干净，前端 tsc/eslint/`npm run build` 全绿。
 - 设计/计划文档归档于 `docs/superpowers/`（spec + 实施计划）。
 
-### 模块四：数字人集成 (Digital Human Module) ✅（抽象层 + 本地兜底）
-> 本轮交付 **Provider 抽象 + 本地「讲师画中画」零成本兜底**；真机云 API（腾讯云数智人 / HeyGen / 硅基 DUIX）留作热插拔适配器（接口与文档已调研）。
+### 模块四：数字人集成 (Digital Human Module) ✅（抽象层 + 本地兜底；云端真机已选型待接）
+> 本轮交付 **Provider 抽象 + 本地「讲师画中画」零成本兜底**；云端真机本轮**先不接**（已选型，留作热插拔适配器）。
+>
+> **推荐真机方案（已调研）**：阿里百炼 **wan2.2-s2v**（图片+音频→真对口型；新用户**免费 100 秒**，之后 480P 0.5元/秒、720P 0.9元/秒；DashScope 异步 REST `POST .../aigc/image2video/video-synthesis` + 头 `X-DashScope-Async: enable` → 轮询 `GET /tasks/{id}`，状态 PENDING/RUNNING/SUCCEEDED/FAILED，取 `output.results.video_url`）——正好吃我们逐镜现成的 TTS 旁白音频做口型同步。论文可加 **开源自建（HeyGem 需 ≥8–12G 显存 / MuseTalk + 免费 GPU 笔记本 Kaggle·魔搭）** 作"自建 vs 云 API"对比实验。HeyGen 2026-02 起取消免费 API、性价比差，不推荐。
+> 接入只需加 `providers/digital_human/<vendor>.py` 实现 `BaseProvider` + 本地文件转临时公网 URL 上传（百炼自带临时上传），**合成层与成本护栏零改动**（计费随 `DIGITAL_HUMAN_API_KEY` 自动生效）。
 - [x] **Provider 抽象设计**：复用 `BaseProvider`（`submit/poll/get_result/estimate_cost`）。`providers/digital_human/__init__.py: get_digital_human_provider()` 按 `DIGITAL_HUMAN_API_KEY` 切换云端/兜底（本轮云端恒 None）；新增 vendor Provider 即热插拔，合成层与成本护栏零改动（计费已随 Key 自动生效）。
 - [x] **本地兜底实现 (`providers/digital_human/local.py`)**：`LocalDigitalHumanProvider.render_foreground` + `renderer.render_avatar` 渲染透明底讲师头像卡（字母徽章 + 姓名条 + 「讲解中」药丸），由 `overlay_pip_clip` 叠加为画中画（静态前景加轻微浮动动感，非真口型——诚实占位）。
 - [x] **流水线整合 (`composition_service._build_digital_human`)**：`digital_human` 分镜渲染课件底图 + 讲师前景 → `ffmpeg.overlay_pip_clip`（按 IR `pip_position/pip_size` 定位/缩放，支持四角/全屏）；前端「数字人讲师」开关（默认开、免费）。任一步失败降级纯课件页 + 旁白。
