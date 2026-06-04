@@ -4,8 +4,16 @@
 测试。时间轴由 CompositionService 按各分镜旁白音频时长累计后传入。
 """
 
+import re
+
 # (start_seconds, end_seconds, text)
 Segment = tuple[float, float, str]
+
+_PRIMARY_SPLIT_RE = re.compile(r"[^。！？!?；;\n]+[。！？!?；;]?", re.MULTILINE)
+_SOFT_SPLIT_RE = re.compile(r"[^，、：:,]+[，、：:,]?", re.MULTILINE)
+
+DEFAULT_MAX_CUE_CHARS = 28
+DEFAULT_MIN_CUE_SECONDS = 1.2
 
 
 def format_timestamp(seconds: float, *, vtt: bool = False) -> str:
@@ -20,6 +28,157 @@ def format_timestamp(seconds: float, *, vtt: bool = False) -> str:
     secs, millis = divmod(rem, 1000)
     sep = "." if vtt else ","
     return f"{hours:02d}:{minutes:02d}:{secs:02d}{sep}{millis:03d}"
+
+
+def build_narration_segments(
+    scene_segments: list[Segment],
+    *,
+    max_chars: int = DEFAULT_MAX_CUE_CHARS,
+    min_seconds: float = DEFAULT_MIN_CUE_SECONDS,
+) -> list[Segment]:
+    """把分镜级旁白切成电影式短字幕 cue。
+
+    输入仍是分镜级 ``(start, end, narration_text)``；输出是更细的字幕 cue。
+    同一分镜内按文本长度比例分配时间，保证首尾时间与分镜对齐。
+    """
+    out: list[Segment] = []
+    for start, end, text in scene_segments:
+        text = _collapse_spaces(text)
+        if not text or end <= start:
+            continue
+
+        chunks = _merge_short_cues(
+            _split_narration(text, max_chars=max_chars),
+            duration=end - start,
+            max_chars=max_chars,
+            min_seconds=min_seconds,
+        )
+        if not chunks:
+            continue
+
+        out.extend(_allocate_times(start, end, chunks))
+    return out
+
+
+def _split_narration(text: str, *, max_chars: int) -> list[str]:
+    """按自然停顿优先切分旁白文本。"""
+    chunks: list[str] = []
+    for sentence in _regex_chunks(_PRIMARY_SPLIT_RE, text):
+        if _visible_len(sentence) <= max_chars:
+            chunks.append(sentence)
+            continue
+        chunks.extend(_split_long_sentence(sentence, max_chars=max_chars))
+    return chunks
+
+
+def _split_long_sentence(text: str, *, max_chars: int) -> list[str]:
+    """长句先按软停顿切，再按字符上限兜底。"""
+    chunks: list[str] = []
+    for part in _regex_chunks(_SOFT_SPLIT_RE, text):
+        if _visible_len(part) <= max_chars:
+            chunks.append(part)
+            continue
+        chunks.extend(_split_by_length(part, max_chars=max_chars))
+    return chunks
+
+
+def _merge_short_cues(
+    chunks: list[str],
+    *,
+    duration: float,
+    max_chars: int,
+    min_seconds: float,
+) -> list[str]:
+    """分镜太短时合并相邻短 cue，避免字幕闪烁。"""
+    chunks = [c for c in chunks if c.strip()]
+    if len(chunks) <= 1:
+        return chunks
+
+    max_cues = max(1, int(duration / min_seconds))
+    if len(chunks) <= max_cues:
+        return chunks
+
+    merged: list[str] = []
+    current = ""
+    for chunk in chunks:
+        trial = _join_chunks(current, chunk) if current else chunk
+        if current and _visible_len(trial) > max_chars * 2:
+            merged.append(current)
+            current = chunk
+        else:
+            current = trial
+    if current:
+        merged.append(current)
+
+    while len(merged) > max_cues and len(merged) > 1:
+        best_idx = min(
+            range(len(merged) - 1),
+            key=lambda i: _visible_len(merged[i]) + _visible_len(merged[i + 1]),
+        )
+        merged[best_idx] = _join_chunks(merged[best_idx], merged.pop(best_idx + 1))
+    return merged
+
+
+def _allocate_times(start: float, end: float, chunks: list[str]) -> list[Segment]:
+    """按 cue 文本长度比例分配分镜内时间。"""
+    if len(chunks) == 1:
+        return [(start, end, chunks[0])]
+
+    duration = end - start
+    weights = [max(_visible_len(c), 1) for c in chunks]
+    total = sum(weights)
+    cursor = start
+    segments: list[Segment] = []
+    for i, chunk in enumerate(chunks):
+        cue_end = (
+            end if i == len(chunks) - 1 else cursor + duration * weights[i] / total
+        )
+        segments.append((cursor, cue_end, chunk))
+        cursor = cue_end
+    return segments
+
+
+def _regex_chunks(pattern: re.Pattern[str], text: str) -> list[str]:
+    chunks = [_collapse_spaces(m.group(0)) for m in pattern.finditer(text)]
+    chunks = [c for c in chunks if c]
+    return chunks or [_collapse_spaces(text)]
+
+
+def _split_by_length(text: str, *, max_chars: int) -> list[str]:
+    chunks: list[str] = []
+    current = ""
+    for ch in text:
+        if not current and ch.isspace():
+            continue
+        if _visible_len(current + ch) > max_chars:
+            chunks.append(current.strip())
+            current = ch.lstrip()
+        else:
+            current += ch
+    if current.strip():
+        chunks.append(current.strip())
+    return chunks
+
+
+def _collapse_spaces(text: str) -> str:
+    return re.sub(r"\s+", " ", (text or "").strip())
+
+
+def _join_chunks(left: str, right: str) -> str:
+    """合并 cue 文本；英文/数字相邻时保留一个空格。"""
+    left = left.strip()
+    right = right.strip()
+    if not left:
+        return right
+    if not right:
+        return left
+    if left[-1].isascii() and right[0].isascii():
+        return f"{left} {right}"
+    return f"{left}{right}"
+
+
+def _visible_len(text: str) -> int:
+    return len((text or "").strip())
 
 
 def build_srt(segments: list[Segment]) -> str:

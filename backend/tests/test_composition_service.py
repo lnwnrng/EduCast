@@ -22,6 +22,7 @@ from app.ir.schema import (
 from app.models.project import Project
 from app.models.resource import Resource
 from app.models.task import SubTask, Task
+from app.pipeline.renderer import SlideRenderer
 from app.services.composition_service import (
     CompositionService,
     _chapter_spans,
@@ -65,6 +66,18 @@ class FakeFormula:
         Path(output_path).parent.mkdir(parents=True, exist_ok=True)
         Path(output_path).write_bytes(b"formula")
         return output_path
+
+
+class SpyRenderer(SlideRenderer):
+    """记录分镜渲染收到的字幕文本，仍使用真实 Pillow 产图。"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.scene_subtitles: list[str] = []
+
+    def render_scene(self, **kwargs) -> str:
+        self.scene_subtitles.append(kwargs.get("subtitle", ""))
+        return super().render_scene(**kwargs)
 
 
 @pytest.fixture
@@ -111,8 +124,8 @@ def _make_ir(project_id: str) -> CourseIR:
     s1 = SceneIR(
         order=1,
         scene_type=SceneType.SLIDE,
-        narration_text="第一段讲解内容。",
-        subtitle_text="第一段字幕",
+        narration_text="第一段讲解内容。这里继续补充说明。",
+        subtitle_text="旧字幕不应进入成片",
     )
     s2 = SceneIR(
         order=2,
@@ -176,7 +189,7 @@ def test_flatten_orders_by_chapter_kp_scene() -> None:
     ir = _make_ir("pid")
     flat = _flatten(ir)
     assert [fs.scene.subtitle_text for fs in flat] == [
-        "第一段字幕",
+        "旧字幕不应进入成片",
         "推导字幕",
         "无旁白字幕",
         "失败降级字幕",
@@ -208,8 +221,9 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     await ParserService().save_ir(ir, project_id, version=1)
 
     fake_tts = FakeTTS()
+    spy_renderer = SpyRenderer()
     await CompositionService(
-        tts_provider=fake_tts, formula_renderer=FakeFormula()
+        tts_provider=fake_tts, renderer=spy_renderer, formula_renderer=FakeFormula()
     ).compose(project_id, task_id, db_session)
 
     # 任务与项目状态
@@ -252,14 +266,24 @@ async def test_compose_full_flow(db_session, tmp_path, monkeypatch, fake_ffmpeg)
     assert len(dhs) == 1 and dhs[0].status == "completed"  # s4（旁白失败仍出画中画）
     # s1、s2 成功；s4 失败；s3 无旁白不产生 tts
     assert sorted(s.status for s in ttss) == ["completed", "completed", "failed"]
-    assert fake_tts.synthesized == ["第一段讲解内容。", "推导过程讲解。"]
+    assert fake_tts.synthesized == [
+        "第一段讲解内容。这里继续补充说明。",
+        "推导过程讲解。",
+    ]
+    assert spy_renderer.scene_subtitles
+    assert all(subtitle == "" for subtitle in spy_renderer.scene_subtitles)
 
-    # 字幕时间轴：s1/s2 各 2s（有音频），s3/s4 各 4s（静音降级）
+    # 字幕时间轴：以旁白切句生成，旧 subtitle_text 不进入成片
     srt = (out / "gen1.srt").read_text(encoding="utf-8")
-    assert "00:00:00,000 --> 00:00:02,000" in srt
+    assert "00:00:00,000 --> " in srt
     assert "00:00:02,000 --> 00:00:04,000" in srt
-    assert "00:00:04,000 --> 00:00:08,000" in srt
     assert "00:00:08,000 --> 00:00:12,000" in srt
+    assert "第一段讲解内容。" in srt
+    assert "这里继续补充说明。" in srt
+    assert "推导过程讲解。" in srt
+    assert "FAIL 这段会让配音抛错" in srt
+    assert "旧字幕不应进入成片" not in srt
+    assert "无旁白字幕" not in srt
 
 
 async def test_compose_missing_ir_marks_failed(db_session, tmp_path, monkeypatch):

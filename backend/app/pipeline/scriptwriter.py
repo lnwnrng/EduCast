@@ -1,7 +1,7 @@
 """LLM 脚本编排器 — 将 IR 草稿就地增强为可生产 IR。
 
 使用 GLM-4.7-Flash 完成（详见需求文档 5.2）:
-- 讲稿口语化与字幕精炼
+- 讲稿口语化
 - 画面类型重判（slide / formula_animation / digital_human / generative_clip）
 - 生成式片段提示词与公式推导步骤
 - 知识点标签与随堂练习题
@@ -213,7 +213,7 @@ class ScriptWriter:
             "要求：\n"
             "1. narration_text：把原始文字扩写为自然、口语化、可朗读的讲解稿，"
             "补充必要的过渡与解释，避免照搬罗列；每个分镜 60~150 字为宜。\n"
-            "2. subtitle_text：与讲稿对应的精炼字幕（可比讲稿更短）。\n"
+            "2. 字幕将由系统从 narration_text 自动切句生成，不要另写摘要字幕。\n"
             "3. scene_type：从 slide(课件页) / formula_animation(公式推导动画) / "
             "digital_human(数字人讲解) / generative_clip(生成式概念片段) 中选择最"
             "合适的；纯公式推导选 formula_animation，引入/小结类选 digital_human，"
@@ -238,7 +238,7 @@ class ScriptWriter:
             "  ],\n"
             '  "scenes": [\n'
             '    {"order": 1, "scene_type": "slide", '
-            '"narration_text": "口语化讲稿", "subtitle_text": "精炼字幕", '
+            '"narration_text": "口语化讲稿", '
             '"gen_prompt": "", "latex_steps": []}\n'
             "  ]\n"
             "}"
@@ -300,10 +300,7 @@ def _apply_scene(
     if narration:
         scene.narration_text = narration
 
-    subtitle = str(data.get("subtitle_text") or "").strip()
-    if subtitle:
-        scene.subtitle_text = subtitle
-    elif narration:
+    if narration:
         scene.subtitle_text = narration
 
     scene_type = data.get("scene_type")
@@ -325,16 +322,13 @@ def _apply_scene(
 
 
 def _local_normalize(ir: CourseIR) -> None:
-    """无 LLM 时的本地轻量规整：折叠空白、补齐字幕。"""
+    """无 LLM 时的本地轻量规整：折叠空白、同步兼容字幕字段。"""
     for chapter in ir.chapters:
         for kp in chapter.knowledge_points:
             for scene in kp.scenes:
                 text = _collapse_whitespace(scene.narration_text)
                 scene.narration_text = text
-                if not scene.subtitle_text.strip():
-                    scene.subtitle_text = text
-                else:
-                    scene.subtitle_text = _collapse_whitespace(scene.subtitle_text)
+                scene.subtitle_text = text
 
 
 def _clean_title(title: str) -> str:

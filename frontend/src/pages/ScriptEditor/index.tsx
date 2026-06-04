@@ -168,6 +168,9 @@ const ScriptEditor: React.FC = () => {
         ].scenes[selectedScene.sceneIdx];
 
       (scene as unknown as Record<string, unknown>)[field] = value;
+      if (field === 'narration_text') {
+        scene.subtitle_text = value;
+      }
       setIR(newIR);
     },
     [ir, selectedScene]
@@ -195,7 +198,16 @@ const ScriptEditor: React.FC = () => {
     if (!ir || !projectId) return;
     setSaving(true);
     try {
-      const resp = await updateScript(projectId, ir);
+      const syncedIR = structuredClone(ir);
+      syncedIR.chapters.forEach((chapter) =>
+        chapter.knowledge_points.forEach((kp) =>
+          kp.scenes.forEach((scene) => {
+            scene.subtitle_text = scene.narration_text;
+          })
+        )
+      );
+      const resp = await updateScript(projectId, syncedIR);
+      setIR(syncedIR);
       const warnings = resp.data.data.validation_warnings;
       if (warnings && warnings.length > 0) {
         message.warning(`已保存，但存在 ${warnings.length} 个校验警告`);
@@ -590,22 +602,10 @@ const ScriptEditor: React.FC = () => {
                 <Form.Item label="旁白讲稿">
                   <TextArea
                     value={currentScene.narration_text}
-                    rows={5}
+                    rows={7}
                     placeholder="输入旁白讲稿文本..."
                     onChange={(e) =>
                       updateSceneField('narration_text', e.target.value)
-                    }
-                    showCount
-                  />
-                </Form.Item>
-
-                <Form.Item label="字幕文本">
-                  <TextArea
-                    value={currentScene.subtitle_text}
-                    rows={3}
-                    placeholder="输入字幕文本..."
-                    onChange={(e) =>
-                      updateSceneField('subtitle_text', e.target.value)
                     }
                     showCount
                   />

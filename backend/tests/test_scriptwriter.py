@@ -109,7 +109,7 @@ _KP = {
             "order": 1,
             "scene_type": "generative_clip",
             "narration_text": "口语化讲稿一",
-            "subtitle_text": "字幕一",
+            "subtitle_text": "旧模型字幕一",
             "gen_prompt": "数学课堂、粉笔风格",
             "latex_steps": [],
         },
@@ -117,7 +117,7 @@ _KP = {
             "order": 2,
             "scene_type": "formula_animation",
             "narration_text": "口语化讲稿二",
-            "subtitle_text": "字幕二",
+            "subtitle_text": "旧模型字幕二",
             "gen_prompt": "",
             "latex_steps": ["a = b", "b = c"],
         },
@@ -156,7 +156,7 @@ async def test_enhance_merges_and_preserves_structure() -> None:
     assert s1.source_page == 1
     # 文本与类型被覆盖
     assert s1.narration_text == "口语化讲稿一"
-    assert s1.subtitle_text == "字幕一"
+    assert s1.subtitle_text == "口语化讲稿一"
     assert s1.scene_type == SceneType.GENERATIVE_CLIP
     assert s1.visual_spec.gen_prompt == "数学课堂、粉笔风格"
     assert s1.kp_tags == ["标签A", "标签B"]
@@ -192,7 +192,7 @@ async def test_malformed_kp_keeps_original() -> None:
 
 
 async def test_no_provider_local_fallback() -> None:
-    """无 LLM Provider → 本地轻量规整（清理标题、折叠空白、补字幕）。"""
+    """无 LLM Provider → 本地轻量规整（清理标题、折叠空白、同步字幕）。"""
     draft = _make_draft()
     writer = ScriptWriter(None)
     result = await writer.enhance_ir(draft)
@@ -202,7 +202,7 @@ async def test_no_provider_local_fallback() -> None:
     s2 = result.chapters[0].knowledge_points[0].scenes[1]
     # 空白折叠
     assert s2.narration_text == "原始 文字 二"
-    # 空字幕补齐为讲稿
+    # 兼容字幕字段同步为讲稿
     assert s2.subtitle_text == "原始 文字 二"
 
 

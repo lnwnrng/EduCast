@@ -112,6 +112,7 @@ async def update_script(
         ir = CourseIR.model_validate(ir_data)
     except Exception as exc:
         raise ResourceNotFoundException(f"IR 数据格式错误: {exc}") from exc
+    _sync_subtitle_text(ir)
 
     # 验证完整性
     errors = validate_ir(ir)
@@ -224,3 +225,11 @@ async def approve_script(
             "potential_cost": estimate.total,
         },
     )
+
+
+def _sync_subtitle_text(ir: CourseIR) -> None:
+    """兼容旧 IR 字段：字幕文本跟随旁白，最终字幕由旁白切句生成。"""
+    for chapter in ir.chapters:
+        for kp in chapter.knowledge_points:
+            for scene in kp.scenes:
+                scene.subtitle_text = scene.narration_text

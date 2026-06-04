@@ -2,6 +2,7 @@
 
 from app.pipeline.subtitles import (
     build_chapter_metadata,
+    build_narration_segments,
     build_srt,
     build_vtt,
     format_timestamp,
@@ -58,3 +59,44 @@ def test_build_chapter_metadata() -> None:
 def test_build_chapter_metadata_escapes_special_chars() -> None:
     meta = build_chapter_metadata([(0.0, 1.0, "a=b;c#d")])
     assert "title=a\\=b\\;c\\#d" in meta
+
+
+def test_build_narration_segments_splits_long_narration() -> None:
+    text = (
+        "我们先从平均变化率出发，理解导数的几何含义。"
+        "接着观察割线逐渐靠近切线的过程，说明极限为什么能描述瞬时变化率。"
+        "最后把这个思想写成导数定义。"
+    )
+    segments = build_narration_segments([(0.0, 9.0, text)])
+
+    assert len(segments) > 1
+    assert segments[0][0] == 0.0
+    assert segments[-1][1] == 9.0
+    assert all(
+        end <= next_start
+        for (_, end, _), (next_start, _, _) in zip(segments, segments[1:])
+    )
+    assert all(len(cue) <= 56 for _, _, cue in segments)
+    assert "导数定义" in segments[-1][2]
+
+
+def test_build_narration_segments_uses_only_non_empty_narration() -> None:
+    segments = build_narration_segments(
+        [
+            (0.0, 3.0, ""),
+            (3.0, 6.0, "第一句。第二句。"),
+        ]
+    )
+
+    assert [
+        (round(start, 3), round(end, 3), text) for start, end, text in segments
+    ] == [
+        (3.0, 4.5, "第一句。"),
+        (4.5, 6.0, "第二句。"),
+    ]
+
+
+def test_build_narration_segments_merges_when_scene_is_short() -> None:
+    segments = build_narration_segments([(0.0, 1.0, "第一句。第二句。第三句。")])
+
+    assert segments == [(0.0, 1.0, "第一句。第二句。第三句。")]

@@ -87,3 +87,9 @@ Desktop.ini
 # ========================
 alembic/versions/*.py
 !alembic/versions/.gitkeep
+
+
+
+
+CLAUDE.md
+AGENTS.md

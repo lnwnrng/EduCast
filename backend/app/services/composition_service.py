@@ -17,7 +17,7 @@ import os
 import re
 import shutil
 import zipfile
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from uuid import UUID
 
 from sqlalchemy import func, select
@@ -33,6 +33,7 @@ from app.pipeline.formula import FormulaRenderer
 from app.pipeline.renderer import SlideRenderer
 from app.pipeline.subtitles import (
     build_chapter_metadata,
+    build_narration_segments,
     build_srt,
     build_vtt,
 )
@@ -73,7 +74,6 @@ class _FlatScene:
     # 运行期填充
     start: float = 0.0
     end: float = 0.0
-    subtitle: str = field(default="")
 
 
 class CompositionService:
@@ -179,9 +179,6 @@ class CompositionService:
                 fs.start = cursor
                 fs.end = cursor + duration
                 cursor = fs.end
-                fs.subtitle = (
-                    fs.scene.subtitle_text or fs.scene.narration_text
-                ).strip()
                 clip_paths.append(clip_path)
 
                 progress = 50 + int(30 * (i + 1) / total)
@@ -192,7 +189,13 @@ class CompositionService:
 
             # ── 字幕 / 章节 ──
             await self._update_task(db, task_id, "composing", 82)
-            segments = [(fs.start, fs.end, fs.subtitle) for fs in flat if fs.subtitle]
+            segments = build_narration_segments(
+                [
+                    (fs.start, fs.end, fs.scene.narration_text)
+                    for fs in flat
+                    if fs.scene.narration_text.strip()
+                ]
+            )
             chapters = _chapter_spans(flat)
 
             srt_path = os.path.join(output_dir, f"gen{gen}.srt")
@@ -409,7 +412,7 @@ class CompositionService:
             self._renderer.render_scene(
                 title=fs.kp.title or "教学内容",
                 body_lines=_body_lines(scene, fs.kp),
-                subtitle=(scene.subtitle_text or scene.narration_text).strip(),
+                subtitle="",
                 image_path=_first_image(scene),
                 output_path=image_path,
                 watermark=watermark,
@@ -504,7 +507,7 @@ class CompositionService:
             self._renderer.render_scene(
                 title=fs.kp.title or "教学内容",
                 body_lines=_body_lines(scene, fs.kp),
-                subtitle=(scene.subtitle_text or scene.narration_text).strip(),
+                subtitle="",
                 output_path=bg,
                 watermark=watermark,
                 badge=_BADGES.get(scene.scene_type),
@@ -609,7 +612,7 @@ class CompositionService:
                 self._renderer.render_scene(
                     title=fs.kp.title or "概念演示",
                     body_lines=[f"画面：{prompt}"],
-                    subtitle=(scene.subtitle_text or scene.narration_text).strip(),
+                    subtitle="",
                     output_path=bg,
                     watermark=watermark,
                     badge=_BADGES.get(scene.scene_type),
