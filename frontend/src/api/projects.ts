@@ -8,9 +8,9 @@ interface PaginatedResponse<T> {
   page_size: number;
 }
 
-export const getProjects = (page = 1, pageSize = 20) =>
+export const getProjects = (page = 1, pageSize = 20, params?: { category_id?: string; tag_id?: string }) =>
   apiClient.get<PaginatedResponse<Project>>('/projects/', {
-    params: { page, page_size: pageSize },
+    params: { page, page_size: pageSize, ...params },
   });
 
 export const getProject = (id: string) =>

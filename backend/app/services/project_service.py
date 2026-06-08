@@ -5,9 +5,12 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.exceptions import ResourceNotFoundException
 from app.models.project import Project
+from app.models.project_tag import project_tag
+from app.models.tag import Tag
 from app.schemas.project import ProjectCreate, ProjectUpdate
 
 
@@ -26,10 +29,17 @@ class ProjectService:
             description=data.description,
             template=data.template,
             user_id=user_id,
+            category_id=data.category_id,
         )
         db.add(project)
         await db.flush()
         await db.refresh(project)
+
+        # Handle tags
+        if data.tag_ids:
+            tag_result = await db.execute(select(Tag).where(Tag.id.in_(data.tag_ids)))
+            project.tags = list(tag_result.scalars().all())
+
         return project
 
     @staticmethod
@@ -47,24 +57,41 @@ class ProjectService:
         page_size: int = 20,
         user_id = None,
         is_admin: bool = False,
+        category_id: str | None = None,
+        tag_id: str | None = None,
     ) -> tuple[list[Project], int]:
         """分页查询项目列表。"""
         # 总数
         count_stmt = select(func.count(Project.id)).where(Project.deleted_at.is_(None))
         if not is_admin and user_id is not None:
             count_stmt = count_stmt.where(Project.user_id == user_id)
+        if category_id:
+            count_stmt = count_stmt.where(Project.category_id == category_id)
+        if tag_id:
+            count_stmt = count_stmt.where(
+                Project.id.in_(
+                    select(project_tag.c.project_id).where(project_tag.c.tag_id == tag_id)
+                )
+            )
         total = (await db.execute(count_stmt)).scalar() or 0
 
-        # 分页数据
+        # 分页数据（预加载 category 和 tags，避免懒加载报 MissingGreenlet）
         stmt = (
             select(Project)
             .where(Project.deleted_at.is_(None))
+            .options(selectinload(Project.category), selectinload(Project.tags))
             .order_by(Project.created_at.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
         if not is_admin and user_id is not None:
             stmt = stmt.where(Project.user_id == user_id)
+        if category_id:
+            stmt = stmt.where(Project.category_id == category_id)
+        if tag_id:
+            stmt = stmt.join(project_tag, project_tag.c.project_id == Project.id).where(
+                project_tag.c.tag_id == tag_id
+            )
         result = await db.execute(stmt)
         projects = list(result.scalars().all())
 
@@ -79,8 +106,16 @@ class ProjectService:
         """更新项目。"""
         project = await ProjectService.get_project(db, project_id)
         update_data = data.model_dump(exclude_unset=True)
+        # Handle tags separately - need to access m2m relationship
+        tag_ids = update_data.pop("tag_ids", None)
         for field, value in update_data.items():
             setattr(project, field, value)
+
+        # Handle tags
+        if tag_ids is not None:
+            tag_result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+            project.tags = list(tag_result.scalars().all())
+
         await db.flush()
         await db.refresh(project)
         return project

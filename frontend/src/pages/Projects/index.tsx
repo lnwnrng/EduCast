@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Card, Table, Tag, Typography, Button, Space, message, Input, Modal } from 'antd';
+import { Card, Table, Tag, Typography, Button, Space, message, Input, Modal, Select } from 'antd';
 import {
   EditOutlined,
   VideoCameraOutlined,
@@ -13,19 +13,28 @@ import PageHeader from '../../components/common/PageHeader';
 import { getProjects, deleteProject } from '../../api/projects';
 import { statusMeta } from '../../utils/status';
 import type { Project } from '../../types/project';
+import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;
 
 const Projects: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuthStore();
   const [projects, setProjects] = useState<Project[]>([]);
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
+  const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
+  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+  const [categories, setCategories] = useState<any[]>([]);
+  const [tags, setTags] = useState<any[]>([]);
 
   const fetchProjects = async (page = 1, pageSize = 10) => {
     setLoading(true);
     try {
-      const resp = await getProjects(page, pageSize);
+      const resp = await getProjects(page, pageSize, {
+        ...(categoryFilter && { category_id: categoryFilter }),
+        ...(tagFilter && { tag_id: tagFilter }),
+      });
       setProjects(resp.data.items);
       setPagination({
         current: resp.data.page,
@@ -42,6 +51,12 @@ const Projects: React.FC = () => {
   useEffect(() => {
     fetchProjects();
   }, []);
+
+  useEffect(() => {
+    // 所有登录用户都加载分类/标签筛选器
+    import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
+    import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
+  }, [user]);
 
   const handleTableChange = (newPagination: {
     current?: number;
@@ -89,6 +104,22 @@ const Projects: React.FC = () => {
         const config = statusMeta(status);
         return <Tag color={config.color}>{config.label}</Tag>;
       },
+    },
+    {
+      title: '分类',
+      dataIndex: 'category',
+      key: 'category',
+      render: (category: { id: string; name: string } | null) =>
+        category ? <Tag>{category.name}</Tag> : '-',
+    },
+    {
+      title: '标签',
+      dataIndex: 'tags',
+      key: 'tags',
+      render: (tags: Array<{ name: string; color: string }>) =>
+        tags && tags.length > 0
+          ? tags.map(t => <Tag key={t.name} color={t.color}>{t.name}</Tag>)
+          : '-',
     },
     {
       title: '创建时间',
@@ -146,10 +177,35 @@ const Projects: React.FC = () => {
       />
 
       <Card>
+        <Space style={{ marginBottom: 16 }}>
+          <Select
+            placeholder="分类筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={categoryFilter}
+            onChange={(val) => { setCategoryFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
+          />
+          <Select
+            placeholder="标签筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={tagFilter}
+            onChange={(val) => { setTagFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
+          />
+          <Button
+            type="link"
+            icon={<PlusOutlined />}
+            onClick={() => message.info('申请功能开发中...')}
+          >
+            申请新建分类/标签
+          </Button>
+        </Space>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
-          <Input 
-            placeholder="搜索项目名称..." 
-            prefix={<SearchOutlined />} 
+          <Input
+            placeholder="搜索项目名称..."
+            prefix={<SearchOutlined />}
             style={{ width: 300 }}
           />
         </div>

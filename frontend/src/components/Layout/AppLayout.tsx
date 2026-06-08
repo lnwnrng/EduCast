@@ -10,6 +10,8 @@ import {
   Gauge,
   Shield,
   LogOut,
+  FolderTree,
+  Tags,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -72,6 +74,9 @@ const AppLayout: React.FC = () => {
           children: [
             { key: '/admin/users', label: '用户管理' },
             { key: '/admin/logs', label: '审计日志' },
+            { key: '/admin/categories', icon: <FolderTree size={16} strokeWidth={1.5} />, label: '分类管理' },
+            { key: '/admin/tags', icon: <Tags size={16} strokeWidth={1.5} />, label: '标签管理' },
+            { key: '/admin/requests', label: '申请管理' },
           ],
         },
       ]
@@ -83,6 +88,9 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
+    if (pathname.includes('/admin/categories')) return '/admin/categories';
+    if (pathname.includes('/admin/tags')) return '/admin/tags';
+    if (pathname.includes('/admin/requests')) return '/admin/requests';
     if (pathname.includes('/admin/users')) return '/admin/users';
     if (pathname.includes('/admin/logs')) return '/admin/logs';
     if (pathname === '/projects') return '/projects';
