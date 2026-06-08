@@ -2,6 +2,7 @@
 
 import hashlib
 import secrets
+import uuid
 from datetime import datetime, timedelta, timezone
 
 from jose import JWTError, jwt
@@ -136,7 +137,7 @@ class AuthService:
         db: AsyncSession, user_id: str
     ) -> User:
         """根据 user_id 查询用户。"""
-        result = await db.execute(select(User).where(User.id == user_id))
+        result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
         user = result.scalar_one_or_none()
         if not user or not user.is_active:
             raise AuthenticationException("用户不存在或已被禁用")

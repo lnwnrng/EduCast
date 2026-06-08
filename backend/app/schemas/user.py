@@ -1,14 +1,15 @@
 """用户 Pydantic 模型。"""
 
+import uuid
 from datetime import datetime
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel
 
 
 class UserResponse(BaseModel):
     """用户公开信息（响应）。"""
 
-    id: str
+    id: uuid.UUID
     username: str
     role: str
     is_active: bool

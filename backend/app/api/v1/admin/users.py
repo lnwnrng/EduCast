@@ -1,5 +1,7 @@
 """管理员 — 用户管理 & 审计日志。"""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -52,7 +54,7 @@ async def list_users(
         )
         project_count = pc.scalar() or 0
         items.append(UserAdminResponse(
-            id=str(u.id),
+            id=u.id,
             username=u.username,
             role=u.role,
             is_active=u.is_active,
@@ -74,7 +76,7 @@ async def change_user_role(
 ) -> SuccessResponse:
     """修改用户角色。"""
     await db.execute(
-        update(User).where(User.id == user_id).values(role=role)
+        update(User).where(User.id == uuid.UUID(user_id)).values(role=role)
     )
     await AuditService.log(db, str(current_user.id), "role_change", "user", user_id, f"set role to {role}")
     return SuccessResponse(message=f"角色已更新为 {role}")
@@ -87,7 +89,7 @@ async def toggle_user_active(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """启用/禁用用户。"""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
@@ -107,7 +109,7 @@ async def delete_user(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """删除用户。"""
-    result = await db.execute(select(User).where(User.id == user_id))
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="用户不存在")
