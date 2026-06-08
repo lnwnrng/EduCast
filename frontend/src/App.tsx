@@ -1,6 +1,8 @@
 import React from 'react';
 import { Routes, Route, Navigate } from 'react-router-dom';
 import AppLayout from './components/Layout/AppLayout';
+import LoginPage from './pages/Login';
+import RegisterPage from './pages/Register';
 import Dashboard from './pages/Dashboard';
 import Projects from './pages/Projects';
 import UploadPage from './pages/Upload';
@@ -13,6 +15,9 @@ import Monitoring from './pages/Monitoring';
 const App: React.FC = () => {
   return (
     <Routes>
+      {/* 登录/注册页面（全屏，无侧边栏） */}
+      <Route path="/login" element={<LoginPage />} />
+      <Route path="/register" element={<RegisterPage />} />
       <Route element={<AppLayout />}>
         <Route path="/" element={<Dashboard />} />
         <Route path="/projects" element={<Projects />} />
