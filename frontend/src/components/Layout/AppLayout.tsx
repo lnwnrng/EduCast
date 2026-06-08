@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Typography } from 'antd';
+import { Layout, Menu, Typography, Dropdown, Avatar, Space } from 'antd';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -9,70 +9,73 @@ import {
   Library,
   Gauge,
   Shield,
+  LogOut,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
+import { useAuthStore } from '../../stores/authStore';
 
 const { Sider, Header, Content, Footer } = Layout;
 const { Title } = Typography;
-
-const menuItems = [
-  {
-    key: '/',
-    icon: <LayoutDashboard size={20} strokeWidth={1.5} />,
-    label: '仪表盘',
-  },
-  {
-    key: '/projects',
-    icon: <FolderKanban size={20} strokeWidth={1.5} />,
-    label: '项目管理',
-  },
-  {
-    key: '/workspace',
-    icon: <MonitorPlay size={20} strokeWidth={1.5} />,
-    label: '工作台',
-  },
-  {
-    key: '/upload',
-    icon: <FileUp size={20} strokeWidth={1.5} />,
-    label: '上传课件',
-  },
-  {
-    key: '/script',
-    icon: <FileEdit size={20} strokeWidth={1.5} />,
-    label: '脚本编辑',
-  },
-  {
-    key: '/resources',
-    icon: <Library size={20} strokeWidth={1.5} />,
-    label: '资源管理',
-  },
-  {
-    key: '/monitoring',
-    icon: <Gauge size={20} strokeWidth={1.5} />,
-    label: '监控面板',
-  },
-  {
-    key: 'admin',
-    icon: <Shield size={20} strokeWidth={1.5} />,
-    label: '管理',
-    children: [
-      {
-        key: '/admin/users',
-        label: '用户管理',
-      },
-      {
-        key: '/admin/logs',
-        label: '审计日志',
-      },
-    ],
-  },
-];
 
 const AppLayout: React.FC = () => {
   const navigate = useNavigate();
   const location = useLocation();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
+  const { user, logout } = useAuthStore();
+
+  const baseMenuItems = [
+    {
+      key: '/',
+      icon: <LayoutDashboard size={20} strokeWidth={1.5} />,
+      label: '仪表盘',
+    },
+    {
+      key: '/projects',
+      icon: <FolderKanban size={20} strokeWidth={1.5} />,
+      label: '项目管理',
+    },
+    {
+      key: '/workspace',
+      icon: <MonitorPlay size={20} strokeWidth={1.5} />,
+      label: '工作台',
+    },
+    {
+      key: '/upload',
+      icon: <FileUp size={20} strokeWidth={1.5} />,
+      label: '上传课件',
+    },
+    {
+      key: '/script',
+      icon: <FileEdit size={20} strokeWidth={1.5} />,
+      label: '脚本编辑',
+    },
+    {
+      key: '/resources',
+      icon: <Library size={20} strokeWidth={1.5} />,
+      label: '资源管理',
+    },
+    {
+      key: '/monitoring',
+      icon: <Gauge size={20} strokeWidth={1.5} />,
+      label: '监控面板',
+    },
+  ];
+
+  const menuItems = user?.role === 'admin'
+    ? [
+        ...baseMenuItems,
+        {
+          key: 'admin',
+          icon: <Shield size={20} strokeWidth={1.5} />,
+          label: '管理',
+          children: [
+            { key: '/admin/users', label: '用户管理' },
+            { key: '/admin/logs', label: '审计日志' },
+          ],
+        },
+      ]
+    : baseMenuItems;
 
   const getSelectedKey = (pathname: string): string => {
     if (pathname.includes('/script')) return '/script';
@@ -80,8 +83,9 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
+    if (pathname.includes('/admin/users')) return '/admin/users';
+    if (pathname.includes('/admin/logs')) return '/admin/logs';
     if (pathname === '/projects') return '/projects';
-    // 具体项目工作台（/projects/:id）与 /workspace 都高亮「工作台」
     if (pathname.startsWith('/projects/') || pathname.startsWith('/workspace'))
       return '/workspace';
     return pathname;
@@ -91,11 +95,23 @@ const AppLayout: React.FC = () => {
     navigate(key);
   };
 
+  const userMenuItems = [
+    {
+      key: 'logout',
+      icon: <LogOut size={16} />,
+      label: '退出登录',
+      onClick: async () => {
+        await logout();
+        navigate('/login');
+      },
+    },
+  ];
+
   return (
     <Layout style={{ height: '100vh', overflow: 'hidden', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
       <Header
         style={{
-          padding: 0, // Removes default 24px padding
+          padding: 0,
           background: 'transparent',
           display: 'flex',
           alignItems: 'center',
@@ -103,18 +119,18 @@ const AppLayout: React.FC = () => {
           zIndex: 10,
         }}
       >
-        <div style={{ 
-          width: sidebarCollapsed ? 80 : 220, // Matches Sider width exactly
-          display: 'flex', 
-          alignItems: 'center', 
+        <div style={{
+          width: sidebarCollapsed ? 80 : 220,
+          display: 'flex',
+          alignItems: 'center',
           justifyContent: 'center',
           transition: 'width 0.2s',
           overflow: 'hidden'
         }}>
-          <span style={{ 
-            fontFamily: '"Dancing Script", cursive', 
-            fontSize: sidebarCollapsed ? 28 : 32, 
-            color: '#333', 
+          <span style={{
+            fontFamily: '"Dancing Script", cursive',
+            fontSize: sidebarCollapsed ? 28 : 32,
+            color: '#333',
             fontWeight: 600,
             letterSpacing: '1px',
             transition: 'font-size 0.2s',
@@ -123,13 +139,24 @@ const AppLayout: React.FC = () => {
             {sidebarCollapsed ? 'E' : 'EduCast'}
           </span>
         </div>
-        <div style={{ 
-          paddingLeft: 16, // Precisely matches the 16px left padding of Content
-          transition: 'padding-left 0.2s'
+        <div style={{
+          paddingLeft: 16,
+          transition: 'padding-left 0.2s',
+          flex: 1,
         }}>
           <Title level={5} style={{ margin: 0, color: '#333' }}>
             智能教学视频生产平台
           </Title>
+        </div>
+        <div style={{ paddingRight: 24 }}>
+          <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
+            <Space style={{ cursor: 'pointer' }}>
+              <Avatar size={32} style={{ backgroundColor: '#1677ff' }}>
+                {user?.username?.[0]?.toUpperCase()}
+              </Avatar>
+              <span style={{ color: '#333' }}>{user?.username}</span>
+            </Space>
+          </Dropdown>
         </div>
       </Header>
 
@@ -151,14 +178,14 @@ const AppLayout: React.FC = () => {
             selectedKeys={[getSelectedKey(location.pathname)]}
             items={menuItems}
             onClick={handleMenuClick}
-            style={{ 
-              background: 'transparent', 
+            style={{
+              background: 'transparent',
               borderRight: 0,
               fontSize: '15px'
             }}
           />
         </Sider>
-        
+
         <Layout style={{ background: 'transparent' }}>
           <Content style={{ padding: '0 16px 12px 16px' }}>
             <div
@@ -167,7 +194,7 @@ const AppLayout: React.FC = () => {
                 background: '#fff',
                 borderRadius: 24,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-                height: 'calc(100vh - 64px - 12px - 24px)', 
+                height: 'calc(100vh - 64px - 12px - 24px)',
                 overflow: 'auto',
               }}
             >
