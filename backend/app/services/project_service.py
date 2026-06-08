@@ -15,7 +15,9 @@ class ProjectService:
     """项目 CRUD 服务。"""
 
     @staticmethod
-    async def create_project(db: AsyncSession, data: ProjectCreate) -> Project:
+    async def create_project(
+        db: AsyncSession, data: ProjectCreate, user_id
+    ) -> Project:
         """创建新项目。"""
         project = Project(
             title=data.title,
@@ -23,6 +25,7 @@ class ProjectService:
             grade=data.grade,
             description=data.description,
             template=data.template,
+            user_id=user_id,
         )
         db.add(project)
         await db.flush()
@@ -42,10 +45,14 @@ class ProjectService:
         db: AsyncSession,
         page: int = 1,
         page_size: int = 20,
+        user_id = None,
+        is_admin: bool = False,
     ) -> tuple[list[Project], int]:
         """分页查询项目列表。"""
         # 总数
         count_stmt = select(func.count(Project.id)).where(Project.deleted_at.is_(None))
+        if not is_admin and user_id is not None:
+            count_stmt = count_stmt.where(Project.user_id == user_id)
         total = (await db.execute(count_stmt)).scalar() or 0
 
         # 分页数据
@@ -56,6 +63,8 @@ class ProjectService:
             .offset((page - 1) * page_size)
             .limit(page_size)
         )
+        if not is_admin and user_id is not None:
+            stmt = stmt.where(Project.user_id == user_id)
         result = await db.execute(stmt)
         projects = list(result.scalars().all())
 
