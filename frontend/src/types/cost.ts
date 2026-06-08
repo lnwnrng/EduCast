@@ -31,4 +31,10 @@ export interface DashboardStats {
   actual_total: number;
   storage_bytes: number;
   recent_tasks: DashboardRecentTask[];
+  admin_stats?: {
+    user_count: number;
+    today_registrations: number;
+    project_count: number;
+    storage_bytes: number;
+  };
 }
