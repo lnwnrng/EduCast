@@ -10,7 +10,7 @@ import json
 from uuid import UUID
 
 from fastapi import APIRouter, Depends
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -151,12 +151,13 @@ async def get_dashboard(
 
     # Admin-only extended stats
     if current_user.role == "admin":
+        from app.models.user import User as UserModel
         from app.models.resource import Resource
 
-        user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
+        user_count = (await db.execute(select(func.count(UserModel.id)))).scalar() or 0
         today_reg = (await db.execute(
-            select(func.count(User.id)).where(
-                func.date(User.created_at) == func.current_date()
+            select(func.count(UserModel.id)).where(
+                func.date(UserModel.created_at) == func.current_date()
             )
         )).scalar() or 0
         project_count = (await db.execute(

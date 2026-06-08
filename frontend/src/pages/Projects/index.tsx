@@ -53,9 +53,12 @@ const Projects: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
-    import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
-  }, []);
+    // 仅管理员加载分类/标签筛选器
+    if (user?.role === 'admin') {
+      import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
+      import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
+    }
+  }, [user]);
 
   const handleTableChange = (newPagination: {
     current?: number;
