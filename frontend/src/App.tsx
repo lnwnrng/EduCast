@@ -11,6 +11,9 @@ import Workspace from './pages/Workspace';
 import Preview from './pages/Preview';
 import Resources from './pages/Resources';
 import Monitoring from './pages/Monitoring';
+import AdminUserManagement from './pages/Admin/UserManagement';
+import AdminAuditLog from './pages/Admin/AuditLog';
+import ProtectedRoute from './components/Auth/ProtectedRoute';
 
 const App: React.FC = () => {
   return (
@@ -38,6 +41,24 @@ const App: React.FC = () => {
         <Route path="/projects/:id/preview" element={<Preview />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/monitoring" element={<Monitoring />} />
+
+        {/* 管理员页面 */}
+        <Route
+          path="/admin/users"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminUserManagement />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/logs"
+          element={
+            <ProtectedRoute requireAdmin>
+              <AdminAuditLog />
+            </ProtectedRoute>
+          }
+        />
       </Route>
     </Routes>
   );

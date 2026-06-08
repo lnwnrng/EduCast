@@ -8,6 +8,7 @@ import {
   FileEdit,
   Library,
   Gauge,
+  Shield,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -50,6 +51,21 @@ const menuItems = [
     key: '/monitoring',
     icon: <Gauge size={20} strokeWidth={1.5} />,
     label: '监控面板',
+  },
+  {
+    key: 'admin',
+    icon: <Shield size={20} strokeWidth={1.5} />,
+    label: '管理',
+    children: [
+      {
+        key: '/admin/users',
+        label: '用户管理',
+      },
+      {
+        key: '/admin/logs',
+        label: '审计日志',
+      },
+    ],
   },
 ];
 
