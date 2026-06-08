@@ -40,6 +40,8 @@ async def create_project(
 async def list_projects(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
+    category_id: str | None = Query(None, description="分类ID"),
+    tag_id: str | None = Query(None, description="标签ID"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> PaginatedResponse[ProjectResponse]:
@@ -49,6 +51,8 @@ async def list_projects(
         db, page, page_size,
         user_id=current_user.id,
         is_admin=is_admin,
+        category_id=category_id,
+        tag_id=tag_id,
     )
     return PaginatedResponse(
         items=[ProjectResponse.model_validate(p) for p in projects],
