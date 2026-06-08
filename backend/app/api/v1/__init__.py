@@ -6,6 +6,7 @@ from app.api.v1.auth import router as auth_router
 from app.api.v1.categories import router as categories_router
 from app.api.v1.monitoring import router as monitoring_router
 from app.api.v1.projects import router as projects_router
+from app.api.v1.requests import router as requests_router
 from app.api.v1.resources import router as resources_router
 from app.api.v1.scripts import router as scripts_router
 from app.api.v1.tags import router as tags_router
@@ -23,3 +24,4 @@ api_v1_router.include_router(resources_router)
 api_v1_router.include_router(upload_router)
 api_v1_router.include_router(scripts_router)
 api_v1_router.include_router(monitoring_router)
+api_v1_router.include_router(requests_router)

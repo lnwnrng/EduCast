@@ -1,0 +1,44 @@
+<h2>登录页面设计</h2>
+<p class="subtitle">完全独立布局（无侧边栏），居中卡片风格</p>
+
+<div class="mockup" style="max-width: 420px; margin: 0 auto;">
+  <div class="mockup-body" style="padding: 40px 32px;">
+    <div style="text-align: center; margin-bottom: 32px;">
+      <span style="font-family: 'Dancing Script', cursive; font-size: 36px; color: #333; font-weight: 600;">
+        EduCast
+      </span>
+      <p style="color: #666; margin: 8px 0 0 0; font-size: 14px;">智能教学视频生产平台</p>
+    </div>
+
+    <div style="margin-bottom: 20px;">
+      <div style="margin-bottom: 16px;">
+        <label style="color: #333; font-size: 14px; display: block; margin-bottom: 6px;">用户名</label>
+        <input class="mock-input" placeholder="请输入用户名" style="width: 100%;">
+      </div>
+      <div style="margin-bottom: 8px;">
+        <label style="color: #333; font-size: 14px; display: block; margin-bottom: 6px;">密码</label>
+        <input class="mock-input" type="password" placeholder="请输入密码" style="width: 100%;">
+      </div>
+    </div>
+
+    <button class="mock-button" style="width: 100%; padding: 10px; background: #1677ff; color: #fff; border: none; border-radius: 8px; font-size: 16px; cursor: pointer;">
+      登 录
+    </button>
+
+    <div style="text-align: center; margin-top: 16px;">
+      <span style="color: #999; font-size: 13px;">还没有账号？</span>
+      <span style="color: #1677ff; font-size: 13px; cursor: pointer;">立即注册</span>
+    </div>
+  </div>
+</div>
+
+<div class="section">
+  <h3>设计要点</h3>
+  <ul>
+    <li>全屏居中，背景沿用现有 <code>linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)</code></li>
+    <li>白色圆角卡片 (<code>borderRadius: 24</code>)，与现有内容区一致</li>
+    <li>标题 "EduCast" 使用 Dancing Script 字体，与侧边栏品牌一致</li>
+    <li>登录成功后跳转至仪表盘 /</li>
+    <li>未登录访问任何页面自动跳转到 /login</li>
+  </ul>
+</div>

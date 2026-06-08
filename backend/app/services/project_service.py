@@ -5,6 +5,7 @@ from uuid import UUID
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 from app.exceptions import ResourceNotFoundException
 from app.models.project import Project
@@ -74,10 +75,11 @@ class ProjectService:
             )
         total = (await db.execute(count_stmt)).scalar() or 0
 
-        # 分页数据
+        # 分页数据（预加载 category 和 tags，避免懒加载报 MissingGreenlet）
         stmt = (
             select(Project)
             .where(Project.deleted_at.is_(None))
+            .options(selectinload(Project.category), selectinload(Project.tags))
             .order_by(Project.created_at.desc())
             .offset((page - 1) * page_size)
             .limit(page_size)

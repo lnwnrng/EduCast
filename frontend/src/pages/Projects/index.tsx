@@ -53,11 +53,9 @@ const Projects: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // 仅管理员加载分类/标签筛选器
-    if (user?.role === 'admin') {
-      import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
-      import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
-    }
+    // 所有登录用户都加载分类/标签筛选器
+    import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
+    import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
   }, [user]);
 
   const handleTableChange = (newPagination: {
@@ -179,26 +177,31 @@ const Projects: React.FC = () => {
       />
 
       <Card>
-        {user?.role === 'admin' && (
-          <Space style={{ marginBottom: 16 }}>
-            <Select
-              placeholder="分类筛选"
-              allowClear
-              style={{ width: 160 }}
-              value={categoryFilter}
-              onChange={(val) => { setCategoryFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
-              options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
-            />
-            <Select
-              placeholder="标签筛选"
-              allowClear
-              style={{ width: 160 }}
-              value={tagFilter}
-              onChange={(val) => { setTagFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
-              options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
-            />
-          </Space>
-        )}
+        <Space style={{ marginBottom: 16 }}>
+          <Select
+            placeholder="分类筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={categoryFilter}
+            onChange={(val) => { setCategoryFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
+          />
+          <Select
+            placeholder="标签筛选"
+            allowClear
+            style={{ width: 160 }}
+            value={tagFilter}
+            onChange={(val) => { setTagFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
+          />
+          <Button
+            type="link"
+            icon={<PlusOutlined />}
+            onClick={() => message.info('申请功能开发中...')}
+          >
+            申请新建分类/标签
+          </Button>
+        </Space>
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'flex-end' }}>
           <Input
             placeholder="搜索项目名称..."

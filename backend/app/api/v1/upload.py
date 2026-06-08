@@ -15,6 +15,7 @@ from app.api.deps import get_db, get_settings
 from app.config import Settings, settings
 from app.database import async_session_factory
 from app.exceptions import CostLimitException, ValidationException
+from app.middleware.auth import get_current_user_from_cookie
 from app.models.project import Project
 from app.models.task import Task
 from app.pipeline.parser import SUPPORTED_EXTENSIONS
@@ -109,6 +110,7 @@ async def upload_document(
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
+    current_user = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """上传课件文档并触发解析。
 
@@ -151,6 +153,7 @@ async def upload_document(
     project = Project(
         title=project_title,
         status="parsing",
+        user_id=current_user.id,
     )
     db.add(project)
     await db.flush()

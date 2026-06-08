@@ -50,7 +50,6 @@ async def _count_projects(node: dict, db: AsyncSession) -> int:
 router = APIRouter(
     prefix="/categories",
     tags=["分类管理"],
-    dependencies=[Depends(require_admin)],
 )
 
 
@@ -59,27 +58,26 @@ async def list_categories(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> list[CategoryNode]:
-    """获取分类树。"""
+    """获取分类树（所有登录用户可读）。"""
     result = await db.execute(
         select(CourseCategory).order_by(CourseCategory.sort_order)
     )
     categories = list(result.scalars().all())
     tree = _build_tree(categories)
 
-    # Add project counts
     for item in tree:
         await _count_projects(item, db)
 
     return [CategoryNode(**item) for item in tree]
 
 
-@router.post("/", response_model=CategoryNode, status_code=201)
+@router.post("/", response_model=CategoryNode, status_code=201, dependencies=[Depends(require_admin)])
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> CategoryNode:
-    """创建分类。"""
+    """创建分类（仅管理员）。"""
     cat = CourseCategory(
         name=data.name, parent_id=data.parent_id, sort_order=data.sort_order
     )
@@ -94,14 +92,14 @@ async def create_category(
     )
 
 
-@router.put("/{category_id}", response_model=CategoryNode)
+@router.put("/{category_id}", response_model=CategoryNode, dependencies=[Depends(require_admin)])
 async def update_category(
     category_id: str,
     data: CategoryUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> CategoryNode:
-    """更新分类。"""
+    """更新分类（仅管理员）。"""
     result = await db.execute(
         select(CourseCategory).where(CourseCategory.id == category_id)
     )
@@ -124,7 +122,7 @@ async def update_category(
     )
 
 
-@router.delete("/{category_id}")
+@router.delete("/{category_id}", dependencies=[Depends(require_admin)])
 async def delete_category(
     category_id: str,
     db: AsyncSession = Depends(get_db),

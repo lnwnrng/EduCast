@@ -15,7 +15,6 @@ from app.schemas.tag import TagCreate, TagResponse, TagUpdate
 router = APIRouter(
     prefix="/tags",
     tags=["标签管理"],
-    dependencies=[Depends(require_admin)],
 )
 
 
@@ -24,7 +23,7 @@ async def list_tags(
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> list[TagResponse]:
-    """标签列表。"""
+    """标签列表（所有登录用户可读）。"""
     result = await db.execute(select(Tag).order_by(Tag.name))
     tags = list(result.scalars().all())
     items = []
@@ -41,13 +40,13 @@ async def list_tags(
     return items
 
 
-@router.post("/", response_model=TagResponse, status_code=201)
+@router.post("/", response_model=TagResponse, status_code=201, dependencies=[Depends(require_admin)])
 async def create_tag(
     data: TagCreate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> TagResponse:
-    """创建标签。"""
+    """创建标签（仅管理员）。"""
     tag = Tag(name=data.name, color=data.color)
     db.add(tag)
     await db.flush()
@@ -58,14 +57,14 @@ async def create_tag(
     )
 
 
-@router.put("/{tag_id}", response_model=TagResponse)
+@router.put("/{tag_id}", response_model=TagResponse, dependencies=[Depends(require_admin)])
 async def update_tag(
     tag_id: str,
     data: TagUpdate,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> TagResponse:
-    """更新标签。"""
+    """更新标签（仅管理员）。"""
     result = await db.execute(select(Tag).where(Tag.id == tag_id))
     tag = result.scalar_one_or_none()
     if not tag:
@@ -82,13 +81,13 @@ async def update_tag(
     )
 
 
-@router.delete("/{tag_id}")
+@router.delete("/{tag_id}", dependencies=[Depends(require_admin)])
 async def delete_tag(
     tag_id: str,
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> dict:
-    """删除标签。"""
+    """删除标签（仅管理员）。"""
     result = await db.execute(select(Tag).where(Tag.id == tag_id))
     tag = result.scalar_one_or_none()
     if not tag:
