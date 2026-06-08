@@ -115,6 +115,38 @@ class ValidationException(EduCastException):
         )
 
 
+class AuthenticationException(EduCastException):
+    """认证失败异常（未登录或 token 无效）。"""
+
+    def __init__(
+        self,
+        message: str = "未登录或登录已过期",
+        error_code: str = "AUTHENTICATION_ERROR",
+        status_code: int = 401,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
+class AuthorizationException(EduCastException):
+    """权限不足异常（非管理员访问管理接口）。"""
+
+    def __init__(
+        self,
+        message: str = "权限不足",
+        error_code: str = "FORBIDDEN",
+        status_code: int = 403,
+    ) -> None:
+        super().__init__(
+            message=message,
+            error_code=error_code,
+            status_code=status_code,
+        )
+
+
 def register_exception_handlers(app: FastAPI) -> None:
     """注册全局异常处理器到 FastAPI 应用。"""
 
