@@ -6,10 +6,33 @@ from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from passlib.context import CryptContext
+from sqlalchemy import select
 
 from app.config import settings
 from app.database import init_db
 from app.exceptions import register_exception_handlers
+
+pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
+
+
+async def _seed_default_admin() -> None:
+    """若无管理员账号，创建默认管理员 admin / admin123456。"""
+    from app.database import async_session_factory
+    from app.models.user import User
+
+    async with async_session_factory() as db:
+        result = await db.execute(
+            select(User).where(User.role == "admin")
+        )
+        if result.scalar_one_or_none() is None:
+            admin = User(
+                username="admin",
+                password_hash=pwd_context.hash("admin123456"),
+                role="admin",
+            )
+            db.add(admin)
+            await db.commit()
 
 
 @asynccontextmanager
@@ -17,6 +40,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
     # ── 启动 ─────────────────────────────────────────────
     await init_db()
+    await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield
     # ── 关闭 ─────────────────────────────────────────────
