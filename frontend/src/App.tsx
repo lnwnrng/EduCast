@@ -13,6 +13,8 @@ import Resources from './pages/Resources';
 import Monitoring from './pages/Monitoring';
 import AdminUserManagement from './pages/Admin/UserManagement';
 import AdminAuditLog from './pages/Admin/AuditLog';
+import CategoryManagement from './pages/Admin/CategoryManagement';
+import TagManagement from './pages/Admin/TagManagement';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './stores/authStore';
 
@@ -63,6 +65,8 @@ const App: React.FC = () => {
       >
         <Route path="/admin/users" element={<AdminUserManagement />} />
         <Route path="/admin/logs" element={<AdminAuditLog />} />
+        <Route path="/admin/categories" element={<CategoryManagement />} />
+        <Route path="/admin/tags" element={<TagManagement />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />
