@@ -15,8 +15,10 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
 from app.exceptions import ResourceNotFoundException
+from app.middleware.auth import get_current_user_from_cookie
 from app.models.project import Project
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.cost import CostEstimate, CostSummary, DashboardStats
 from app.schemas.workspace import LatestTask, VideoVersion, WorkspaceResponse
 from app.services import cost_service
@@ -137,9 +139,48 @@ async def get_workspace(
     )
 
 
-@router.get("/monitoring/dashboard", response_model=DashboardStats)
+@router.get("/monitoring/dashboard", response_model=dict)
 async def get_dashboard(
     db: AsyncSession = Depends(get_db),
-) -> DashboardStats:
-    """全局监控面板：任务状态分布、累计成本、存储用量、最近任务。"""
-    return await cost_service.dashboard_stats(db)
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> dict:
+    """全局监控面板聚合。"""
+    from app.services import cost_service
+    base = await cost_service.dashboard_stats(db)
+    result = base.model_dump()
+
+    # Admin-only extended stats
+    if current_user.role == "admin":
+        from app.models.resource import Resource
+
+        user_count = (await db.execute(select(func.count(User.id)))).scalar() or 0
+        today_reg = (await db.execute(
+            select(func.count(User.id)).where(
+                func.date(User.created_at) == func.current_date()
+            )
+        )).scalar() or 0
+        project_count = (await db.execute(
+            select(func.count(Project.id)).where(Project.deleted_at.is_(None))
+        )).scalar() or 0
+        storage_bytes = result.get("storage_bytes", 0)
+
+        result["admin_stats"] = {
+            "user_count": user_count,
+            "today_registrations": today_reg,
+            "project_count": project_count,
+            "storage_bytes": storage_bytes,
+        }
+
+    return result
+
+
+@router.get("/monitoring/health")
+async def system_health(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> list[dict]:
+    """系统健康检查（仅管理员）。"""
+    from app.middleware.auth import require_admin
+    await require_admin(current_user)
+    from app.services.health_service import HealthService
+    return await HealthService.run_all(db)
