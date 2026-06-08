@@ -33,6 +33,11 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 避免 /auth/refresh 自身的 401 导致循环
+      if (originalRequest.url?.includes('/auth/refresh')) {
+        return Promise.reject(error);
+      }
+
       if (isRefreshing) {
         return new Promise((resolve, reject) => {
           failedQueue.push({ resolve, reject });
@@ -48,7 +53,7 @@ apiClient.interceptors.response.use(
         return apiClient(originalRequest);
       } catch (refreshError) {
         processQueue(refreshError);
-        window.location.href = '/login';
+        // 不强制跳转，让 fetchMe 等调用方自行处理未登录状态
         return Promise.reject(refreshError);
       } finally {
         isRefreshing = false;
