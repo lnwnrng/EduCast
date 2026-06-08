@@ -46,6 +46,10 @@ from app.api.v1 import api_v1_router  # noqa: E402
 
 app.include_router(api_v1_router)
 
+from app.api.v1.admin import admin_router  # noqa: E402
+
+app.include_router(admin_router, prefix="/api/v1")
+
 
 @app.get("/")
 async def root() -> dict[str, str]:
