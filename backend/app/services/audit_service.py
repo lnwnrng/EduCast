@@ -1,5 +1,6 @@
 """审计日志服务。"""
 
+import uuid
 from datetime import datetime, timedelta, timezone
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -20,7 +21,7 @@ class AuditService:
     ) -> None:
         """记录一条审计日志。"""
         entry = AuditLog(
-            user_id=user_id,
+            user_id=uuid.UUID(user_id) if isinstance(user_id, str) else user_id,
             action=action,
             target_type=target_type,
             target_id=target_id,

@@ -1,5 +1,6 @@
 export interface User {
   id: string;
+  display_id: number | null;
   username: string;
   email: string | null;
   role: 'admin' | 'user';
