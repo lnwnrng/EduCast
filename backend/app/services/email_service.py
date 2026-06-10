@@ -19,7 +19,7 @@ _VERIFICATION_EMAIL_TEMPLATE = """\
 </head>
 <body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);padding:28px 32px;text-align:center;">
+    <div style="background:linear-gradient(135deg,#1677ff 0%,#4096ff 100%);padding:28px 32px;text-align:center;">
       <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">EduCast 课影</h1>
     </div>
     <div style="padding:32px;">
