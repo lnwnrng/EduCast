@@ -83,6 +83,11 @@ Thumbs.db
 Desktop.ini
 
 # ========================
+# IDE & Tooling
+# ========================
+.qoder/
+
+# ========================
 # Project-specific
 # ========================
 alembic/versions/*.py

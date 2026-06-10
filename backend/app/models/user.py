@@ -18,6 +18,7 @@ class User(BaseMixin, Base):
     __tablename__ = "users"
 
     username: Mapped[str] = mapped_column(String(32), unique=True, index=True)
+    email: Mapped[str] = mapped_column(String(255), unique=True, nullable=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(128))
     role: Mapped[str] = mapped_column(String(16), default="user")
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)

@@ -89,5 +89,12 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ── 邮件验证码 ──────────────────────────────────────────
+    RESEND_API_KEY: str = ""  # Resend API 密钥
+    EMAIL_FROM: str = "EduCast <noreply@yourdomain.com>"  # 发件人地址
+    VERIFICATION_CODE_EXPIRE_MINUTES: int = 10  # 验证码有效期（分钟）
+    VERIFICATION_CODE_COOLDOWN_SECONDS: int = 60  # 同邮箱重发冷却（秒）
+    VERIFICATION_CODE_MAX_ATTEMPTS: int = 5  # 最大验证尝试次数
+
 
 settings = Settings()

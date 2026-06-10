@@ -3,7 +3,7 @@
 import uuid
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
@@ -35,7 +35,12 @@ async def list_users(
     if is_active is not None:
         query = query.where(User.is_active == is_active)
     if search:
-        query = query.where(User.username.ilike(f"%{search}%"))
+        query = query.where(
+            or_(
+                User.username.ilike(f"%{search}%"),
+                User.email.ilike(f"%{search}%"),
+            )
+        )
     query = query.order_by(User.created_at.desc())
 
     count_query = select(func.count()).select_from(query.subquery())
@@ -56,6 +61,7 @@ async def list_users(
         items.append(UserAdminResponse(
             id=u.id,
             username=u.username,
+            email=u.email,
             role=u.role,
             is_active=u.is_active,
             last_login=u.last_login,

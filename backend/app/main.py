@@ -35,11 +35,44 @@ async def _seed_default_admin() -> None:
             await db.commit()
 
 
+async def _migrate_add_email_column() -> None:
+    """为已有 users 表添加 email 列（SQLite create_all 不会自动加列）。"""
+    import logging
+    import sqlite3
+    from app.database import engine
+
+    logger = logging.getLogger(__name__)
+    try:
+        # 使用同步 sqlite3 直接执行，避免 async SQLAlchemy 的复杂性
+        db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
+        # 处理相对路径
+        if db_url.startswith("/"):
+            db_path = db_url[1:]  # 去掉前导 /
+        elif db_url.startswith("./"):
+            db_path = db_url[2:]
+        else:
+            db_path = db_url
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "email" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_email ON users(email)"
+            )
+            conn.commit()
+            logger.info("已为 users 表添加 email 列")
+        conn.close()
+    except Exception as e:
+        logger.warning("迁移 users.email 列失败（可忽略）: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
     # ── 启动 ─────────────────────────────────────────────
     await init_db()
+    await _migrate_add_email_column()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

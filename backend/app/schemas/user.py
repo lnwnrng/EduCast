@@ -11,6 +11,7 @@ class UserResponse(BaseModel):
 
     id: uuid.UUID
     username: str
+    email: str | None = None
     role: str
     is_active: bool
     last_login: datetime | None = None

@@ -11,6 +11,7 @@ from app.models.resource import Resource
 from app.models.tag import Tag
 from app.models.task import SubTask, Task
 from app.models.user import User
+from app.models.verification_code import VerificationCode
 
 __all__ = [
     "AuditLog",
@@ -25,4 +26,5 @@ __all__ = [
     "Tag",
     "Task",
     "User",
+    "VerificationCode",
 ]
