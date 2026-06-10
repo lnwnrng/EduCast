@@ -120,7 +120,7 @@ class AuthService:
                 VerificationCode.expires_at > datetime.now(timezone.utc),
             ).order_by(VerificationCode.created_at.desc())
         )
-        record = result.scalar_one_or_none()
+        record = result.scalars().first()
         if not record:
             raise ValueError("请先获取验证码")
         if record.attempt_count >= settings.VERIFICATION_CODE_MAX_ATTEMPTS:
@@ -139,11 +139,21 @@ class AuthService:
         if existing_email.scalar_one_or_none():
             raise ValueError("该邮箱已被注册")
 
+        # 分配最小可用 display_id（填补删除留下的空缺）
+        used_ids_result = await db.execute(
+            select(User.display_id).where(User.display_id.isnot(None)).order_by(User.display_id)
+        )
+        used_ids = {row[0] for row in used_ids_result.all()}
+        next_display_id = 1
+        while next_display_id in used_ids:
+            next_display_id += 1
+
         user = User(
             username=username,
             password_hash=pwd_context.hash(password),
             email=email,
             role="user",
+            display_id=next_display_id,
         )
         db.add(user)
         await db.flush()

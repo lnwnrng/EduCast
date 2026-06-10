@@ -29,7 +29,7 @@ async def list_users(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> PaginatedResponse[UserAdminResponse]:
     """用户列表（分页 + 筛选）。"""
-    query = select(User)
+    query = select(User).where(User.deleted_at.is_(None))
     if role:
         query = query.where(User.role == role)
     if is_active is not None:
@@ -41,7 +41,7 @@ async def list_users(
                 User.email.ilike(f"%{search}%"),
             )
         )
-    query = query.order_by(User.created_at.desc())
+    query = query.order_by(User.display_id.asc())
 
     count_query = select(func.count()).select_from(query.subquery())
     total = (await db.execute(count_query)).scalar() or 0
@@ -60,6 +60,7 @@ async def list_users(
         project_count = pc.scalar() or 0
         items.append(UserAdminResponse(
             id=u.id,
+            display_id=u.display_id,
             username=u.username,
             email=u.email,
             role=u.role,
@@ -87,6 +88,8 @@ async def change_user_role(
         raise HTTPException(status_code=404, detail="用户不存在")
     if target_user.username == "admin":
         raise HTTPException(status_code=400, detail="不能修改默认管理员的角色")
+    if str(target_user.id) == str(current_user.id):
+        raise HTTPException(status_code=400, detail="不能修改自己的角色")
 
     await db.execute(
         update(User).where(User.id == uuid.UUID(user_id)).values(role=role)
@@ -133,8 +136,17 @@ async def delete_user(
     if user.username == "admin":
         raise HTTPException(status_code=400, detail="不能删除默认管理员")
 
+    # 硬删除：先撤销关联的 refresh_token，再删除用户的项目，最后删除用户
+    from app.models.refresh_token import RefreshToken
+    await db.execute(
+        update(RefreshToken).where(RefreshToken.user_id == user.id).values(is_revoked=True)
+    )
+    # 删除用户的项目（级联删除 task/resource）
+    user_projects = await db.execute(select(Project).where(Project.user_id == user.id))
+    for project in user_projects.scalars().all():
+        await db.delete(project)
     await db.delete(user)
-    await AuditService.log(db, str(current_user.id), "delete_user", "user", user_id)
+    await AuditService.log(db, str(current_user.id), "delete_user", "user", user_id, f"deleted username={user.username}")
     return SuccessResponse(message="用户已删除")
 
 
@@ -149,10 +161,21 @@ async def list_audit_logs(
 ) -> PaginatedResponse:
     """审计日志列表。"""
     items, total = await AuditService.list_logs(db, page, page_size, action, days)
+
+    # 批量查询操作员用户名
+    user_ids = {log.user_id for log in items if log.user_id}
+    username_map: dict[str, str] = {}
+    if user_ids:
+        result = await db.execute(
+            select(User.id, User.username).where(User.id.in_(user_ids))
+        )
+        username_map = {str(row.id): row.username for row in result.all()}
+
     return PaginatedResponse(
         items=[{
             "id": str(log.id),
             "user_id": str(log.user_id),
+            "username": username_map.get(str(log.user_id), "-"),
             "action": log.action,
             "target_type": log.target_type,
             "target_id": log.target_id,

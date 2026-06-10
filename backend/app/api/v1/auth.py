@@ -15,6 +15,7 @@ from app.schemas.auth import (
     UserWithTokenResponse,
 )
 from app.schemas.user import UserResponse
+from app.services.audit_service import AuditService
 from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["认证"])
@@ -77,6 +78,10 @@ async def register(
         raise HTTPException(status_code=409, detail=str(e))
 
     _set_auth_cookies(response, access_token, refresh_token)
+    await AuditService.log(
+        db, str(user.id), "register", "user", str(user.id),
+        f"username={user.username}, email={user.email}",
+    )
     return UserWithTokenResponse(
         user=UserResponse.model_validate(user),
         access_token=access_token,
@@ -99,6 +104,10 @@ async def login(
         ip=request.client.host if request.client else None,
     )
     _set_auth_cookies(response, access_token, refresh_token)
+    await AuditService.log(
+        db, str(user.id), "login", "user", str(user.id),
+        f"ip={request.client.host if request.client else None}",
+    )
     return UserWithTokenResponse(
         user=UserResponse.model_validate(user),
         access_token=access_token,
@@ -131,6 +140,21 @@ async def logout(
     raw_refresh = request.cookies.get("refresh_token")
     if raw_refresh:
         await AuthService.logout(db, raw_refresh)
+        # 尝试记录审计日志（best-effort，失败不影响登出）
+        try:
+            from jose import jwt as jose_jwt
+            access_token = request.cookies.get("access_token")
+            if access_token:
+                payload = jose_jwt.decode(
+                    access_token, settings.JWT_SECRET_KEY,
+                    algorithms=[settings.JWT_ALGORITHM],
+                    options={"verify_exp": False},
+                )
+                user_id = payload.get("sub")
+                if user_id:
+                    await AuditService.log(db, user_id, "logout", "user", user_id)
+        except Exception:
+            pass
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/api/v1/auth")
     return {"message": "已登出"}

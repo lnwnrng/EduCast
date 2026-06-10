@@ -74,10 +74,10 @@ const UserManagement: React.FC = () => {
   const columns = [
     {
       title: 'ID',
-      dataIndex: 'id',
-      key: 'id',
+      dataIndex: 'display_id',
+      key: 'display_id',
       width: 80,
-      render: (_: string, __: UserAdmin, index: number) => (page - 1) * 20 + index + 1,
+      render: (val: number | null) => val ?? '-',
     },
     {
       title: '用户名',

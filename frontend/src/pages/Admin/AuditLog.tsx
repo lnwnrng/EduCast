@@ -42,7 +42,7 @@ const AuditLog: React.FC = () => {
 
   useEffect(() => {
     fetchLogs();
-  }, [page]);
+  }, [page, actionFilter, days]);
 
   const handleQuery = () => {
     setPage(1);
@@ -56,6 +56,13 @@ const AuditLog: React.FC = () => {
       key: 'created_at',
       render: (val: string) => new Date(val).toLocaleString('zh-CN'),
       width: 180,
+    },
+    {
+      title: '操作员',
+      dataIndex: 'username',
+      key: 'username',
+      render: (val: string | null) => val || '-',
+      width: 120,
     },
     {
       title: '操作',

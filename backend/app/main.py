@@ -30,9 +30,64 @@ async def _seed_default_admin() -> None:
                 username="admin",
                 password_hash=pwd_context.hash("admin123456"),
                 role="admin",
+                display_id=1,
             )
             db.add(admin)
             await db.commit()
+
+
+async def _migrate_add_display_id_column() -> None:
+    """为已有 users 表添加 display_id 列并分配递增 ID。"""
+    import logging
+    import sqlite3
+    from app.database import engine
+
+    logger = logging.getLogger(__name__)
+    try:
+        db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
+        if db_url.startswith("/"):
+            db_path = db_url[1:]
+        elif db_url.startswith("./"):
+            db_path = db_url[2:]
+        else:
+            db_path = db_url
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(users)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "display_id" not in columns:
+            conn.execute("ALTER TABLE users ADD COLUMN display_id INTEGER")
+            # admin 始终为 display_id=1
+            conn.execute(
+                "UPDATE users SET display_id = 1 WHERE role = 'admin'"
+            )
+            # 其他用户按 created_at 顺序分配递增 ID
+            conn.execute("""
+                UPDATE users SET display_id = (
+                    SELECT COUNT(*) + 1 FROM users AS u2
+                    WHERE u2.created_at < users.created_at
+                    AND u2.display_id IS NOT NULL
+                )
+                WHERE display_id IS NULL AND role != 'admin'
+            """)
+            # 如果还有 NULL（created_at 相同的情况），按 rowid 补充分配
+            max_row = conn.execute(
+                "SELECT COALESCE(MAX(display_id), 0) FROM users"
+            ).fetchone()[0]
+            rows = conn.execute(
+                "SELECT id FROM users WHERE display_id IS NULL ORDER BY created_at"
+            ).fetchall()
+            for i, row in enumerate(rows, start=max_row + 1):
+                conn.execute(
+                    "UPDATE users SET display_id = ? WHERE id = ?", (i, row[0])
+                )
+            conn.execute(
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_display_id ON users(display_id)"
+            )
+            conn.commit()
+            logger.info("已为 users 表添加 display_id 列")
+        conn.close()
+    except Exception as e:
+        logger.warning("迁移 users.display_id 列失败（可忽略）: %s", e)
 
 
 async def _migrate_add_email_column() -> None:
@@ -73,6 +128,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # ── 启动 ─────────────────────────────────────────────
     await init_db()
     await _migrate_add_email_column()
+    await _migrate_add_display_id_column()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

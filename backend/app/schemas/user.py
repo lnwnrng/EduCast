@@ -10,6 +10,7 @@ class UserResponse(BaseModel):
     """用户公开信息（响应）。"""
 
     id: uuid.UUID
+    display_id: int | None = None
     username: str
     email: str | None = None
     role: str
