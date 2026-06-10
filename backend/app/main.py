@@ -16,6 +16,17 @@ from app.exceptions import register_exception_handlers
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
+def _get_sqlite_path() -> str:
+    """从 SQLAlchemy engine URL 中提取 SQLite 数据库文件路径。"""
+    from app.database import engine
+    db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
+    if db_url.startswith("/"):
+        return db_url[1:]
+    elif db_url.startswith("./"):
+        return db_url[2:]
+    return db_url
+
+
 async def _seed_default_admin() -> None:
     """若无管理员账号，创建默认管理员 admin / admin123456。"""
     from app.database import async_session_factory
@@ -40,17 +51,10 @@ async def _migrate_add_display_id_column() -> None:
     """为已有 users 表添加 display_id 列并分配递增 ID。"""
     import logging
     import sqlite3
-    from app.database import engine
 
     logger = logging.getLogger(__name__)
     try:
-        db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
-        if db_url.startswith("/"):
-            db_path = db_url[1:]
-        elif db_url.startswith("./"):
-            db_path = db_url[2:]
-        else:
-            db_path = db_url
+        db_path = _get_sqlite_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in cursor.fetchall()]
@@ -94,19 +98,10 @@ async def _migrate_add_email_column() -> None:
     """为已有 users 表添加 email 列（SQLite create_all 不会自动加列）。"""
     import logging
     import sqlite3
-    from app.database import engine
 
     logger = logging.getLogger(__name__)
     try:
-        # 使用同步 sqlite3 直接执行，避免 async SQLAlchemy 的复杂性
-        db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
-        # 处理相对路径
-        if db_url.startswith("/"):
-            db_path = db_url[1:]  # 去掉前导 /
-        elif db_url.startswith("./"):
-            db_path = db_url[2:]
-        else:
-            db_path = db_url
+        db_path = _get_sqlite_path()
         conn = sqlite3.connect(db_path)
         cursor = conn.execute("PRAGMA table_info(users)")
         columns = [row[1] for row in cursor.fetchall()]

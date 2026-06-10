@@ -51,13 +51,20 @@ async def list_users(
     users = list(result.scalars().all())
 
     items = []
-    for u in users:
-        pc = await db.execute(
-            select(func.count()).select_from(
-                select(Project).where(Project.user_id == u.id).subquery()
-            )
+    # 批量查询项目计数，避免 N+1 查询
+    user_ids = [u.id for u in users]
+    if user_ids:
+        pc_result = await db.execute(
+            select(Project.user_id, func.count()).where(
+                Project.user_id.in_(user_ids)
+            ).group_by(Project.user_id)
         )
-        project_count = pc.scalar() or 0
+        project_count_map = {row[0]: row[1] for row in pc_result.all()}
+    else:
+        project_count_map = {}
+
+    for u in users:
+        project_count = project_count_map.get(u.id, 0)
         items.append(UserAdminResponse(
             id=u.id,
             display_id=u.display_id,

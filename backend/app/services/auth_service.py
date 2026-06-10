@@ -71,9 +71,9 @@ class AuthService:
                 VerificationCode.email == email,
                 VerificationCode.is_used == False,  # noqa: E712
                 VerificationCode.created_at > cooldown_threshold,
-            )
+            ).order_by(VerificationCode.created_at.desc())
         )
-        if recent.scalar_one_or_none():
+        if recent.scalars().first():
             raise ValueError("发送过于频繁，请稍后再试")
 
         # 生成 6 位验证码（大写字母 + 数字，排除易混淆字符 0/O/I/L）

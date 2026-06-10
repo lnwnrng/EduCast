@@ -33,6 +33,17 @@ apiClient.interceptors.response.use(
     const originalRequest = error.config;
 
     if (error.response?.status === 401 && !originalRequest._retry) {
+      // 登录/注册/验证码等认证接口返回 401 表示业务错误，不走 token 刷新
+      if (
+        originalRequest.url?.includes('/auth/login') ||
+        originalRequest.url?.includes('/auth/register') ||
+        originalRequest.url?.includes('/auth/send-code')
+      ) {
+        const msg = error.response?.data?.detail || error.message || '请求失败';
+        message.error(msg);
+        return Promise.reject(error);
+      }
+
       // 避免 /auth/refresh 自身的 401 导致循环
       if (originalRequest.url?.includes('/auth/refresh')) {
         return Promise.reject(error);
