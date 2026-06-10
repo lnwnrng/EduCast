@@ -159,7 +159,11 @@ const RegisterPage: React.FC = () => {
                   { len: 6, message: '验证码为6位' },
                 ]}
               >
-                <Input placeholder="请输入6位验证码" maxLength={6} />
+                <Input
+                  placeholder="请输入6位验证码"
+                  maxLength={6}
+                  style={{ borderColor: '#91caff' }}
+                />
               </Form.Item>
               <Button
                 disabled={countdown > 0}

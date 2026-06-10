@@ -1,5 +1,6 @@
 @echo off
 title EduCast
+cd /d "%~dp0"
 
 echo ============================================
 echo   EduCast Startup
@@ -37,10 +38,10 @@ if not exist frontend\node_modules (
 )
 
 echo [3/4] Starting backend (port 8000)...
-start "EduCast Backend" cmd /c "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+start "EduCast Backend" cmd /k "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
 
 echo [4/4] Starting frontend (port 5173)...
-start "EduCast Frontend" cmd /c "cd frontend && npm run dev"
+start "EduCast Frontend" cmd /k "cd frontend && npm run dev"
 
 echo.
 echo Waiting for services...
