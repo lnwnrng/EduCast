@@ -81,6 +81,13 @@ async def change_user_role(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """修改用户角色。"""
+    result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
+    target_user = result.scalar_one_or_none()
+    if not target_user:
+        raise HTTPException(status_code=404, detail="用户不存在")
+    if target_user.username == "admin":
+        raise HTTPException(status_code=400, detail="不能修改默认管理员的角色")
+
     await db.execute(
         update(User).where(User.id == uuid.UUID(user_id)).values(role=role)
     )
@@ -101,6 +108,8 @@ async def toggle_user_active(
         raise HTTPException(status_code=404, detail="用户不存在")
     if str(user.id) == str(current_user.id):
         raise HTTPException(status_code=400, detail="不能操作自己的账号")
+    if user.username == "admin":
+        raise HTTPException(status_code=400, detail="不能禁用默认管理员")
 
     user.is_active = not user.is_active
     status = "disabled" if not user.is_active else "enabled"
@@ -121,6 +130,8 @@ async def delete_user(
         raise HTTPException(status_code=404, detail="用户不存在")
     if str(user.id) == str(current_user.id):
         raise HTTPException(status_code=400, detail="不能删除自己的账号")
+    if user.username == "admin":
+        raise HTTPException(status_code=400, detail="不能删除默认管理员")
 
     await db.delete(user)
     await AuditService.log(db, str(current_user.id), "delete_user", "user", user_id)

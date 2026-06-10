@@ -1,0 +1,87 @@
+<h2>管理员 → 用户管理页面</h2>
+<p class="subtitle">位于侧边栏内，与现有页面风格一致</p>
+
+<div class="section">
+  <h3>页面布局</h3>
+  <p>嵌入现有 AppLayout（有侧边栏），标题 + 搜索 + 表格</p>
+</div>
+
+<div style="display: flex; gap: 16px; margin-bottom: 16px;">
+  <input class="mock-input" placeholder="搜索用户名..." style="width: 240px;">
+  <div style="display: flex; gap: 8px;">
+    <span style="background: #f0f5ff; color: #1677ff; padding: 4px 12px; border-radius: 6px; font-size: 13px; border: 1px solid #91caff; cursor: pointer;">全部</span>
+    <span style="padding: 4px 12px; border-radius: 6px; font-size: 13px; border: 1px solid #d9d9d9; cursor: pointer;">管理员</span>
+    <span style="padding: 4px 12px; border-radius: 6px; font-size: 13px; border: 1px solid #d9d9d9; cursor: pointer;">用户</span>
+    <span style="padding: 4px 12px; border-radius: 6px; font-size: 13px; border: 1px solid #d9d9d9; cursor: pointer;">已禁用</span>
+  </div>
+</div>
+
+<table style="width: 100%; border-collapse: collapse; font-size: 14px;">
+  <thead>
+    <tr style="border-bottom: 1px solid #f0f0f0; color: #999;">
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">ID</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">用户名</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">角色</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">状态</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">上次登录</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">注册时间</th>
+      <th style="padding: 12px 8px; text-align: left; font-weight: 500;">操作</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr style="border-bottom: 1px solid #f0f0f0;">
+      <td style="padding: 12px 8px;">1</td>
+      <td style="padding: 12px 8px;">admin</td>
+      <td style="padding: 12px 8px;"><span style="background: #f0f5ff; color: #1677ff; padding: 2px 10px; border-radius: 4px; font-size: 12px;">管理员</span></td>
+      <td style="padding: 12px 8px;"><span style="color: #52c41a;">●</span> 正常</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-08 10:30</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-01</td>
+      <td style="padding: 12px 8px;">—</td>
+    </tr>
+    <tr style="border-bottom: 1px solid #f0f0f0;">
+      <td style="padding: 12px 8px;">2</td>
+      <td style="padding: 12px 8px;">zhangsan</td>
+      <td style="padding: 12px 8px;"><span style="background: #f6ffed; color: #52c41a; padding: 2px 10px; border-radius: 4px; font-size: 12px;">用户</span></td>
+      <td style="padding: 12px 8px;"><span style="color: #52c41a;">●</span> 正常</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-07 14:20</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-05</td>
+      <td style="padding: 12px 8px;">
+        <span style="color: #1677ff; cursor: pointer; margin-right: 12px;">设为管理员</span>
+        <span style="color: #ff4d4f; cursor: pointer;">禁用</span>
+      </td>
+    </tr>
+    <tr style="border-bottom: 1px solid #f0f0f0;">
+      <td style="padding: 12px 8px;">3</td>
+      <td style="padding: 12px 8px;">lisi</td>
+      <td style="padding: 12px 8px;"><span style="background: #f6ffed; color: #52c41a; padding: 2px 10px; border-radius: 4px; font-size: 12px;">用户</span></td>
+      <td style="padding: 12px 8px;"><span style="color: #ff4d4f;">●</span> 已禁用</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-06 09:15</td>
+      <td style="padding: 12px 8px; color: #666;">2026-06-03</td>
+      <td style="padding: 12px 8px;">
+        <span style="color: #1677ff; cursor: pointer; margin-right: 12px;">启用</span>
+        <span style="color: #ff4d4f; cursor: pointer;">删除</span>
+      </td>
+    </tr>
+  </tbody>
+</table>
+
+<div style="display: flex; justify-content: flex-end; margin-top: 16px; gap: 8px;">
+  <span style="border: 1px solid #d9d9d9; padding: 4px 10px; border-radius: 6px; font-size: 13px;">«</span>
+  <span style="background: #1677ff; color: #fff; border: 1px solid #1677ff; padding: 4px 10px; border-radius: 6px; font-size: 13px;">1</span>
+  <span style="border: 1px solid #d9d9d9; padding: 4px 10px; border-radius: 6px; font-size: 13px;">2</span>
+  <span style="border: 1px solid #d9d9d9; padding: 4px 10px; border-radius: 6px; font-size: 13px;">»</span>
+</div>
+
+<div class="section">
+  <h3>功能按钮说明</h3>
+  <ul>
+    <li><strong>设为管理员 / 取消管理员</strong> — 切换用户角色</li>
+    <li><strong>禁用 / 启用</strong> — 禁用用户无法登录（is_active = false）</li>
+    <li><strong>删除</strong> — 删除用户及其关联数据或保留项目转给管理员</li>
+  </ul>
+</div>
+
+<div class="section">
+  <h3>侧边栏新增菜单项</h3>
+  <div class="mock-nav">仪表盘 | 项目管理 | 工作台 | ... | 用户管理（仅admin可见）| 审计日志（仅admin可见）</div>
+</div>

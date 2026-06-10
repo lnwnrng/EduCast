@@ -20,9 +20,10 @@ import {
   AppstoreOutlined,
 } from '@ant-design/icons';
 import PageHeader from '../../components/common/PageHeader';
-import { getDashboard } from '../../api/monitoring';
+import { getDashboard, getHealth } from '../../api/monitoring';
 import { statusMeta } from '../../utils/status';
 import type { DashboardStats } from '../../types/cost';
+import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;
 
@@ -39,8 +40,10 @@ const formatBytes = (bytes: number): string => {
 };
 
 const Monitoring: React.FC = () => {
+  const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
+  const [health, setHealth] = useState<any[]>([]);
 
   const fetchStats = async () => {
     setLoading(true);
@@ -57,6 +60,12 @@ const Monitoring: React.FC = () => {
   useEffect(() => {
     fetchStats();
   }, []);
+
+  useEffect(() => {
+    if (user?.role === 'admin') {
+      import('../../api/monitoring').then(m => m.getHealth().then(r => setHealth(r.data)));
+    }
+  }, [user]);
 
   const columns = [
     {
@@ -109,6 +118,34 @@ const Monitoring: React.FC = () => {
           </Button>
         }
       />
+
+      {user?.role === 'admin' && (
+        <>
+          <Row gutter={16} style={{ marginBottom: 16 }}>
+            <Col span={6}>
+              <Card><Statistic title="总用户数" value={stats?.admin_stats?.user_count || 0} /></Card>
+            </Col>
+            <Col span={6}>
+              <Card><Statistic title="今日注册" value={stats?.admin_stats?.today_registrations || 0} /></Card>
+            </Col>
+            <Col span={6}>
+              <Card><Statistic title="总项目数" value={stats?.admin_stats?.project_count || 0} /></Card>
+            </Col>
+            <Col span={6}>
+              <Card><Statistic title="存储用量" value={stats?.admin_stats?.storage_bytes || 0} suffix="bytes" /></Card>
+            </Col>
+          </Row>
+          <Card title="系统健康" style={{ marginBottom: 16 }}>
+            <Space>
+              {health.map(h => (
+                <Tag key={h.name} color={h.status ? 'success' : 'error'}>
+                  {h.name}: {h.status ? '正常' : '异常'}
+                </Tag>
+              ))}
+            </Space>
+          </Card>
+        </>
+      )}
 
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         <Col xs={24} sm={12} lg={6}>
