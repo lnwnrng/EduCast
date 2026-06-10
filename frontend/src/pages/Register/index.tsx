@@ -1,19 +1,55 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Form, Input, Button, Typography, message } from 'antd';
 import { useAuthStore } from '../../stores/authStore';
+import * as authApi from '../../api/auth';
 
 const { Text } = Typography;
 
 const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
+  const [countdown, setCountdown] = useState(0);
+  const [sendingCode, setSendingCode] = useState(false);
+  const [form] = Form.useForm();
   const register = useAuthStore((s) => s.register);
   const navigate = useNavigate();
 
-  const handleSubmit = async (values: { username: string; password: string }) => {
+  useEffect(() => {
+    if (countdown <= 0) return;
+    const timer = setInterval(() => setCountdown((prev) => prev - 1), 1000);
+    return () => clearInterval(timer);
+  }, [countdown]);
+
+  const handleSendCode = async () => {
+    try {
+      await form.validateFields(['email']);
+    } catch {
+      message.warning('请先输入有效的邮箱地址');
+      return;
+    }
+
+    const email = form.getFieldValue('email');
+    setSendingCode(true);
+    try {
+      const { data } = await authApi.sendVerificationCode(email);
+      message.success('验证码已发送到您的邮箱');
+      setCountdown(data.cooldown_seconds);
+    } catch {
+      // handled by axios interceptor
+    } finally {
+      setSendingCode(false);
+    }
+  };
+
+  const handleSubmit = async (values: {
+    username: string;
+    password: string;
+    email: string;
+    code: string;
+  }) => {
     setLoading(true);
     try {
-      await register(values.username, values.password);
+      await register(values.username, values.password, values.email, values.code);
       message.success('注册成功');
       navigate('/', { replace: true });
     } catch {
@@ -35,7 +71,7 @@ const RegisterPage: React.FC = () => {
     >
       <div
         style={{
-          width: 400,
+          width: 420,
           padding: '40px 32px',
           background: '#fff',
           borderRadius: 24,
@@ -58,7 +94,7 @@ const RegisterPage: React.FC = () => {
           </Text>
         </div>
 
-        <Form onFinish={handleSubmit} layout="vertical" size="large">
+        <Form form={form} onFinish={handleSubmit} layout="vertical" size="large">
           <Form.Item
             name="username"
             label="用户名"
@@ -100,6 +136,40 @@ const RegisterPage: React.FC = () => {
             ]}
           >
             <Input.Password placeholder="再次输入密码" />
+          </Form.Item>
+
+          <Form.Item
+            name="email"
+            label="邮箱"
+            rules={[
+              { required: true, message: '请输入邮箱' },
+              { type: 'email', message: '请输入有效的邮箱地址' },
+            ]}
+          >
+            <Input placeholder="example@email.com" />
+          </Form.Item>
+
+          <Form.Item label="验证码" required>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Form.Item
+                name="code"
+                noStyle
+                rules={[
+                  { required: true, message: '请输入验证码' },
+                  { len: 6, message: '验证码为6位' },
+                ]}
+              >
+                <Input placeholder="请输入6位验证码" maxLength={6} />
+              </Form.Item>
+              <Button
+                disabled={countdown > 0}
+                loading={sendingCode}
+                onClick={handleSendCode}
+                style={{ minWidth: 120 }}
+              >
+                {countdown > 0 ? `${countdown}s 后重发` : '发送验证码'}
+              </Button>
+            </div>
           </Form.Item>
 
           <Form.Item>

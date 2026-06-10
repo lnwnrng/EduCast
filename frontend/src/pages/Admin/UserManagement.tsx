@@ -85,6 +85,12 @@ const UserManagement: React.FC = () => {
       key: 'username',
     },
     {
+      title: '邮箱',
+      dataIndex: 'email',
+      key: 'email',
+      render: (email: string | null) => email || '-',
+    },
+    {
       title: '角色',
       dataIndex: 'role',
       key: 'role',
@@ -159,7 +165,7 @@ const UserManagement: React.FC = () => {
       <Title level={4} style={{ marginBottom: 16 }}>用户管理</Title>
       <Space style={{ marginBottom: 16 }}>
         <Input
-          placeholder="搜索用户名..."
+          placeholder="搜索用户名或邮箱..."
           prefix={<SearchOutlined />}
           value={search}
           onChange={(e) => setSearch(e.target.value)}

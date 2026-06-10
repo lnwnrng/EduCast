@@ -10,6 +10,8 @@ from app.middleware.auth import get_current_user_from_cookie
 from app.schemas.auth import (
     LoginRequest,
     RegisterRequest,
+    SendCodeRequest,
+    SendCodeResponse,
     UserWithTokenResponse,
 )
 from app.schemas.user import UserResponse
@@ -42,6 +44,21 @@ def _set_auth_cookies(
     )
 
 
+@router.post("/send-code", response_model=SendCodeResponse)
+async def send_verification_code(
+    data: SendCodeRequest,
+    db: AsyncSession = Depends(get_db),
+) -> SendCodeResponse:
+    """发送注册验证码到指定邮箱。"""
+    from fastapi import HTTPException
+
+    try:
+        cooldown = await AuthService.send_verification_code(db, data.email)
+    except ValueError as e:
+        raise HTTPException(status_code=429, detail=str(e))
+    return SendCodeResponse(cooldown_seconds=cooldown)
+
+
 @router.post("/register", response_model=UserWithTokenResponse, status_code=201)
 async def register(
     data: RegisterRequest,
@@ -52,7 +69,7 @@ async def register(
     """用户注册。"""
     try:
         user, access_token, refresh_token = await AuthService.register(
-            db, data.username, data.password
+            db, data.username, data.password, data.email, data.code
         )
     except ValueError as e:
         from fastapi import HTTPException

@@ -1,7 +1,9 @@
-"""认证业务逻辑 — 注册、登录、JWT、token 轮换。"""
+"""认证业务逻辑 — 注册、登录、JWT、token 轮换、邮箱验证码。"""
 
 import hashlib
+import logging
 import secrets
+import string
 import uuid
 from datetime import datetime, timedelta, timezone
 
@@ -14,6 +16,10 @@ from app.config import settings
 from app.exceptions import AuthenticationException
 from app.models.refresh_token import RefreshToken
 from app.models.user import User
+from app.models.verification_code import VerificationCode
+from app.services.email_service import EmailService
+
+logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -40,8 +46,64 @@ def _create_refresh_token() -> str:
 class AuthService:
 
     @staticmethod
+    async def send_verification_code(
+        db: AsyncSession, email: str
+    ) -> int:
+        """生成并发送邮箱验证码，返回冷却秒数。
+
+        Raises:
+            ValueError: 邮箱已注册、发送过于频繁等。
+            ProviderException: 邮件发送失败。
+        """
+        # 检查邮箱是否已注册
+        existing = await db.execute(
+            select(User).where(User.email == email)
+        )
+        if existing.scalar_one_or_none():
+            raise ValueError("该邮箱已被注册")
+
+        # 频率限制：同邮箱冷却时间内只能发一次
+        cooldown_threshold = datetime.now(timezone.utc) - timedelta(
+            seconds=settings.VERIFICATION_CODE_COOLDOWN_SECONDS
+        )
+        recent = await db.execute(
+            select(VerificationCode).where(
+                VerificationCode.email == email,
+                VerificationCode.is_used == False,  # noqa: E712
+                VerificationCode.created_at > cooldown_threshold,
+            )
+        )
+        if recent.scalar_one_or_none():
+            raise ValueError("发送过于频繁，请稍后再试")
+
+        # 生成 6 位验证码（大写字母 + 数字，排除易混淆字符 0/O/I/L）
+        charset = "".join(
+            c for c in string.ascii_uppercase + string.digits
+            if c not in "0OIL"
+        )
+        code = "".join(secrets.choice(charset) for _ in range(6))
+
+        # 创建验证码记录（hash 存储）
+        expires = datetime.now(timezone.utc) + timedelta(
+            minutes=settings.VERIFICATION_CODE_EXPIRE_MINUTES
+        )
+        record = VerificationCode(
+            email=email,
+            code_hash=_hash_token(code),
+            expires_at=expires,
+        )
+        db.add(record)
+        await db.flush()
+
+        # 发送邮件
+        await EmailService.send_verification_code(email, code)
+
+        return settings.VERIFICATION_CODE_COOLDOWN_SECONDS
+
+    @staticmethod
     async def register(
-        db: AsyncSession, username: str, password: str
+        db: AsyncSession, username: str, password: str,
+        email: str, code: str,
     ) -> tuple[User, str, str]:
         """注册新用户。返回 (user, access_token, refresh_token)。"""
         existing = await db.execute(
@@ -50,9 +112,37 @@ class AuthService:
         if existing.scalar_one_or_none():
             raise ValueError("用户名已存在")
 
+        # 校验验证码
+        result = await db.execute(
+            select(VerificationCode).where(
+                VerificationCode.email == email,
+                VerificationCode.is_used == False,  # noqa: E712
+                VerificationCode.expires_at > datetime.now(timezone.utc),
+            ).order_by(VerificationCode.created_at.desc())
+        )
+        record = result.scalar_one_or_none()
+        if not record:
+            raise ValueError("请先获取验证码")
+        if record.attempt_count >= settings.VERIFICATION_CODE_MAX_ATTEMPTS:
+            raise ValueError("验证码尝试次数过多，请重新获取")
+        if _hash_token(code) != record.code_hash:
+            record.attempt_count += 1
+            raise ValueError("验证码错误")
+
+        # 标记验证码已使用
+        record.is_used = True
+
+        # 检查邮箱唯一性（双重保障）
+        existing_email = await db.execute(
+            select(User).where(User.email == email)
+        )
+        if existing_email.scalar_one_or_none():
+            raise ValueError("该邮箱已被注册")
+
         user = User(
             username=username,
             password_hash=pwd_context.hash(password),
+            email=email,
             role="user",
         )
         db.add(user)

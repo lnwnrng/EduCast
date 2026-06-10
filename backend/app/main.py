@@ -35,11 +35,33 @@ async def _seed_default_admin() -> None:
             await db.commit()
 
 
+async def _migrate_add_email_column() -> None:
+    """为已有 users 表添加 email 列（SQLite create_all 不会自动加列）。"""
+    import logging
+    from sqlalchemy import text, inspect
+    from app.database import engine
+
+    logger = logging.getLogger(__name__)
+    try:
+        async with engine.begin() as conn:
+            result = await conn.run_sync(
+                lambda sync_conn: inspect(sync_conn).has_column("users", "email")
+            )
+            if not result:
+                await conn.execute(
+                    text("ALTER TABLE users ADD COLUMN email VARCHAR(255)")
+                )
+                logger.info("已为 users 表添加 email 列")
+    except Exception as e:
+        logger.warning("迁移 users.email 列失败（可忽略）: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
     # ── 启动 ─────────────────────────────────────────────
     await init_db()
+    await _migrate_add_email_column()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

@@ -8,6 +8,8 @@ class RegisterRequest(BaseModel):
 
     username: str = Field(..., min_length=3, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
     password: str = Field(..., min_length=8, max_length=128)
+    email: str = Field(..., description="注册邮箱")
+    code: str = Field(..., min_length=6, max_length=6, description="邮箱验证码")
 
 
 class LoginRequest(BaseModel):
@@ -15,6 +17,19 @@ class LoginRequest(BaseModel):
 
     username: str
     password: str
+
+
+class SendCodeRequest(BaseModel):
+    """发送验证码请求。"""
+
+    email: str = Field(..., description="目标邮箱")
+
+
+class SendCodeResponse(BaseModel):
+    """发送验证码响应。"""
+
+    message: str = "验证码已发送"
+    cooldown_seconds: int = 60
 
 
 class TokenResponse(BaseModel):
