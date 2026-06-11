@@ -1,5 +1,7 @@
 """分类管理 API。"""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -38,13 +40,28 @@ def _build_tree(categories: list[CourseCategory]) -> list[dict]:
 async def _count_projects(node: dict, db: AsyncSession) -> int:
     pc = await db.execute(
         select(func.count()).select_from(
-            select(Project).where(Project.category_id == node["id"]).subquery()
+            select(Project).where(Project.category_id == uuid.UUID(node["id"])).subquery()
         )
     )
     node["project_count"] = pc.scalar() or 0
     for child in node["children"]:
         node["project_count"] += await _count_projects(child, db)
     return node["project_count"]
+
+
+async def _check_duplicate_sort(
+    db: AsyncSession, parent_id: str | None, sort_order: int, exclude_id: uuid.UUID | None = None,
+) -> bool:
+    """检查同级分类中是否存在重复的 sort_order。"""
+    if parent_id:
+        condition = CourseCategory.parent_id == parent_id
+    else:
+        condition = CourseCategory.parent_id.is_(None)
+    query = select(CourseCategory).where(condition, CourseCategory.sort_order == sort_order)
+    if exclude_id:
+        query = query.where(CourseCategory.id != exclude_id)
+    result = await db.execute(query)
+    return result.scalar_one_or_none() is not None
 
 
 router = APIRouter(
@@ -78,6 +95,8 @@ async def create_category(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> CategoryNode:
     """创建分类（仅管理员）。"""
+    if await _check_duplicate_sort(db, data.parent_id, data.sort_order):
+        raise HTTPException(400, "同级分类中已存在相同的排序号，请更换")
     cat = CourseCategory(
         name=data.name, parent_id=data.parent_id, sort_order=data.sort_order
     )
@@ -100,8 +119,9 @@ async def update_category(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> CategoryNode:
     """更新分类（仅管理员）。"""
+    cat_uuid = uuid.UUID(category_id)
     result = await db.execute(
-        select(CourseCategory).where(CourseCategory.id == category_id)
+        select(CourseCategory).where(CourseCategory.id == cat_uuid)
     )
     cat = result.scalar_one_or_none()
     if not cat:
@@ -111,6 +131,9 @@ async def update_category(
     if data.parent_id is not None:
         cat.parent_id = data.parent_id
     if data.sort_order is not None:
+        target_parent = data.parent_id if data.parent_id is not None else cat.parent_id
+        if await _check_duplicate_sort(db, target_parent, data.sort_order, exclude_id=cat_uuid):
+            raise HTTPException(400, "同级分类中已存在相同的排序号，请更换")
         cat.sort_order = data.sort_order
     await db.flush()
     await db.refresh(cat)
@@ -129,20 +152,21 @@ async def delete_category(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> dict:
     """删除分类（有子分类或关联项目时禁止）。"""
+    cat_uuid = uuid.UUID(category_id)
     children = await db.execute(
-        select(CourseCategory).where(CourseCategory.parent_id == category_id)
+        select(CourseCategory).where(CourseCategory.parent_id == cat_uuid)
     )
     if children.scalar_one_or_none():
         raise HTTPException(400, "该分类下有子分类，无法删除")
 
     proj = await db.execute(
-        select(Project).where(Project.category_id == category_id).limit(1)
+        select(Project).where(Project.category_id == cat_uuid).limit(1)
     )
     if proj.scalar_one_or_none():
         raise HTTPException(400, "该分类下有项目关联，无法删除")
 
     result = await db.execute(
-        select(CourseCategory).where(CourseCategory.id == category_id)
+        select(CourseCategory).where(CourseCategory.id == cat_uuid)
     )
     cat = result.scalar_one_or_none()
     if not cat:

@@ -33,14 +33,22 @@ class ProjectService:
         )
         db.add(project)
         await db.flush()
-        await db.refresh(project)
 
         # Handle tags
         if data.tag_ids:
-            tag_result = await db.execute(select(Tag).where(Tag.id.in_(data.tag_ids)))
+            tag_uuids = [UUID(tid) for tid in data.tag_ids]
+            tag_result = await db.execute(select(Tag).where(Tag.id.in_(tag_uuids)))
             project.tags = list(tag_result.scalars().all())
 
-        return project
+        await db.flush()
+
+        # 用 selectinload 重新查询，确保 category + tags 关系已加载
+        result = await db.execute(
+            select(Project)
+            .where(Project.id == project.id)
+            .options(selectinload(Project.category), selectinload(Project.tags))
+        )
+        return result.scalar_one()
 
     @staticmethod
     async def get_project(db: AsyncSession, project_id: UUID) -> Project:
@@ -68,9 +76,10 @@ class ProjectService:
         if category_id:
             count_stmt = count_stmt.where(Project.category_id == category_id)
         if tag_id:
+            tag_uuid = UUID(tag_id)
             count_stmt = count_stmt.where(
                 Project.id.in_(
-                    select(project_tag.c.project_id).where(project_tag.c.tag_id == tag_id)
+                    select(project_tag.c.project_id).where(project_tag.c.tag_id == tag_uuid)
                 )
             )
         total = (await db.execute(count_stmt)).scalar() or 0
@@ -89,8 +98,9 @@ class ProjectService:
         if category_id:
             stmt = stmt.where(Project.category_id == category_id)
         if tag_id:
+            tag_uuid = UUID(tag_id)
             stmt = stmt.join(project_tag, project_tag.c.project_id == Project.id).where(
-                project_tag.c.tag_id == tag_id
+                project_tag.c.tag_id == tag_uuid
             )
         result = await db.execute(stmt)
         projects = list(result.scalars().all())
@@ -104,20 +114,28 @@ class ProjectService:
         data: ProjectUpdate,
     ) -> Project:
         """更新项目。"""
-        project = await ProjectService.get_project(db, project_id)
+        # 预加载 tags 和 category 关系，避免 async 模式下懒加载报 MissingGreenlet
+        result = await db.execute(
+            select(Project)
+            .where(Project.id == project_id, Project.deleted_at.is_(None))
+            .options(selectinload(Project.category), selectinload(Project.tags))
+        )
+        project = result.scalar_one_or_none()
+        if project is None:
+            raise ResourceNotFoundException(f"项目不存在: {project_id}")
+
         update_data = data.model_dump(exclude_unset=True)
-        # Handle tags separately - need to access m2m relationship
         tag_ids = update_data.pop("tag_ids", None)
         for field, value in update_data.items():
             setattr(project, field, value)
 
         # Handle tags
         if tag_ids is not None:
-            tag_result = await db.execute(select(Tag).where(Tag.id.in_(tag_ids)))
+            tag_uuids = [UUID(tid) for tid in tag_ids]
+            tag_result = await db.execute(select(Tag).where(Tag.id.in_(tag_uuids)))
             project.tags = list(tag_result.scalars().all())
 
         await db.flush()
-        await db.refresh(project)
         return project
 
     @staticmethod

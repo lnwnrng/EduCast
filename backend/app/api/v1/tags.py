@@ -1,5 +1,7 @@
 """标签管理 API。"""
 
+import uuid
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -65,7 +67,8 @@ async def update_tag(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> TagResponse:
     """更新标签（仅管理员）。"""
-    result = await db.execute(select(Tag).where(Tag.id == tag_id))
+    tag_uuid = uuid.UUID(tag_id)
+    result = await db.execute(select(Tag).where(Tag.id == tag_uuid))
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(404, "标签不存在")
@@ -88,7 +91,8 @@ async def delete_tag(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> dict:
     """删除标签（仅管理员）。"""
-    result = await db.execute(select(Tag).where(Tag.id == tag_id))
+    tag_uuid = uuid.UUID(tag_id)
+    result = await db.execute(select(Tag).where(Tag.id == tag_uuid))
     tag = result.scalar_one_or_none()
     if not tag:
         raise HTTPException(404, "标签不存在")

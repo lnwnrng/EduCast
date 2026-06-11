@@ -67,13 +67,19 @@ class ResourceService:
         resource_type: str | None = None,
         page: int = 1,
         page_size: int = 20,
+        user_project_ids: list[UUID] | None = None,
     ) -> tuple[list[Resource], int]:
-        """分页查询资源列表。"""
+        """分页查询资源列表。
+
+        user_project_ids: 非 None 时限制只返回这些项目下的资源（普通用户权限控制）。
+        """
         conditions = [Resource.deleted_at.is_(None)]
         if project_id:
             conditions.append(Resource.project_id == project_id)
         if resource_type:
             conditions.append(Resource.resource_type == resource_type)
+        if user_project_ids is not None:
+            conditions.append(Resource.project_id.in_(user_project_ids))
 
         count_stmt = select(func.count(Resource.id)).where(*conditions)
         total = (await db.execute(count_stmt)).scalar() or 0
