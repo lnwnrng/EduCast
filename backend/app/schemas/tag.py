@@ -1,12 +1,13 @@
 """标签 Pydantic 模型。"""
 
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel
 
 
 class TagResponse(BaseModel):
-    id: str
+    id: UUID
     name: str
     color: str = "#1677ff"
     project_count: int = 0

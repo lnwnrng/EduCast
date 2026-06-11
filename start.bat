@@ -52,7 +52,7 @@ if not exist backend\educast.db (
 
 :: 4. Start backend
 echo [4/5] Starting backend (port 8000)...
-start "EduCast Backend" cmd /k "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000"
+start "EduCast Backend" cmd /k "cd backend && python -m uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload"
 
 :: 5. Start frontend
 echo [5/5] Starting frontend (port 5173)...

@@ -29,7 +29,7 @@ class ProjectService:
             description=data.description,
             template=data.template,
             user_id=user_id,
-            category_id=data.category_id,
+            category_id=UUID(data.category_id) if data.category_id else None,
         )
         db.add(project)
         await db.flush()
@@ -124,8 +124,17 @@ class ProjectService:
         if project is None:
             raise ResourceNotFoundException(f"项目不存在: {project_id}")
 
+        # 修复 SQLite 可能返回字符串格式的 category_id
+        if project.category_id and isinstance(project.category_id, str):
+            project.category_id = UUID(project.category_id)
+
         update_data = data.model_dump(exclude_unset=True)
         tag_ids = update_data.pop("tag_ids", None)
+
+        # 显式转换 category_id 为 UUID 对象
+        if "category_id" in update_data and update_data["category_id"] is not None:
+            update_data["category_id"] = UUID(str(update_data["category_id"]))
+
         for field, value in update_data.items():
             setattr(project, field, value)
 
@@ -136,7 +145,14 @@ class ProjectService:
             project.tags = list(tag_result.scalars().all())
 
         await db.flush()
-        return project
+
+        # 重新查询，刷新 updated_at 同时保证关系已 eager load
+        result = await db.execute(
+            select(Project)
+            .where(Project.id == project_id)
+            .options(selectinload(Project.category), selectinload(Project.tags))
+        )
+        return result.scalar_one()
 
     @staticmethod
     async def delete_project(db: AsyncSession, project_id: UUID) -> None:

@@ -5,6 +5,9 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
+from app.schemas.category import CategoryBrief
+from app.schemas.tag import TagResponse
+
 
 class ProjectCreate(BaseModel):
     """创建项目请求。"""
@@ -44,7 +47,7 @@ class ProjectResponse(BaseModel):
     template: str
     status: str
     category_id: UUID | None = None
-    category: dict | None = None
-    tags: list[dict] = []
+    category: CategoryBrief | None = None
+    tags: list[TagResponse] = []
     created_at: datetime
     updated_at: datetime | None = None
