@@ -18,7 +18,11 @@ const CategoryManagement: React.FC = () => {
     try {
       const { data } = await catApi.getCategories();
       setCategories(data);
-    } catch { /* handled */ } finally { setLoading(false); }
+    } catch {
+      message.error('获取分类列表失败');
+    } finally {
+      setLoading(false);
+    }
   };
 
   useEffect(() => { fetchData(); }, []);
@@ -35,7 +39,10 @@ const CategoryManagement: React.FC = () => {
       }
       setModalOpen(false);
       fetchData();
-    } catch { /* handled */ }
+    } catch (err: any) {
+      const msg = err?.response?.data?.detail || '操作失败';
+      message.error(msg);
+    }
   };
 
   const columns = [
@@ -57,9 +64,14 @@ const CategoryManagement: React.FC = () => {
             setModalOpen(true);
           }}>编辑</Button>
           <Popconfirm title="确定删除此分类？" onConfirm={async () => {
-            await catApi.deleteCategory(record.id);
-            message.success('已删除');
-            fetchData();
+            try {
+              await catApi.deleteCategory(record.id);
+              message.success('已删除');
+              fetchData();
+            } catch (err: any) {
+              const msg = err?.response?.data?.detail || '删除失败';
+              message.error(msg);
+            }
           }}>
             <Button size="small" danger>删除</Button>
           </Popconfirm>
@@ -67,18 +79,6 @@ const CategoryManagement: React.FC = () => {
       ),
     },
   ];
-
-  const flattenTree = (nodes: CategoryNode[]): CategoryNode[] => {
-    const result: CategoryNode[] = [];
-    const walk = (list: CategoryNode[]) => {
-      list.forEach(n => {
-        result.push(n);
-        if (n.children?.length) walk(n.children);
-      });
-    };
-    walk(nodes);
-    return result;
-  };
 
   return (
     <div>
@@ -90,7 +90,7 @@ const CategoryManagement: React.FC = () => {
       }} style={{ marginBottom: 16 }}>添加根分类</Button>
       <Table
         columns={columns}
-        dataSource={flattenTree(categories)}
+        dataSource={categories}
         rowKey="id"
         loading={loading}
         pagination={false}

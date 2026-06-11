@@ -1,5 +1,6 @@
 """课程分类模型（树形结构）。"""
 
+import uuid
 from typing import TYPE_CHECKING
 
 from sqlalchemy import ForeignKey, Integer, String
@@ -17,7 +18,7 @@ class CourseCategory(BaseMixin, Base):
     __tablename__ = "course_categories"
 
     name: Mapped[str] = mapped_column(String(100))
-    parent_id: Mapped[str | None] = mapped_column(
+    parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("course_categories.id"), nullable=True
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)

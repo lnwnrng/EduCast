@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Tag, Button, Space, Typography, message, Modal, Select } from 'antd';
 import { CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import PageHeader from '../../components/common/PageHeader';
-import apiClient from '../../api/client';
+import { getRequests, approveRequest, rejectRequest, type RequestItem } from '../../api/requests';
 import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;
@@ -14,6 +14,7 @@ interface Request {
   reason: string;
   status: 'pending' | 'approved' | 'rejected';
   user_id: string;
+  username: string | null;
   reviewed_by: string | null;
   reviewed_at: string | null;
   created_at: string;
@@ -28,10 +29,8 @@ const Requests: React.FC = () => {
   const fetchRequests = async () => {
     setLoading(true);
     try {
-      const resp = await apiClient.get<Request[]>('/requests/', {
-        params: statusFilter ? { status: statusFilter } : undefined,
-      });
-      setRequests(resp.data);
+      const resp = await getRequests(statusFilter ? { status: statusFilter } : undefined);
+      setRequests(resp.data as Request[]);
     } catch {
       message.error('获取申请列表失败');
     } finally {
@@ -53,7 +52,7 @@ const Requests: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await apiClient.post(`/requests/${id}/approve`);
+          await approveRequest(id);
           message.success('已通过申请');
           fetchRequests();
         } catch {
@@ -72,7 +71,7 @@ const Requests: React.FC = () => {
       cancelText: '取消',
       onOk: async () => {
         try {
-          await apiClient.post(`/requests/${id}/reject`);
+          await rejectRequest(id);
           message.success('已拒绝申请');
           fetchRequests();
         } catch {
@@ -112,6 +111,12 @@ const Requests: React.FC = () => {
       ),
     },
     {
+      title: '申请人',
+      dataIndex: 'username',
+      key: 'username',
+      render: (text: string | null) => text || '-',
+    },
+    {
       title: '申请理由',
       dataIndex: 'reason',
       key: 'reason',
@@ -130,6 +135,12 @@ const Requests: React.FC = () => {
       dataIndex: 'created_at',
       key: 'created_at',
       render: (text: string) => new Date(text).toLocaleString(),
+    },
+    {
+      title: '审核时间',
+      dataIndex: 'reviewed_at',
+      key: 'reviewed_at',
+      render: (text: string | null) => text ? new Date(text).toLocaleString() : '-',
     },
     {
       title: '操作',
