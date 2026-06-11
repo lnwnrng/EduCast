@@ -28,7 +28,7 @@ class Project(BaseMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     template: Mapped[str] = mapped_column(String(50), default="micro_lecture")
     status: Mapped[str] = mapped_column(String(20), default="draft")
-    category_id: Mapped[str | None] = mapped_column(
+    category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("course_categories.id"), nullable=True, default=None
     )
 
