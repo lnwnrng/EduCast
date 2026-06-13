@@ -128,6 +128,9 @@ class CompositionService:
             return
 
         flat = _flatten(ir)
+
+        # 根据 IR 模板配置创建渲染器（覆盖默认配色）
+        self._renderer = SlideRenderer(template_name=ir.template or "micro_lecture")
         if not flat:
             await self._update_task(
                 db, task_id, "failed", 0, error_message="合成失败：IR 无分镜"
@@ -145,6 +148,7 @@ class CompositionService:
             voice = str(cfg["tts_voice"]) if cfg.get("tts_voice") else None
             use_generative = bool(cfg.get("use_generative", False))
             use_digital_human = bool(cfg.get("use_digital_human", True))
+            use_watermark = bool(cfg.get("use_watermark", True))
 
             root = settings.STORAGE_ROOT
             workspace = os.path.join(root, project_id, "workspace", task_id)
@@ -213,6 +217,30 @@ class CompositionService:
                 srt_path=srt_path,
                 chapter_metadata_path=chapter_path,
             )
+
+            # ── 视频级水印（文字 drawtext）──
+            if use_watermark:
+                wm_text = settings.WATERMARK_TEXT or ir.title or "课影 EduCast"
+                wm_watermarked = os.path.join(output_dir, f"gen{gen}_wm.mp4")
+                try:
+                    from app.utils.ffmpeg import FFmpegCommand
+                    cmd = FFmpegCommand()
+                    cmd.add_input(video_path)
+                    escaped = wm_text.replace("'", "\u2019").replace(":", "\\:")
+                    cmd.add_filter(
+                        f"drawtext=text='{escaped}'"
+                        ":fontsize=28:fontcolor=white@0.35"
+                        ":x=w-tw-30:y=h-th-20"
+                    )
+                    cmd.set_output(wm_watermarked)
+                    await cmd.run()
+                    if os.path.exists(wm_watermarked) and os.path.getsize(wm_watermarked) > 0:
+                        os.replace(wm_watermarked, video_path)
+                        logger.info("视频水印已添加")
+                    else:
+                        logger.warning("水印生成失败，使用无水印版本")
+                except Exception:
+                    logger.warning("添加水印失败，使用无水印版本", exc_info=True)
 
             # ── 封面 ──
             cover_path = os.path.join(output_dir, f"gen{gen}_cover.png")

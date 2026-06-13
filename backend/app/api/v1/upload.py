@@ -8,7 +8,7 @@ import os
 import uuid
 from pathlib import Path
 
-from fastapi import APIRouter, BackgroundTasks, Depends, UploadFile
+from fastapi import APIRouter, BackgroundTasks, Depends, Form, UploadFile
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_settings
@@ -109,6 +109,7 @@ async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> Non
 async def upload_document(
     file: UploadFile,
     background_tasks: BackgroundTasks,
+    template: str = Form("micro_lecture"),
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
     current_user: User = Depends(get_current_user_from_cookie),
@@ -155,6 +156,7 @@ async def upload_document(
         title=project_title,
         status="parsing",
         user_id=current_user.id,
+        template=template,
     )
     db.add(project)
     await db.flush()

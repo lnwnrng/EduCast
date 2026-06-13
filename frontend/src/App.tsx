@@ -11,6 +11,8 @@ import Workspace from './pages/Workspace';
 import Preview from './pages/Preview';
 import Resources from './pages/Resources';
 import Monitoring from './pages/Monitoring';
+import KnowledgeGraph from './pages/KnowledgeGraph';
+import AssessmentPage from './pages/Assessment';
 import AdminUserManagement from './pages/Admin/UserManagement';
 import AdminAuditLog from './pages/Admin/AuditLog';
 import CategoryManagement from './pages/Admin/CategoryManagement';
@@ -54,6 +56,8 @@ const App: React.FC = () => {
         <Route path="/projects/:id/preview" element={<Preview />} />
         <Route path="/resources" element={<Resources />} />
         <Route path="/monitoring" element={<Monitoring />} />
+        <Route path="/projects/:id/knowledge-graph" element={<KnowledgeGraph />} />
+        <Route path="/projects/:id/assessment" element={<AssessmentPage />} />
       </Route>
 
       {/* Admin 路由 */}

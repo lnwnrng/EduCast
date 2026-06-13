@@ -15,6 +15,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.config import settings
+from app.pipeline.templates import TemplateColors, get_template
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +49,22 @@ class SlideRenderer:
         width: int | None = None,
         height: int | None = None,
         font_path: str | None = None,
+        template_name: str = "micro_lecture",
     ) -> None:
         self._w = width or settings.VIDEO_WIDTH
         self._h = height or settings.VIDEO_HEIGHT
         self._font_path = self._resolve_font(
             font_path if font_path is not None else settings.SLIDE_FONT_PATH
         )
+        # 从模板注册表读取配色，覆盖类级别默认值
+        colors = get_template(template_name).colors
+        self.BG_COLOR = colors.bg
+        self.HEADER_COLOR = colors.header
+        self.TITLE_COLOR = colors.title
+        self.BODY_COLOR = colors.body
+        self.ACCENT = colors.accent
+        self.BADGE_BG = colors.badge_bg
+        self.BADGE_FG = colors.badge_fg
 
     # ── 字体 ──────────────────────────────────────────────────
 

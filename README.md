@@ -9,12 +9,17 @@
 | 模块 | 功能 |
 |------|------|
 | **文档解析** | 支持 PPTX / PDF / DOCX 上传，自动提取文本、备注、公式，生成课程脚本 IR |
+| **多视频模板** | 微课 / 慕课 / 实验课三种模板，不同配色、LLM 编排风格和分镜偏好 |
 | **LLM 脚本编排** | 智谱 GLM 自动润色旁白、拆分分镜、标注公式与生成式片段 |
 | **脚本编辑器** | 在线可视化编辑分镜脚本，实时预览旁白与画面 |
+| **知识图谱** | ECharts 力导向图可视化课程知识点关系，按章节着色 |
+| **随堂测试** | 基于 IR 自动生成练习题，支持选择/填空/简答/计算，在线评分 |
 | **TTS 配音** | Edge TTS 生成中文语音，支持多种音色 |
 | **课件渲染** | PPT 幻灯片自动光栅化，公式动画（manim / matplotlib 降级） |
 | **数字人讲解** | 可插拔数字人 API，本地兜底画中画姓名条 |
 | **生成式片段** | CogVideoX 视频生成，为抽象概念补充可视化画面 |
+| **视频水印** | FFmpeg drawtext 滤镜，成片右下角半透明文字水印 |
+| **版本对比** | 对比不同版本 IR 差异（知识点新增/删除/修改） |
 | **FFmpeg 合成** | 并行生成后自动合成 MP4，含字幕、章节导航、水印 |
 | **用户系统** | 注册（邮箱验证码）、登录、JWT Token 轮换、角色权限 |
 | **管理后台** | 用户管理、审计日志、分类/标签管理、系统监控面板 |
@@ -121,6 +126,7 @@ EduCast/
 │   │   ├── pipeline/           # 视频生成流水线
 │   │   │   ├── parser.py       # 文档解析
 │   │   │   ├── scriptwriter.py # LLM 脚本编排
+│   │   │   ├── templates.py    # 视频模板注册表
 │   │   │   ├── composer.py     # 合成编排
 │   │   │   ├── renderer.py     # 课件渲染
 │   │   │   ├── subtitles.py    # 字幕生成
@@ -146,6 +152,8 @@ EduCast/
 │       │   ├── Workspace/      # 工作空间
 │       │   ├── Preview/        # 视频预览
 │       │   ├── Resources/      # 资源管理
+│       │   ├── KnowledgeGraph/  # 知识图谱可视化
+│       │   ├── Assessment/     # 随堂测试
 │       │   ├── Monitoring/     # 系统监控
 │       │   └── Admin/          # 管理后台
 │       ├── stores/             # Zustand 状态管理
@@ -168,6 +176,8 @@ EduCast/
 | **邮件** | `RESEND_API_KEY` | Resend 邮件 API 密钥 | — |
 | **邮件** | `EMAIL_FROM` | 发件人地址 | — |
 | **视频** | `VIDEO_WIDTH` / `VIDEO_HEIGHT` | 输出分辨率 | 1920×1080 |
+| **水印** | `WATERMARK_TEXT` | 水印文本 | 课程标题 |
+| **水印** | `WATERMARK_IMAGE_PATH` | 图片水印路径 | — |
 | **流水线** | `SKIP_REVIEW` | 跳过人工审核 | `false` |
 | **成本** | `MAX_COST_PER_TASK` | 单任务最大成本（元） | `10.0` |
 
@@ -202,7 +212,7 @@ TTS:       Edge TTS（免费）
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 18, TypeScript, Vite, Ant Design, Zustand, Axios |
+| 前端 | React 18, TypeScript, Vite, Ant Design, ECharts, Zustand, Axios |
 | 后端 | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic |
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 认证 | JWT (python-jose), bcrypt, HttpOnly Cookie |
@@ -219,6 +229,7 @@ TTS:       Edge TTS（免费）
 | **P1** | 跑通骨架：PPTX → 脚本 → TTS + 课件渲染 → 合成 MP4 → 入库 | ✅ |
 | **P2** | 接生成能力：数字人 + 生成式片段 | ✅ |
 | **P3** | 加深增强：评估出题、manim、管理后台 | ✅ |
+| **P4** | 功能增强：多模板、知识图谱、随堂测试、水印、版本对比 | ✅ |
 
 ## License
 

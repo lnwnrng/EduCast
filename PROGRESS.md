@@ -86,8 +86,40 @@
 - [x] **生成 API 接入 (`providers/video_gen/cogvideox.py`)**：`CogVideoXProvider` 实现 `POST /videos/generations` → 轮询 `GET /async-result/{id}`（PROCESSING/SUCCESS/FAIL，带超时退避）→ httpx 下载 mp4 的 `generate()`。`get_video_gen_provider()` 优先 `COGVIDEO_API_KEY`、为空回退 `ZHIPU_API_KEY`；flash 档计费 0、正式档按时长 × 费率。
 - [x] **流水线整合 + 缓存 (`composition_service._build_generative`)**：`generative_clip` 分镜按 `gen_prompt` 生成（`sha256(模型+提示词)` 命中 `storage/_cache/video_gen` 复用，避免重复付费）→ `video_audio_to_clip` 归一化并叠加旁白（旁白更长则循环补足）；未开启/无 Key/失败 → 概念底图 `image_to_kenburns_clip` 运镜兜底。前端「生成式片段」开关 + 成本预估透传（仅开启且配 Key 才计费）。
 
-### 模块六：教学评估与增强 (Assessment & Enhancement Module) 
+### 模块六：教学评估与增强 (Assessment & Enhancement Module) ✅
 *(视进度与答辩需求选做)*
-- [~] **课后题库生成**：模块二的 LLM 编排已为每个知识点生成 `quiz_seeds`（题干/题型/答案/解析）并入 IR；**待做**：独立的「题库」前端页与导出（题目筛选、按知识点浏览、导出文档）。
+- [x] **课后题库生成**：模块二的 LLM 编排已为每个知识点生成 `quiz_seeds`（题干/题型/答案/解析）并入 IR；**已完成**：独立的「随堂测试」前端页（选择题/填空题/简答题/计算题，支持随机打乱、提交评分、答案解析展示）。
 - [x] **公式渲染画面 (`pipeline/formula.py`)**：`FormulaRenderer` **manim 优先 + 自动降级**——`FORMULA_ENGINE=auto` 时探测 `manim`+系统 LaTeX 可用则逐行 `Write`/`Indicate` 推导；否则走**纯 pip 图片显影**（matplotlib mathtext 把每步渲染为 PNG，按「累计展示前 k 行、第 k 行高亮」拼显影视频，CJK 字体复用课件渲染器探测，非法 mathtext 退化纯文本）。`composition_service._build_formula` 用 `video_audio_to_clip` 叠加旁白（旁白驱动时长），空步骤/失败降级课件页。`renderer.render_formula_animation` 仍保留为最终静态兜底。
 - [x] **打包导出**：模块三的 `composition_service` 已在出片时自动打包 **zip**（成片 + SRT + VTT + 封面 + IR 快照），并作为 `archive` 资源入库、可在资源管理/预览页下载。
+
+---
+
+## ✅ 已完成 (P4 功能增强阶段)
+
+### 功能 1：多视频模板支持 ✅
+- [x] **模板注册表 (`pipeline/templates.py`)**：定义 `TemplateConfig` dataclass（配色/prompt风格/分镜偏好/时长范围），内置微课（蓝白简约）、慕课（深蓝学术）、实验课（绿白活力）三种模板。
+- [x] **SlideRenderer 模板配色**：构造函数接受 `template_name` 参数，从注册表读取配色覆盖类级别默认值（bg/accent/title/body/badge 等）。
+- [x] **ScriptWriter 模板感知**：`_build_kp_messages` 读取 `ir.template` 注入模板专属 `prompt_style` 和 `scene_type_hint` 到 LLM system prompt。
+- [x] **CompositionService 传递模板**：`compose()` 加载 IR 后根据 `ir.template` 重建 `SlideRenderer` 实例。
+- [x] **前端模板选择 UI**：Upload 页面顶部新增 Segmented 卡片选择器（微课/慕课/实验课），上传时附带 `template` 参数。
+- [x] **后端接收模板参数**：`upload.py` 新增 `template: str = Form("micro_lecture")`，创建 Project 时写入，ParserService 解析时从 Project 继承到 IR。
+
+### 功能 2：知识图谱可视化 ✅
+- [x] **后端 API**：`GET /projects/{id}/knowledge-graph` 从 IR 提取知识点节点和共享标签关联边。
+- [x] **前端页面**：ECharts 力导向图渲染，节点按章节着色，点击节点显示详情抽屉（要点、标签）。
+- [x] **路由导航**：Workspace 页面新增「知识图谱」按钮。
+
+### 功能 3：随堂测试模块 ✅
+- [x] **后端 API**：`GET /projects/{id}/assessment` 从 IR 提取随堂练习题按章节分组。
+- [x] **前端测试页面**：支持选择题/填空题/简答题/计算题，随机打乱、提交评分、答案解析展示。
+- [x] **路由导航**：Workspace 页面新增「随堂测试」按钮。
+
+### 功能 4：视频水印 ✅
+- [x] **FFmpeg 文字水印**：合成管线末尾使用 `drawtext` 滤镜在成片右下角添加半透明文字水印（课程标题或自定义文本）。
+- [x] **配置项**：`WATERMARK_IMAGE_PATH`（可选图片水印）、`WATERMARK_OPACITY`（默认 0.3）。
+- [x] **前端开关**：生成配置表单新增「视频水印」Switch，通过 `use_watermark` 配置项控制。
+
+### 功能 5：资源版本对比 ✅
+- [x] **后端 API**：`GET /projects/{id}/versions/compare?v1=N&v2=M` 对比两个 IR 版本的知识点差异（新增/删除/修改）。
+- [x] **前端组件**：`VersionCompareModal` 支持版本选择、统计概览、新增/删除/修改知识点分类展示。
+- [x] **导航入口**：Workspace 页面新增「版本对比」按钮（需 2+ 版本时启用）。

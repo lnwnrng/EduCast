@@ -189,8 +189,11 @@ class ScriptWriter:
         kp: KnowledgePointIR,
     ) -> list[dict[str, str]]:
         """构造单个知识点的编排提示词。"""
+        from app.pipeline.templates import get_template
+
         subject = ir.subject or "通用学科"
         audience = ir.target_audience or "高校学生"
+        tpl = get_template(ir.template or "micro_lecture")
 
         scene_lines: list[str] = []
         for scene in kp.scenes:
@@ -209,7 +212,8 @@ class ScriptWriter:
         system = (
             "你是资深的高校教学视频编导与讲稿撰写专家。你的任务是把课件解析出的"
             "原始文字，改写成适合教师口播的教学讲稿，并规划每个分镜的画面类型。\n"
-            f"课程学科：{subject}；目标受众：{audience}；讲解风格：严谨而亲切。\n"
+            f"课程学科：{subject}；目标受众：{audience}；"
+            f"讲解风格：{tpl.prompt_style}。\n"
             "要求：\n"
             "1. narration_text：把原始文字扩写为自然、口语化、可朗读的讲解稿，"
             "补充必要的过渡与解释，避免照搬罗列；每个分镜 60~150 字为宜。\n"
@@ -218,6 +222,7 @@ class ScriptWriter:
             "digital_human(数字人讲解) / generative_clip(生成式概念片段) 中选择最"
             "合适的；纯公式推导选 formula_animation，引入/小结类选 digital_human，"
             "需要情景画面的选 generative_clip，其余默认 slide。\n"
+            f"本模板偏好：{tpl.scene_type_hint}。\n"
             "4. 当 scene_type=formula_animation，在 latex_steps 给出逐步推导的 "
             "LaTeX 字符串数组；当 scene_type=generative_clip，在 gen_prompt 给出一句"
             "中文画面提示词。其它情况这两个字段留空。\n"
