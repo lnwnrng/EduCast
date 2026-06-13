@@ -1,6 +1,6 @@
 """项目-标签 多对多关联表。"""
 
-from sqlalchemy import Column, ForeignKey, String, Table
+from sqlalchemy import Column, ForeignKey, Table
 
 from app.models.base import Base
 

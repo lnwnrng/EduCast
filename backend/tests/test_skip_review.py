@@ -1,5 +1,6 @@
 """SKIP_REVIEW 一键全自动测试 — 验证接线（不重测合成本身）。"""
 
+import uuid
 from unittest.mock import AsyncMock
 
 import pytest
@@ -29,7 +30,7 @@ async def _seed_and_run(async_engine, tmp_path, monkeypatch, *, skip_review: boo
     md.write_text("# 章\n## 知识点\n这是正文内容。\n", encoding="utf-8")
 
     async with factory() as db:
-        project = Project(title="auto", status="parsing")
+        project = Project(title="auto", status="parsing", user_id=uuid.uuid4())
         db.add(project)
         await db.flush()
         task = Task(project_id=project.id, task_type="full_pipeline", status="pending")

@@ -23,7 +23,6 @@ class Settings(BaseSettings):
 
     # ── Provider API Keys ──────────────────────────────────
     ZHIPU_API_KEY: str = ""
-    DEEPSEEK_API_KEY: str = ""
     COGVIDEO_API_KEY: str = ""
     DIGITAL_HUMAN_API_KEY: str = ""
 
@@ -72,6 +71,8 @@ class Settings(BaseSettings):
     # ── 流水线 ──────────────────────────────────────────────
     # True 时上传后跨过人工审核，自动生成成片（演示用；默认保持人在环）
     SKIP_REVIEW: bool = False
+    # True 时所有分镜画面由 AI（CogVideoX）生成，跳过 Pillow 模板渲染
+    AI_FULL_GEN_DEFAULT: bool = False
 
     # ── 成本护栏 ────────────────────────────────────────────
     MAX_COST_PER_TASK: float = 10.0

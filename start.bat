@@ -44,7 +44,7 @@ if not exist frontend\node_modules (
 echo [3/5] Checking database...
 if not exist backend\educast.db (
     echo       Creating database...
-    python -c "from app.database import init_db; import asyncio; asyncio.run(init_db())" >nul 2>&1
+    cd backend && python -c "from app.database import init_db; import asyncio; asyncio.run(init_db())" >nul 2>&1 && cd ..
     echo       Database created
 ) else (
     echo       Database exists

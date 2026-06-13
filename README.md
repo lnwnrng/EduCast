@@ -114,9 +114,11 @@ EduCast/
 │   │   │   ├── scripts.py      # 脚本编辑 & LLM 编排
 │   │   │   ├── tasks.py        # 任务流水线
 │   │   │   ├── resources.py    # 资源管理
+│   │   │   ├── settings.py     # 运行时配置（API Key 管理）
 │   │   │   ├── monitoring.py   # 系统监控
 │   │   │   └── admin/          # 管理后台接口
 │   │   ├── services/           # 业务逻辑层
+│   │   │   ├── settings_service.py  # 运行时配置持久化（JSON 文件）
 │   │   ├── providers/          # Provider 适配层
 │   │   │   ├── llm/            # 智谱 GLM
 │   │   │   ├── tts/            # Edge TTS
@@ -129,6 +131,7 @@ EduCast/
 │   │   │   ├── templates.py    # 视频模板注册表
 │   │   │   ├── composer.py     # 合成编排
 │   │   │   ├── renderer.py     # 课件渲染
+│   │   │   ├── formula.py      # 公式动画（manim / matplotlib 降级）
 │   │   │   ├── subtitles.py    # 字幕生成
 │   │   │   └── slide_raster.py # 幻灯片光栅化
 │   │   ├── ir/                 # 课程脚本 IR 定义 & 校验
@@ -155,6 +158,7 @@ EduCast/
 │       │   ├── KnowledgeGraph/  # 知识图谱可视化
 │       │   ├── Assessment/     # 随堂测试
 │       │   ├── Monitoring/     # 系统监控
+│       │   ├── Settings/       # 系统设置（API Key 配置）
 │       │   └── Admin/          # 管理后台
 │       ├── stores/             # Zustand 状态管理
 │       ├── types/              # TypeScript 类型定义
@@ -178,7 +182,11 @@ EduCast/
 | **视频** | `VIDEO_WIDTH` / `VIDEO_HEIGHT` | 输出分辨率 | 1920×1080 |
 | **水印** | `WATERMARK_TEXT` | 水印文本 | 课程标题 |
 | **水印** | `WATERMARK_IMAGE_PATH` | 图片水印路径 | — |
+| **认证** | `JWT_SECRET_KEY` | JWT 签名密钥 | `change-me-...` |
+| **认证** | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期（分钟） | `15` |
+| **认证** | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期（天） | `7` |
 | **流水线** | `SKIP_REVIEW` | 跳过人工审核 | `false` |
+| **流水线** | `AI_FULL_GEN_DEFAULT` | AI 全自动生成模式 | `false` |
 | **成本** | `MAX_COST_PER_TASK` | 单任务最大成本（元） | `10.0` |
 
 完整配置见 [`.env.example`](.env.example)。
@@ -230,6 +238,7 @@ TTS:       Edge TTS（免费）
 | **P2** | 接生成能力：数字人 + 生成式片段 | ✅ |
 | **P3** | 加深增强：评估出题、manim、管理后台 | ✅ |
 | **P4** | 功能增强：多模板、知识图谱、随堂测试、水印、版本对比 | ✅ |
+| **P5** | 用户系统、设置面板、管理后台增强、全面安全审计 | ✅ |
 
 ## License
 

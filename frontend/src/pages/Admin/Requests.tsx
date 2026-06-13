@@ -2,7 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Tag, Button, Space, Typography, message, Modal, Select } from 'antd';
 import { CheckOutlined, CloseOutlined, ReloadOutlined } from '@ant-design/icons';
 import PageHeader from '../../components/common/PageHeader';
-import { getRequests, approveRequest, rejectRequest, type RequestItem } from '../../api/requests';
+import { getRequests, approveRequest, rejectRequest } from '../../api/requests';
 import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;

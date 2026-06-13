@@ -15,7 +15,7 @@ import os
 from PIL import Image, ImageDraw, ImageFont, ImageOps
 
 from app.config import settings
-from app.pipeline.templates import TemplateColors, get_template
+from app.pipeline.templates import get_template
 
 logger = logging.getLogger(__name__)
 

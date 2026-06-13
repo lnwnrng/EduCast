@@ -1,6 +1,7 @@
 """Pytest 共享 fixtures。"""
 
 import asyncio
+import uuid
 from collections.abc import AsyncGenerator
 from unittest.mock import patch
 
@@ -14,8 +15,10 @@ from sqlalchemy.ext.asyncio import (
 )
 
 from app.api.deps import get_db
+from app.config import settings
 from app.main import app
 from app.models.base import Base
+from app.models.user import User
 
 
 @pytest.fixture(scope="session")
@@ -84,6 +87,61 @@ async def client(
     ):
         transport = ASGITransport(app=app)
         async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest_asyncio.fixture
+async def test_user(db_session: AsyncSession) -> User:
+    """创建测试用管理员用户。"""
+    user = User(
+        id=uuid.uuid4(),
+        username="testuser",
+        password_hash="fakehash",
+        role="admin",
+        display_id=1,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    return user
+
+
+@pytest_asyncio.fixture
+async def auth_client(
+    async_engine,
+    db_session: AsyncSession,
+    test_user: User,
+) -> AsyncGenerator[AsyncClient, None]:
+    """带认证 Cookie 的测试 HTTP 客户端。"""
+    from jose import jwt
+
+    test_session_factory = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+
+    # 生成 JWT token
+    token = jwt.encode(
+        {"sub": str(test_user.id)},
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    with patch(
+        "app.api.v1.upload.async_session_factory",
+        test_session_factory,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            ac.cookies.set("access_token", token)
             yield ac
 
     app.dependency_overrides.clear()

@@ -13,7 +13,6 @@ from app.models.tag import Tag
 from app.models.user import User
 from app.schemas.tag import TagCreate, TagResponse, TagUpdate
 
-
 router = APIRouter(
     prefix="/tags",
     tags=["标签管理"],

@@ -1,7 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
   Badge,
-  Card,
   Collapse,
   Empty,
   List,
@@ -20,7 +19,7 @@ import {
 } from '@ant-design/icons';
 import { compareVersions, type VersionCompareData } from '../../../api/projects';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { Panel } = Collapse;
 
 interface VersionCompareModalProps {

@@ -1,6 +1,6 @@
 """分类/标签申请 API。"""
 
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -152,7 +152,7 @@ async def approve_request(
     # 更新申请状态
     request.status = "approved"
     request.reviewed_by = current_user.id
-    request.reviewed_at = datetime.now(timezone.utc)
+    request.reviewed_at = datetime.now(UTC)
 
     await db.flush()
     return SuccessResponse(message=f"已批准{'分类' if request.type == 'category' else '标签'}「{request.name}」")
@@ -177,7 +177,7 @@ async def reject_request(
 
     request.status = "rejected"
     request.reviewed_by = current_user.id
-    request.reviewed_at = datetime.now(timezone.utc)
+    request.reviewed_at = datetime.now(UTC)
 
     await db.flush()
     return SuccessResponse(message="已拒绝该申请")

@@ -17,8 +17,8 @@ from app.services.parser_service import ParserService
 from app.services.resource_service import ResourceService
 
 
-async def _seed_project_with_ir(db_session, tmp_path) -> str:
-    project = Project(title="监控测试课程", status="reviewing")
+async def _seed_project_with_ir(db_session, tmp_path, user_id) -> str:
+    project = Project(title="监控测试课程", status="reviewing", user_id=user_id)
     db_session.add(project)
     await db_session.flush()
     db_session.add(
@@ -47,13 +47,13 @@ async def _seed_project_with_ir(db_session, tmp_path) -> str:
 
 @pytest.mark.asyncio
 async def test_cost_estimate_summary_dashboard(
-    client: AsyncClient, db_session, tmp_path, monkeypatch
+    auth_client: AsyncClient, db_session, tmp_path, monkeypatch, test_user
 ) -> None:
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
-    pid = await _seed_project_with_ir(db_session, tmp_path)
+    pid = await _seed_project_with_ir(db_session, tmp_path, test_user.id)
 
     # 成本预估（数字人 → 5.0）
-    r1 = await client.get(f"/api/v1/projects/{pid}/cost-estimate")
+    r1 = await auth_client.get(f"/api/v1/projects/{pid}/cost-estimate")
     assert r1.status_code == 200
     body = r1.json()
     assert body["total"] == 5.0
@@ -61,7 +61,7 @@ async def test_cost_estimate_summary_dashboard(
     assert body["currency"] == "CNY"
 
     # 项目成本汇总
-    r2 = await client.get(f"/api/v1/projects/{pid}/cost")
+    r2 = await auth_client.get(f"/api/v1/projects/{pid}/cost")
     assert r2.status_code == 200
     summary = r2.json()
     assert summary["task_count"] == 1
@@ -69,7 +69,7 @@ async def test_cost_estimate_summary_dashboard(
     assert summary["estimated_total"] == 5.0
 
     # 全局监控面板
-    r3 = await client.get("/api/v1/monitoring/dashboard")
+    r3 = await auth_client.get("/api/v1/monitoring/dashboard")
     assert r3.status_code == 200
     dash = r3.json()
     assert dash["task_count"] >= 1
@@ -77,19 +77,19 @@ async def test_cost_estimate_summary_dashboard(
 
 
 @pytest.mark.asyncio
-async def test_cost_estimate_without_ir_404(client: AsyncClient) -> None:
-    create = await client.post("/api/v1/projects/", json={"title": "空项目"})
+async def test_cost_estimate_without_ir_404(auth_client: AsyncClient) -> None:
+    create = await auth_client.post("/api/v1/projects/", json={"title": "空项目"})
     project_id = create.json()["id"]
-    resp = await client.get(f"/api/v1/projects/{project_id}/cost-estimate")
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}/cost-estimate")
     assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
 async def test_workspace_aggregate_and_stale(
-    client: AsyncClient, db_session, tmp_path, monkeypatch
+    auth_client: AsyncClient, db_session, tmp_path, monkeypatch, test_user
 ) -> None:
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
-    project = Project(title="工作台课程", status="completed")
+    project = Project(title="工作台课程", status="completed", user_id=test_user.id)
     db_session.add(project)
     await db_session.flush()
     pid = str(project.id)
@@ -120,7 +120,7 @@ async def test_workspace_aggregate_and_stale(
     )
     await db_session.commit()
 
-    r = await client.get(f"/api/v1/projects/{pid}/workspace")
+    r = await auth_client.get(f"/api/v1/projects/{pid}/workspace")
     assert r.status_code == 200
     body = r.json()
     assert body["has_ir"] is True
@@ -134,7 +134,7 @@ async def test_workspace_aggregate_and_stale(
     # 改脚本 → IR v2，成片仍基于 v1 → 过期
     ir.version = 2
     await ParserService().save_ir(ir, pid, version=2)
-    r2 = await client.get(f"/api/v1/projects/{pid}/workspace")
+    r2 = await auth_client.get(f"/api/v1/projects/{pid}/workspace")
     body2 = r2.json()
     assert body2["latest_ir_version"] == 2
     assert body2["is_stale"] is True

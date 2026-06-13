@@ -1,5 +1,7 @@
 """成本估算 / 配额护栏 / 汇总测试。"""
 
+import uuid
+
 import pytest
 
 from app.config import settings
@@ -96,15 +98,18 @@ def test_estimate_free_stack_is_zero() -> None:
     assert est.breakdown == {}
 
 
+_FIXED_USER_ID = uuid.uuid4()
+
+
 async def test_check_quota_pass(db_session) -> None:
-    project = Project(title="p")
+    project = Project(title="p", user_id=_FIXED_USER_ID)
     db_session.add(project)
     await db_session.flush()
     await check_quota(db_session, str(project.id), 5.0)  # 不抛
 
 
 async def test_check_quota_over_task(db_session) -> None:
-    project = Project(title="p")
+    project = Project(title="p", user_id=_FIXED_USER_ID)
     db_session.add(project)
     await db_session.flush()
     # 超单任务上限（默认 10）
@@ -113,7 +118,7 @@ async def test_check_quota_over_task(db_session) -> None:
 
 
 async def test_check_quota_over_project(db_session) -> None:
-    project = Project(title="p")
+    project = Project(title="p", user_id=_FIXED_USER_ID)
     db_session.add(project)
     await db_session.flush()
     # 已花费接近项目上限（默认 100）
@@ -124,7 +129,7 @@ async def test_check_quota_over_project(db_session) -> None:
 
 
 async def test_project_cost_summary(db_session) -> None:
-    project = Project(title="p")
+    project = Project(title="p", user_id=_FIXED_USER_ID)
     db_session.add(project)
     await db_session.flush()
     db_session.add_all(

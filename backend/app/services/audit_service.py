@@ -1,7 +1,8 @@
 """审计日志服务。"""
 
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
+
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -42,7 +43,7 @@ class AuditService:
         if action:
             query = query.where(AuditLog.action == action)
         if days:
-            cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+            cutoff = datetime.now(UTC) - timedelta(days=days)
             query = query.where(AuditLog.created_at >= cutoff)
         query = query.order_by(AuditLog.created_at.desc())
 

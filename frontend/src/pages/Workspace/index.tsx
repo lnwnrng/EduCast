@@ -72,6 +72,7 @@ const Workspace: React.FC = () => {
   const [useDigitalHuman, setUseDigitalHuman] = useState(true);
   const [useGenerative, setUseGenerative] = useState(false);
   const [useWatermark, setUseWatermark] = useState(true);
+  const [useAiFullGen, setUseAiFullGen] = useState(false);
   const [activeVersion, setActiveVersion] = useState<number | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -133,6 +134,7 @@ const Workspace: React.FC = () => {
         use_digital_human: useDigitalHuman,
         use_generative: useGenerative,
         use_watermark: useWatermark,
+        use_ai_full_gen: useAiFullGen,
       });
       message.success('已开始生成，请稍候...');
       setActiveVersion(null);
@@ -347,6 +349,18 @@ const Workspace: React.FC = () => {
         <Switch
           checked={useWatermark}
           onChange={setUseWatermark}
+          checkedChildren="开"
+          unCheckedChildren="关"
+        />
+      </Form.Item>
+      <Form.Item
+        label="AI 全生成模式"
+        style={{ maxWidth: 360 }}
+        extra="开启后所有分镜画面由 CogVideoX AI 生成，跳过模板渲染（需配置智谱 Key）"
+      >
+        <Switch
+          checked={useAiFullGen}
+          onChange={setUseAiFullGen}
           checkedChildren="开"
           unCheckedChildren="关"
         />

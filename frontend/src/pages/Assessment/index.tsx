@@ -18,7 +18,7 @@ import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import { getAssessment, type AssessmentData } from '../../api/projects';
 
-const { Text, Title } = Typography;
+const { Text } = Typography;
 const { TextArea } = Input;
 const { Panel } = Collapse;
 

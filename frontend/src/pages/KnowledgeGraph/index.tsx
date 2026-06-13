@@ -2,7 +2,6 @@ import React, { useEffect, useMemo, useState } from 'react';
 import {
   Card,
   Col,
-  Descriptions,
   Divider,
   Drawer,
   Empty,

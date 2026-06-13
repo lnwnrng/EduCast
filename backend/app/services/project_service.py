@@ -53,7 +53,14 @@ class ProjectService:
     @staticmethod
     async def get_project(db: AsyncSession, project_id: UUID) -> Project:
         """获取项目详情。"""
-        project = await db.get(Project, project_id)
+        from sqlalchemy import select as sa_select
+
+        result = await db.execute(
+            sa_select(Project)
+            .where(Project.id == project_id)
+            .options(selectinload(Project.category), selectinload(Project.tags))
+        )
+        project = result.scalar_one_or_none()
         if project is None or project.deleted_at is not None:
             raise ResourceNotFoundException(f"项目不存在: {project_id}")
         return project
