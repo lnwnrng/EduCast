@@ -117,6 +117,29 @@ async def _migrate_add_email_column() -> None:
         logger.warning("迁移 users.email 列失败（可忽略）: %s", e)
 
 
+async def _migrate_add_template_column() -> None:
+    """为已有 projects 表添加 template 列（视频模板功能所需）。"""
+    import logging
+    import sqlite3
+
+    logger = logging.getLogger(__name__)
+    try:
+        db_path = _get_sqlite_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(projects)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "template" not in columns:
+            conn.execute(
+                "ALTER TABLE projects ADD COLUMN template VARCHAR(50) "
+                "DEFAULT 'micro_lecture'"
+            )
+            conn.commit()
+            logger.info("已为 projects 表添加 template 列")
+        conn.close()
+    except Exception as e:
+        logger.warning("迁移 projects.template 列失败（可忽略）: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
@@ -124,6 +147,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await init_db()
     await _migrate_add_email_column()
     await _migrate_add_display_id_column()
+    await _migrate_add_template_column()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

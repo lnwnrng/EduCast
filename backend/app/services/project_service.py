@@ -66,25 +66,49 @@ class ProjectService:
         user_id = None,
         is_admin: bool = False,
         category_id: str | None = None,
-        tag_id: str | None = None,
+        tag_ids: list[str] | None = None,
     ) -> tuple[list[Project], int]:
         """分页查询项目列表。"""
-        # 总数
+        # ── 分类筛选（含子分类）──
+        cat_uuids: list[UUID] | None = None
+        if category_id:
+            from app.models.category import CourseCategory
+            cat_uuid = UUID(category_id)
+            # 收集该分类及所有子分类的 ID
+            all_cats = (await db.execute(select(CourseCategory))).scalars().all()
+            cat_uuids = [cat_uuid]
+            # BFS 收集子分类
+            queue = [cat_uuid]
+            while queue:
+                parent = queue.pop(0)
+                for c in all_cats:
+                    if c.parent_id == parent and c.id not in cat_uuids:
+                        cat_uuids.append(c.id)
+                        queue.append(c.id)
+
+        # ── 标签 UUID 转换 ──
+        tag_uuids: list[UUID] | None = None
+        if tag_ids:
+            tag_uuids = [UUID(t) for t in tag_ids]
+
+        # ── 总数查询 ──
         count_stmt = select(func.count(Project.id)).where(Project.deleted_at.is_(None))
         if not is_admin and user_id is not None:
             count_stmt = count_stmt.where(Project.user_id == user_id)
-        if category_id:
-            count_stmt = count_stmt.where(Project.category_id == category_id)
-        if tag_id:
-            tag_uuid = UUID(tag_id)
-            count_stmt = count_stmt.where(
-                Project.id.in_(
-                    select(project_tag.c.project_id).where(project_tag.c.tag_id == tag_uuid)
+        if cat_uuids:
+            count_stmt = count_stmt.where(Project.category_id.in_(cat_uuids))
+        if tag_uuids:
+            for tag_uuid in tag_uuids:
+                count_stmt = count_stmt.where(
+                    Project.id.in_(
+                        select(project_tag.c.project_id).where(
+                            project_tag.c.tag_id == tag_uuid
+                        )
+                    )
                 )
-            )
         total = (await db.execute(count_stmt)).scalar() or 0
 
-        # 分页数据（预加载 category 和 tags，避免懒加载报 MissingGreenlet）
+        # ── 分页数据查询 ──
         stmt = (
             select(Project)
             .where(Project.deleted_at.is_(None))
@@ -95,13 +119,17 @@ class ProjectService:
         )
         if not is_admin and user_id is not None:
             stmt = stmt.where(Project.user_id == user_id)
-        if category_id:
-            stmt = stmt.where(Project.category_id == category_id)
-        if tag_id:
-            tag_uuid = UUID(tag_id)
-            stmt = stmt.join(project_tag, project_tag.c.project_id == Project.id).where(
-                project_tag.c.tag_id == tag_uuid
-            )
+        if cat_uuids:
+            stmt = stmt.where(Project.category_id.in_(cat_uuids))
+        if tag_uuids:
+            for tag_uuid in tag_uuids:
+                stmt = stmt.where(
+                    Project.id.in_(
+                        select(project_tag.c.project_id).where(
+                            project_tag.c.tag_id == tag_uuid
+                        )
+                    )
+                )
         result = await db.execute(stmt)
         projects = list(result.scalars().all())
 

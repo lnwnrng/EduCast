@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     SLIDE_FONT_PATH: str = ""
     # 可见水印文本；留空则使用课程标题
     WATERMARK_TEXT: str = ""
+    # FFmpeg 视频级图片水印（可选，路径不存在时跳过）
+    WATERMARK_IMAGE_PATH: str = ""
+    WATERMARK_OPACITY: float = 0.3
     # 分镜无旁白音频时的兜底时长（秒）
     SILENT_SCENE_DURATION: float = 4.0
 

@@ -29,6 +29,9 @@ import {
   PlusOutlined,
   UnorderedListOutlined,
   CheckCircleOutlined,
+  NodeIndexOutlined,
+  FormOutlined,
+  SwapOutlined,
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
@@ -36,6 +39,7 @@ import { getWorkspace } from '../../api/workspace';
 import { approveScript } from '../../api/scripts';
 import { getResourceDownloadUrl } from '../../api/resources';
 import { getProjects } from '../../api/projects';
+import VersionCompareModal from './components/VersionCompareModal';
 import { statusMeta, lifecycleStep, IN_PROGRESS } from '../../utils/status';
 import type { WorkspaceData, VideoVersion } from '../../types/workspace';
 import type { Project } from '../../types/project';
@@ -63,9 +67,11 @@ const Workspace: React.FC = () => {
   const [data, setData] = useState<WorkspaceData | null>(null);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [compareOpen, setCompareOpen] = useState(false);
   const [voice, setVoice] = useState('zh-CN-XiaoxiaoNeural');
   const [useDigitalHuman, setUseDigitalHuman] = useState(true);
   const [useGenerative, setUseGenerative] = useState(false);
+  const [useWatermark, setUseWatermark] = useState(true);
   const [activeVersion, setActiveVersion] = useState<number | null>(null);
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoading, setProjectsLoading] = useState(false);
@@ -126,6 +132,7 @@ const Workspace: React.FC = () => {
         tts_voice: voice,
         use_digital_human: useDigitalHuman,
         use_generative: useGenerative,
+        use_watermark: useWatermark,
       });
       message.success('已开始生成，请稍候...');
       setActiveVersion(null);
@@ -328,6 +335,18 @@ const Workspace: React.FC = () => {
         <Switch
           checked={useGenerative}
           onChange={setUseGenerative}
+          checkedChildren="开"
+          unCheckedChildren="关"
+        />
+      </Form.Item>
+      <Form.Item
+        label="视频水印"
+        style={{ maxWidth: 360 }}
+        extra="开启后在成片右下角添加半透明文字水印"
+      >
+        <Switch
+          checked={useWatermark}
+          onChange={setUseWatermark}
           checkedChildren="开"
           unCheckedChildren="关"
         />
@@ -547,7 +566,38 @@ const Workspace: React.FC = () => {
         ]}
       />
 
+      <Space style={{ marginBottom: 16 }}>
+        <Button
+          icon={<SwapOutlined />}
+          onClick={() => setCompareOpen(true)}
+          disabled={!data || data.videos.length < 2}
+        >
+          版本对比
+        </Button>
+        <Button
+          icon={<NodeIndexOutlined />}
+          onClick={() => navigate(`/projects/${projectId}/knowledge-graph`)}
+        >
+          知识图谱
+        </Button>
+        <Button
+          icon={<FormOutlined />}
+          onClick={() => navigate(`/projects/${projectId}/assessment`)}
+        >
+          随堂测试
+        </Button>
+      </Space>
+
       {panel}
+
+      {data && (
+        <VersionCompareModal
+          open={compareOpen}
+          onClose={() => setCompareOpen(false)}
+          projectId={projectId || ''}
+          versions={data.videos.map((v) => v.version)}
+        />
+      )}
     </div>
   );
 };

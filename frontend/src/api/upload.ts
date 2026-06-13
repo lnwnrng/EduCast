@@ -16,9 +16,10 @@ export interface UploadResponse {
  * 上传课件文档。
  * 后端会自动创建 Project + Task 并触发后台解析。
  */
-export const uploadDocument = (file: File) => {
+export const uploadDocument = (file: File, template: string = 'micro_lecture') => {
   const formData = new FormData();
   formData.append('file', file);
+  formData.append('template', template);
   return apiClient.post<UploadResponse>('/upload/document', formData, {
     headers: { 'Content-Type': 'multipart/form-data' },
     timeout: 60000,

@@ -76,6 +76,10 @@ class ParserService:
 
             # 3. 补充 IR 元信息
             ir.course_id = project_id
+            # 从 Project 继承模板配置
+            project = await db.get(Project, UUID(project_id))
+            if project and project.template:
+                ir.template = project.template
 
             # 4. 校验 IR
             errors = validate_ir(ir)

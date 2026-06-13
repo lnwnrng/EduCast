@@ -6,6 +6,7 @@ import {
   Descriptions,
   Progress,
   Result,
+  Segmented,
   Space,
   Spin,
   Steps,
@@ -15,11 +16,14 @@ import {
   message,
 } from 'antd';
 import {
+  BookOutlined,
   CheckCircleOutlined,
   EditOutlined,
+  ExperimentOutlined,
   FileTextOutlined,
   InboxOutlined,
   LoadingOutlined,
+  PlayCircleOutlined,
   ReloadOutlined,
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
@@ -54,6 +58,28 @@ const FILE_TYPES = [
   { ext: '.docx', label: 'Word', color: 'geekblue' },
 ];
 
+/** 视频模板选项 */
+const TEMPLATE_OPTIONS = [
+  {
+    value: 'micro_lecture',
+    label: '微课',
+    icon: <PlayCircleOutlined />,
+    desc: '10-15 分钟知识点精讲，蓝白简约风格',
+  },
+  {
+    value: 'mooc',
+    label: '慕课',
+    icon: <BookOutlined />,
+    desc: '30-45 分钟系统课程，深蓝学术风格',
+  },
+  {
+    value: 'lab_experiment',
+    label: '实验课',
+    icon: <ExperimentOutlined />,
+    desc: '20-30 分钟实验操作，绿白活力风格',
+  },
+];
+
 const UploadPage: React.FC = () => {
   const navigate = useNavigate();
   const { id: routeProjectId } = useParams<{ id: string }>();
@@ -61,6 +87,7 @@ const UploadPage: React.FC = () => {
   // ── State ──────────────────────────────────────────────
   const [currentStep, setCurrentStep] = useState(0);
   const [uploading, setUploading] = useState(false);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('micro_lecture');
   const [uploadedFile, setUploadedFile] = useState<{
     name: string;
     size: number;
@@ -167,7 +194,7 @@ const UploadPage: React.FC = () => {
       setErrorMessage(null);
 
       try {
-        const resp = await uploadDocument(file);
+        const resp = await uploadDocument(file, selectedTemplate);
         const data = resp.data.data;
 
         setProjectId(data.project_id);
@@ -194,7 +221,7 @@ const UploadPage: React.FC = () => {
       // 阻止 Ant Design 默认上传行为
       return false;
     },
-    [startPolling]
+    [startPolling, selectedTemplate]
   );
 
   // ── 跳转到脚本编辑器 ─────────────────────────────────
@@ -290,6 +317,28 @@ const UploadPage: React.FC = () => {
       {/* ── Step 0: 上传文件 ──────────────────────────── */}
       {currentStep === 0 && (
         <Card>
+          <div style={{ marginBottom: 24 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12 }}>
+              选择视频模板
+            </Text>
+            <Segmented
+              block
+              value={selectedTemplate}
+              onChange={(val) => setSelectedTemplate(val as string)}
+              disabled={uploading}
+              options={TEMPLATE_OPTIONS.map((t) => ({
+                value: t.value,
+                label: (
+                  <div style={{ padding: '8px 12px', textAlign: 'center' }}>
+                    <div style={{ fontSize: 20, marginBottom: 4 }}>{t.icon}</div>
+                    <div style={{ fontWeight: 600 }}>{t.label}</div>
+                    <div style={{ fontSize: 12, color: '#888' }}>{t.desc}</div>
+                  </div>
+                ),
+              }))}
+            />
+          </div>
+
           <Dragger
             name="file"
             multiple={false}

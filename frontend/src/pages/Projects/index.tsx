@@ -26,7 +26,7 @@ const Projects: React.FC = () => {
   const [loading, setLoading] = useState(false);
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
-  const [tagFilter, setTagFilter] = useState<string | undefined>(undefined);
+  const [tagFilter, setTagFilter] = useState<string[]>([]);
   const [categories, setCategories] = useState<any[]>([]);
   const [tags, setTags] = useState<any[]>([]);
   const [requestModalVisible, setRequestModalVisible] = useState(false);
@@ -63,7 +63,7 @@ const Projects: React.FC = () => {
     try {
       const resp = await getProjects(page, pageSize, {
         ...(categoryFilter && { category_id: categoryFilter }),
-        ...(tagFilter && { tag_id: tagFilter }),
+        ...(tagFilter.length > 0 && { tag_ids: tagFilter }),
       });
       setProjects(resp.data.items);
       setPagination({
@@ -79,8 +79,8 @@ const Projects: React.FC = () => {
   };
 
   useEffect(() => {
-    fetchProjects();
-  }, []);
+    fetchProjects(1, pagination.pageSize);
+  }, [categoryFilter, tagFilter]);
 
   useEffect(() => {
     // 所有登录用户都加载分类/标签筛选器
@@ -253,17 +253,19 @@ const Projects: React.FC = () => {
           <Select
             placeholder="分类筛选"
             allowClear
-            style={{ width: 160 }}
+            style={{ width: 180 }}
             value={categoryFilter}
-            onChange={(val) => { setCategoryFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            onChange={(val) => setCategoryFilter(val)}
             options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
           />
           <Select
             placeholder="标签筛选"
             allowClear
-            style={{ width: 160 }}
+            mode="multiple"
+            maxTagCount={2}
+            style={{ minWidth: 200 }}
             value={tagFilter}
-            onChange={(val) => { setTagFilter(val); setPagination(p => ({ ...p, current: 1 })); }}
+            onChange={(val) => setTagFilter(val || [])}
             options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
           />
           <Button
