@@ -123,3 +123,31 @@
 - [x] **后端 API**：`GET /projects/{id}/versions/compare?v1=N&v2=M` 对比两个 IR 版本的知识点差异（新增/删除/修改）。
 - [x] **前端组件**：`VersionCompareModal` 支持版本选择、统计概览、新增/删除/修改知识点分类展示。
 - [x] **导航入口**：Workspace 页面新增「版本对比」按钮（需 2+ 版本时启用）。
+
+---
+
+## ✅ 已完成 (P5 用户系统与设置面板阶段)
+
+### 功能 1：用户系统 ✅
+- [x] **用户模型与数据库**：`User` 模型（username/password_hash/role/display_id），注册/登录/验证码表。
+- [x] **JWT 认证中间件**：Access Token (HttpOnly Cookie) + Refresh Token 轮换，`get_current_user_from_cookie` 依赖注入。
+- [x] **注册与登录**：邮箱验证码注册（Resend API）、登录、Token 刷新、登出。
+- [x] **角色权限**：admin/teacher/student 三种角色，API 端点全部受认证保护。
+- [x] **前端页面**：登录页、注册页（邮箱验证码）、authStore (Zustand) 管理登录状态。
+
+### 功能 2：设置面板（运行时 API Key 配置）✅
+- [x] **后端配置持久化**：`settings_service.py` 定义 API Key 元数据（名称/分类/是否密钥），JSON 文件持久化，与 Pydantic Settings 联动。
+- [x] **设置 API**：`api/v1/settings.py` 提供 `GET/PUT /settings/api-keys`，密钥字段返回掩码值。
+- [x] **前端设置页**：`Settings/index.tsx` 按分类展示配置项，密钥字段用 Password Input，非密钥用普通 Input。
+
+### 功能 3：管理后台增强 ✅
+- [x] **用户管理**：用户列表、角色修改、禁用/启用。
+- [x] **审计日志**：操作记录查询，支持按用户/操作类型/时间筛选。
+- [x] **分类/标签管理**：项目分类和标签的 CRUD 操作。
+- [x] **系统监控**：任务状态分布、累计成本、存储用量、健康检查。
+
+### 功能 4：全面安全审计与构建修复 ✅
+- [x] **API 认证补全**：tasks/scripts/monitoring 三个模块的所有端点添加认证依赖。
+- [x] **测试夹具修复**：新增 `auth_client` fixture，修复 40 个失败测试（169 tests all passing）。
+- [x] **前端构建修复**：PageHeader 添加 onBack 支持，清理 7 处未使用 import，TypeScript 编译零错误。
+- [x] **配置文件更新**：`.env.example` 添加 JWT/水印/AI_FULL_GEN 变量，移除过时的 DEEPSEEK_API_KEY；`start.bat` 修复数据库初始化工作目录；`AGENTS.md` 硬编码路径改为相对路径。

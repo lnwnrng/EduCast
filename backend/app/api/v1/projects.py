@@ -202,8 +202,8 @@ async def compare_versions(
     project = await ProjectService.get_project(db, project_id)
     _check_project_access(project, current_user)
 
-    import os
     import json
+    import os
 
     root = settings.STORAGE_ROOT
     ir_dir = os.path.join(root, str(project_id), "ir")
@@ -212,7 +212,7 @@ async def compare_versions(
         path = os.path.join(ir_dir, f"v{version}.json")
         if not os.path.exists(path):
             return None
-        with open(path, "r", encoding="utf-8") as f:
+        with open(path, encoding="utf-8") as f:
             return json.load(f)
 
     ir1 = _load_ir(v1)

@@ -77,6 +77,7 @@ const AppLayout: React.FC = () => {
             { key: '/admin/categories', icon: <FolderTree size={16} strokeWidth={1.5} />, label: '分类管理' },
             { key: '/admin/tags', icon: <Tags size={16} strokeWidth={1.5} />, label: '标签管理' },
             { key: '/admin/requests', label: '申请管理' },
+            { key: '/admin/settings', label: '系统设置' },
           ],
         },
       ]
@@ -91,6 +92,7 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/admin/categories')) return '/admin/categories';
     if (pathname.includes('/admin/tags')) return '/admin/tags';
     if (pathname.includes('/admin/requests')) return '/admin/requests';
+    if (pathname.includes('/admin/settings')) return '/admin/settings';
     if (pathname.includes('/admin/users')) return '/admin/users';
     if (pathname.includes('/admin/logs')) return '/admin/logs';
     if (pathname === '/projects') return '/projects';

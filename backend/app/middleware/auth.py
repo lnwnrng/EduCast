@@ -34,6 +34,7 @@ async def get_current_user_from_header(
 
 async def _verify_access_token(token: str, db: AsyncSession) -> User:
     from jose import JWTError, jwt
+
     from app.config import settings
 
     try:

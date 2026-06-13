@@ -20,7 +20,7 @@ import {
   AppstoreOutlined,
 } from '@ant-design/icons';
 import PageHeader from '../../components/common/PageHeader';
-import { getDashboard, getHealth } from '../../api/monitoring';
+import { getDashboard } from '../../api/monitoring';
 import { statusMeta } from '../../utils/status';
 import type { DashboardStats } from '../../types/cost';
 import { useAuthStore } from '../../stores/authStore';

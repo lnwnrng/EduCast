@@ -6,7 +6,7 @@ from httpx import AsyncClient
 
 @pytest.mark.asyncio
 async def test_root(client: AsyncClient) -> None:
-    """测试根端点。"""
+    """测试根端点（无需认证）。"""
     resp = await client.get("/")
     assert resp.status_code == 200
     data = resp.json()
@@ -14,9 +14,9 @@ async def test_root(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_create_project(client: AsyncClient) -> None:
+async def test_create_project(auth_client: AsyncClient) -> None:
     """测试创建项目。"""
-    resp = await client.post(
+    resp = await auth_client.post(
         "/api/v1/projects/",
         json={
             "title": "高等数学 - 导数",
@@ -32,15 +32,15 @@ async def test_create_project(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_list_projects(client: AsyncClient) -> None:
+async def test_list_projects(auth_client: AsyncClient) -> None:
     """测试项目列表。"""
     # 创建一个项目
-    await client.post(
+    await auth_client.post(
         "/api/v1/projects/",
         json={"title": "测试项目"},
     )
 
-    resp = await client.get("/api/v1/projects/")
+    resp = await auth_client.get("/api/v1/projects/")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] >= 1
@@ -48,31 +48,31 @@ async def test_list_projects(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_get_project(client: AsyncClient) -> None:
+async def test_get_project(auth_client: AsyncClient) -> None:
     """测试获取项目详情。"""
     # 创建
-    create_resp = await client.post(
+    create_resp = await auth_client.post(
         "/api/v1/projects/",
         json={"title": "详情测试"},
     )
     project_id = create_resp.json()["id"]
 
     # 获取
-    resp = await client.get(f"/api/v1/projects/{project_id}")
+    resp = await auth_client.get(f"/api/v1/projects/{project_id}")
     assert resp.status_code == 200
     assert resp.json()["title"] == "详情测试"
 
 
 @pytest.mark.asyncio
-async def test_update_project(client: AsyncClient) -> None:
+async def test_update_project(auth_client: AsyncClient) -> None:
     """测试更新项目。"""
-    create_resp = await client.post(
+    create_resp = await auth_client.post(
         "/api/v1/projects/",
         json={"title": "更新前"},
     )
     project_id = create_resp.json()["id"]
 
-    resp = await client.put(
+    resp = await auth_client.put(
         f"/api/v1/projects/{project_id}",
         json={"title": "更新后"},
     )
@@ -81,14 +81,14 @@ async def test_update_project(client: AsyncClient) -> None:
 
 
 @pytest.mark.asyncio
-async def test_delete_project(client: AsyncClient) -> None:
+async def test_delete_project(auth_client: AsyncClient) -> None:
     """测试删除项目。"""
-    create_resp = await client.post(
+    create_resp = await auth_client.post(
         "/api/v1/projects/",
         json={"title": "待删除"},
     )
     project_id = create_resp.json()["id"]
 
-    resp = await client.delete(f"/api/v1/projects/{project_id}")
+    resp = await auth_client.delete(f"/api/v1/projects/{project_id}")
     assert resp.status_code == 200
     assert resp.json()["message"] == "项目已删除"

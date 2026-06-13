@@ -9,6 +9,7 @@ from app.api.v1.projects import router as projects_router
 from app.api.v1.requests import router as requests_router
 from app.api.v1.resources import router as resources_router
 from app.api.v1.scripts import router as scripts_router
+from app.api.v1.settings import router as settings_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.tasks import router as tasks_router
 from app.api.v1.upload import router as upload_router
@@ -25,3 +26,4 @@ api_v1_router.include_router(upload_router)
 api_v1_router.include_router(scripts_router)
 api_v1_router.include_router(monitoring_router)
 api_v1_router.include_router(requests_router)
+api_v1_router.include_router(settings_router)

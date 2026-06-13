@@ -6,6 +6,7 @@ import httpx
 
 from app.config import settings
 from app.exceptions import ProviderException
+from app.services.settings_service import get_effective_key, get_effective_value
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +57,8 @@ class EmailService:
         Raises:
             ProviderException: Resend API 调用失败时抛出。
         """
-        if not settings.RESEND_API_KEY:
+        resend_key = get_effective_key("RESEND_API_KEY")
+        if not resend_key:
             logger.warning(
                 "RESEND_API_KEY 未配置，验证码将仅打印到日志。验证码: %s -> %s",
                 email,
@@ -69,14 +71,15 @@ class EmailService:
             expire_minutes=settings.VERIFICATION_CODE_EXPIRE_MINUTES,
         )
 
+        email_from = get_effective_value("EMAIL_FROM", settings.EMAIL_FROM)
         payload = {
-            "from": settings.EMAIL_FROM,
+            "from": email_from,
             "to": [email],
             "subject": "EduCast 注册验证码",
             "html": html,
         }
         headers = {
-            "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+            "Authorization": f"Bearer {resend_key}",
             "Content-Type": "application/json",
         }
 

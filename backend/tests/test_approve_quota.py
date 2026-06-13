@@ -1,5 +1,7 @@
 """approve_script 成本护栏测试。"""
 
+import uuid
+
 import pytest
 from httpx import AsyncClient
 
@@ -16,8 +18,8 @@ from app.models.project import Project
 from app.services.parser_service import ParserService
 
 
-async def _seed_project(db_session) -> str:
-    project = Project(title="审核测试", status="reviewing")
+async def _seed_project(db_session, user_id: uuid.UUID) -> str:
+    project = Project(title="审核测试", status="reviewing", user_id=user_id)
     db_session.add(project)
     await db_session.flush()
     await db_session.commit()
@@ -33,27 +35,27 @@ def _ir(pid: str, scene_type: SceneType, narration: str = "") -> CourseIR:
 
 @pytest.mark.asyncio
 async def test_approve_over_quota_returns_429(
-    client: AsyncClient, db_session, tmp_path, monkeypatch
+    auth_client: AsyncClient, db_session, tmp_path, monkeypatch, test_user
 ) -> None:
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
     monkeypatch.setattr(settings, "MAX_COST_PER_PROJECT", 1.0)
     # 激活数字人付费能力，使其计入实际计费 → 触发护栏
     monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "demo-key")
-    pid = await _seed_project(db_session)
+    pid = await _seed_project(db_session, test_user.id)
     # 数字人旁白 40 字 → 实计费 5.0 > 项目上限 1.0
     await ParserService().save_ir(
         _ir(pid, SceneType.DIGITAL_HUMAN, "字" * 40), pid, version=1
     )
 
-    resp = await client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
+    resp = await auth_client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
     assert resp.status_code == 429
 
 
 @pytest.mark.asyncio
 async def test_approve_digital_human_free_when_no_key(
-    client: AsyncClient, db_session, tmp_path, monkeypatch
+    auth_client: AsyncClient, db_session, tmp_path, monkeypatch, test_user
 ) -> None:
-    """未配置数字人 Key 时，数字人分镜不计费 → 不被拦截（修复"老是被拦"）。"""
+    """未配置数字人 Key 时，数字人分镜不计费 → 不被拦截（修复“老是被拦”）。"""
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
     monkeypatch.setattr(settings, "MAX_COST_PER_PROJECT", 1.0)
     monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
@@ -62,12 +64,12 @@ async def test_approve_digital_human_free_when_no_key(
         return None
 
     monkeypatch.setattr(scripts_module, "_run_composition_in_background", _noop)
-    pid = await _seed_project(db_session)
+    pid = await _seed_project(db_session, test_user.id)
     await ParserService().save_ir(
         _ir(pid, SceneType.DIGITAL_HUMAN, "字" * 40), pid, version=1
     )
 
-    resp = await client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
+    resp = await auth_client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert data["estimated_cost"] == 0.0
@@ -76,7 +78,7 @@ async def test_approve_digital_human_free_when_no_key(
 
 @pytest.mark.asyncio
 async def test_approve_free_stack_returns_200(
-    client: AsyncClient, db_session, tmp_path, monkeypatch
+    auth_client: AsyncClient, db_session, tmp_path, monkeypatch, test_user
 ) -> None:
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
 
@@ -86,10 +88,10 @@ async def test_approve_free_stack_returns_200(
 
     monkeypatch.setattr(scripts_module, "_run_composition_in_background", _noop)
 
-    pid = await _seed_project(db_session)
+    pid = await _seed_project(db_session, test_user.id)
     await ParserService().save_ir(_ir(pid, SceneType.SLIDE, "课件文本"), pid, version=1)
 
-    resp = await client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
+    resp = await auth_client.post(f"/api/v1/scripts/projects/{pid}/script/approve")
     assert resp.status_code == 200
     data = resp.json()["data"]
     assert "task_id" in data

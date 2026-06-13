@@ -20,7 +20,9 @@ from app.database import async_session_factory
 from app.exceptions import ResourceNotFoundException
 from app.ir.schema import CourseIR
 from app.ir.validator import validate_ir
+from app.middleware.auth import get_current_user_from_cookie
 from app.models.task import Task
+from app.models.user import User
 from app.schemas.common import SuccessResponse
 from app.services.composition_service import CompositionService
 from app.services.cost_service import check_quota, estimate_ir_cost
@@ -83,6 +85,7 @@ async def _run_composition_in_background(
 async def get_script(
     project_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> dict:
     """获取项目当前 IR 脚本。
 
@@ -102,6 +105,7 @@ async def update_script(
     project_id: UUID,
     ir_data: dict,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """更新 IR 脚本（教师编辑后保存）。
 
@@ -140,6 +144,7 @@ async def generate_script(
     project_id: UUID,
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """触发 LLM 脚本编排（手动「重新编排」）。
 
@@ -181,6 +186,7 @@ async def approve_script(
     background_tasks: BackgroundTasks,
     data: ApproveScriptRequest | None = None,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> SuccessResponse:
     """审核通过脚本 — 人在环放行，触发模块三视频生成与合成。
 

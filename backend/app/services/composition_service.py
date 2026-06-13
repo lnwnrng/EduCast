@@ -149,6 +149,7 @@ class CompositionService:
             use_generative = bool(cfg.get("use_generative", False))
             use_digital_human = bool(cfg.get("use_digital_human", True))
             use_watermark = bool(cfg.get("use_watermark", True))
+            use_ai_full_gen = bool(cfg.get("use_ai_full_gen", False))
 
             root = settings.STORAGE_ROOT
             workspace = os.path.join(root, project_id, "workspace", task_id)
@@ -176,6 +177,7 @@ class CompositionService:
                     voice=voice,
                     use_generative=use_generative,
                     use_digital_human=use_digital_human,
+                    use_ai_full_gen=use_ai_full_gen,
                 )
                 if clip is None:
                     continue
@@ -312,6 +314,7 @@ class CompositionService:
         voice: str | None = None,
         use_generative: bool = False,
         use_digital_human: bool = True,
+        use_ai_full_gen: bool = False,
     ) -> tuple[str, float] | None:
         """配音 + 按 scene_type 生成单镜片段，返回 (片段路径, 时长)。失败返回 None。
 
@@ -328,7 +331,15 @@ class CompositionService:
         st = scene.scene_type
         built = False
         try:
-            if st == SceneType.FORMULA_ANIMATION:
+            if use_ai_full_gen:
+                # AI 全生成模式：忽略 scene_type，所有画面走 CogVideoX
+                built = await self._build_generative(
+                    db, task_uuid, fs, index, workspace, watermark,
+                    audio_path, duration, clip_path,
+                    use_generative=True,
+                    ai_auto_prompt=True,
+                )
+            elif st == SceneType.FORMULA_ANIMATION:
                 built = await self._build_formula(
                     db,
                     task_uuid,
@@ -604,10 +615,16 @@ class CompositionService:
         clip_path: str,
         *,
         use_generative: bool,
+        ai_auto_prompt: bool = False,
     ) -> bool:
         """生成式片段：CogVideoX 真生成（带缓存）；否则概念图 Ken-Burns 运镜。"""
         scene = fs.scene
         prompt = (scene.visual_spec.gen_prompt or "").strip()
+        # AI 全生成模式下，若 gen_prompt 为空，自动从旁白生成提示词
+        if not prompt and ai_auto_prompt:
+            narration = (scene.narration_text or "").strip()
+            kp_title = fs.kp.title or ""
+            prompt = f"教学场景：{kp_title}。{narration[:80]}" if narration else f"教学场景：{kp_title}"
         if not prompt:
             return False
         try:

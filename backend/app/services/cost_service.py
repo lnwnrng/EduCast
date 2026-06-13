@@ -20,6 +20,7 @@ from app.models.task import Task
 from app.providers.digital_human.placeholder import PlaceholderDigitalHumanProvider
 from app.providers.video_gen.placeholder import PlaceholderVideoGenProvider
 from app.schemas.cost import CostEstimate, CostSummary, DashboardStats
+from app.services.settings_service import get_effective_key
 
 logger = logging.getLogger(__name__)
 
@@ -34,10 +35,13 @@ def _is_billed(scene_type: SceneType) -> bool:
     因此不计入配额护栏。接入模块 4/5 并填好 Key 后自动开始计费/拦截。
     """
     if scene_type == SceneType.DIGITAL_HUMAN:
-        return bool(settings.DIGITAL_HUMAN_API_KEY)
+        return bool(get_effective_key("DIGITAL_HUMAN_API_KEY"))
     if scene_type == SceneType.GENERATIVE_CLIP:
         # CogVideoX 与 GLM 同平台：COGVIDEO_API_KEY 为空时回退用 ZHIPU_API_KEY
-        return bool(settings.COGVIDEO_API_KEY or settings.ZHIPU_API_KEY)
+        return bool(
+            get_effective_key("COGVIDEO_API_KEY")
+            or get_effective_key("ZHIPU_API_KEY")
+        )
     return False
 
 

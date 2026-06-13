@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Select, InputNumber, Button, Space, Tag, Typography } from 'antd';
+import { Table, Select, Button, Space, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import * as adminApi from '../../api/admin';
 

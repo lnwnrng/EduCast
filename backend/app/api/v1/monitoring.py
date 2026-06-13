@@ -19,7 +19,7 @@ from app.middleware.auth import get_current_user_from_cookie
 from app.models.project import Project
 from app.models.task import Task
 from app.models.user import User
-from app.schemas.cost import CostEstimate, CostSummary, DashboardStats
+from app.schemas.cost import CostEstimate, CostSummary
 from app.schemas.workspace import LatestTask, VideoVersion, WorkspaceResponse
 from app.services import cost_service
 from app.services.parser_service import ParserService
@@ -34,6 +34,7 @@ _parser_service = ParserService()
 async def estimate_project_cost(
     project_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> CostEstimate:
     """对项目最新 IR 做生成成本预估（审核前预览）。"""
     ir = await _parser_service.load_ir(str(project_id))
@@ -46,6 +47,7 @@ async def estimate_project_cost(
 async def get_project_cost(
     project_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> CostSummary:
     """项目成本与存储用量汇总。"""
     return await cost_service.project_cost_summary(db, str(project_id))
@@ -55,6 +57,7 @@ async def get_project_cost(
 async def get_workspace(
     project_id: UUID,
     db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
 ) -> WorkspaceResponse:
     """项目工作台聚合：状态 / IR 版本 / 成片版本 / 是否过期 / 成本 / 最新任务。"""
     project = await db.get(Project, project_id)
@@ -152,7 +155,6 @@ async def get_dashboard(
     # Admin-only extended stats
     if current_user.role == "admin":
         from app.models.user import User as UserModel
-        from app.models.resource import Resource
 
         user_count = (await db.execute(select(func.count(UserModel.id)))).scalar() or 0
         today_reg = (await db.execute(

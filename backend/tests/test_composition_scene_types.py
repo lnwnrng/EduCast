@@ -5,6 +5,7 @@ monkeypatch 所有 ffmpeg 原子操作（记录调用），注入 FakeTTS/FakeFo
 """
 
 import json
+import uuid
 from pathlib import Path
 
 import pytest
@@ -123,8 +124,11 @@ def rec_ffmpeg(monkeypatch):
     return calls
 
 
+_FIXED_USER_ID = uuid.uuid4()
+
+
 async def _seed(db, scene: SceneIR, *, config: dict | None = None) -> tuple[str, str]:
-    project = Project(title="t", status="reviewing")
+    project = Project(title="t", status="reviewing", user_id=_FIXED_USER_ID)
     db.add(project)
     await db.flush()
     task = Task(

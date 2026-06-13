@@ -5,9 +5,9 @@ import logging
 import secrets
 import string
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt
+from jose import jwt
 from passlib.context import CryptContext
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -29,7 +29,7 @@ def _hash_token(token: str) -> str:
 
 
 def _create_access_token(user_id: str) -> str:
-    expire = datetime.now(timezone.utc) + timedelta(
+    expire = datetime.now(UTC) + timedelta(
         minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
     )
     return jwt.encode(
@@ -63,7 +63,7 @@ class AuthService:
             raise ValueError("该邮箱已被注册")
 
         # 频率限制：同邮箱冷却时间内只能发一次
-        cooldown_threshold = datetime.now(timezone.utc) - timedelta(
+        cooldown_threshold = datetime.now(UTC) - timedelta(
             seconds=settings.VERIFICATION_CODE_COOLDOWN_SECONDS
         )
         recent = await db.execute(
@@ -84,7 +84,7 @@ class AuthService:
         code = "".join(secrets.choice(charset) for _ in range(6))
 
         # 创建验证码记录（hash 存储）
-        expires = datetime.now(timezone.utc) + timedelta(
+        expires = datetime.now(UTC) + timedelta(
             minutes=settings.VERIFICATION_CODE_EXPIRE_MINUTES
         )
         record = VerificationCode(
@@ -117,7 +117,7 @@ class AuthService:
             select(VerificationCode).where(
                 VerificationCode.email == email,
                 VerificationCode.is_used == False,  # noqa: E712
-                VerificationCode.expires_at > datetime.now(timezone.utc),
+                VerificationCode.expires_at > datetime.now(UTC),
             ).order_by(VerificationCode.created_at.desc())
         )
         record = result.scalars().first()
@@ -178,7 +178,7 @@ class AuthService:
         if not user.is_active:
             raise AuthenticationException("账号已被禁用")
 
-        user.last_login = datetime.now(timezone.utc)
+        user.last_login = datetime.now(UTC)
         access_token = _create_access_token(str(user.id))
         raw_refresh = _create_refresh_token()
         await _store_refresh_token(db, user.id, raw_refresh, device_info, ip)
@@ -194,7 +194,7 @@ class AuthService:
             select(RefreshToken).where(
                 RefreshToken.token_hash == token_hash,
                 RefreshToken.is_revoked == False,  # noqa: E712
-                RefreshToken.expires_at > datetime.now(timezone.utc),
+                RefreshToken.expires_at > datetime.now(UTC),
             )
         )
         token_record = result.scalar_one_or_none()
@@ -252,7 +252,7 @@ async def _store_refresh_token(
     ip: str | None,
 ) -> None:
     """持久化 refresh token。"""
-    expires = datetime.now(timezone.utc) + timedelta(
+    expires = datetime.now(UTC) + timedelta(
         days=settings.REFRESH_TOKEN_EXPIRE_DAYS
     )
     record = RefreshToken(
