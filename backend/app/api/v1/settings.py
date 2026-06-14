@@ -10,6 +10,7 @@ from app.services.settings_service import (
     API_KEY_DEFINITIONS,
     load_runtime_settings,
     save_runtime_settings,
+    verify_api_key,
 )
 
 router = APIRouter(prefix="/settings", tags=["系统设置"])
@@ -91,3 +92,26 @@ async def update_api_keys(
 
     configured = [k for k, v in runtime.items() if v and k in allowed_keys]
     return SuccessResponse(message=f"设置已保存，已配置: {', '.join(configured) or '无'}")
+
+
+class TestApiKeyRequest(BaseModel):
+    """测试 API Key 连通性。"""
+    key: str
+    value: str
+
+
+@router.post("/api-keys/test")
+async def test_api_key(
+    data: TestApiKeyRequest,
+    current_user: User = Depends(get_current_user_from_cookie),
+):
+    """验证指定 API Key 是否有效（仅管理员）。"""
+    if current_user.role != "admin":
+        return {"ok": False, "message": "仅管理员可检测"}
+
+    allowed_keys = {d["key"] for d in API_KEY_DEFINITIONS}
+    if data.key not in allowed_keys:
+        return {"ok": False, "message": f"不支持的配置项: {data.key}"}
+
+    result = await verify_api_key(data.key, data.value)
+    return result

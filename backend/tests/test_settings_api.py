@@ -290,3 +290,72 @@ class TestEndToEnd:
         resp = await auth_client.get("/api/v1/settings/api-keys")
         items = {i["key"]: i for i in resp.json()["items"]}
         assert items["ZHIPU_API_KEY"]["is_configured"] is False
+
+
+# ── POST /api/v1/settings/api-keys/test ───────────────────────────────
+
+
+class TestTestApiKey:
+    """POST /api/v1/settings/api-keys/test — API Key 连通性检测。"""
+
+    @pytest.mark.asyncio
+    async def test_admin_can_test_email_from(
+        self, auth_client, runtime_settings_dir,
+    ):
+        """admin 检测 EMAIL_FROM 格式。"""
+        resp = await auth_client.post("/api/v1/settings/api-keys/test", json={
+            "key": "EMAIL_FROM",
+            "value": "test@example.com",
+        })
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_invalid_email_from(
+        self, auth_client, runtime_settings_dir,
+    ):
+        """EMAIL_FROM 格式不正确。"""
+        resp = await auth_client.post("/api/v1/settings/api-keys/test", json={
+            "key": "EMAIL_FROM",
+            "value": "not-an-email",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is False
+
+    @pytest.mark.asyncio
+    async def test_unknown_key_rejected(
+        self, auth_client, runtime_settings_dir,
+    ):
+        """不支持的配置项被拒绝。"""
+        resp = await auth_client.post("/api/v1/settings/api-keys/test", json={
+            "key": "HACK_KEY",
+            "value": "whatever",
+        })
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is False
+        assert "不支持" in resp.json()["message"]
+
+    @pytest.mark.asyncio
+    async def test_non_admin_rejected(
+        self, non_admin_auth_client, runtime_settings_dir,
+    ):
+        """非 admin 不能检测。"""
+        resp = await non_admin_auth_client.post(
+            "/api/v1/settings/api-keys/test",
+            json={"key": "EMAIL_FROM", "value": "a@b.com"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["ok"] is False
+        assert "仅管理员" in resp.json()["message"]
+
+    @pytest.mark.asyncio
+    async def test_unauthenticated_rejected(
+        self, client, runtime_settings_dir,
+    ):
+        """未认证返回 401。"""
+        resp = await client.post("/api/v1/settings/api-keys/test", json={
+            "key": "EMAIL_FROM",
+            "value": "a@b.com",
+        })
+        assert resp.status_code == 401

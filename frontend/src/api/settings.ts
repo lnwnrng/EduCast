@@ -19,3 +19,11 @@ export const getApiKeyValues = () =>
 
 export const updateApiKeys = (settings: Record<string, string>) =>
   apiClient.put('/settings/api-keys', { settings });
+
+export interface TestApiKeyResult {
+  ok: boolean;
+  message: string;
+}
+
+export const testApiKey = (key: string, value: string) =>
+  apiClient.post<TestApiKeyResult>('/settings/api-keys/test', { key, value });

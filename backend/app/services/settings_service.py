@@ -4,6 +4,8 @@ import json
 import logging
 import os
 
+import httpx
+
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -101,3 +103,97 @@ API_KEY_DEFINITIONS = [
         "is_secret": True,
     },
 ]
+
+
+# ── API Key 连通性验证 ──────────────────────────────────────────────
+
+
+async def verify_api_key(key_name: str, key_value: str) -> dict:
+    """验证指定 API Key 是否可用，返回 {ok, message}。
+
+    对每个 Key 发起真实的最小化 API 探测：
+    - ZHIPU / COGVIDEO: 发 max_tokens=1 的 chat/completions
+    - RESEND: 调用 GET /api-keys 检查认证
+    - DIGITAL_HUMAN / EMAIL_FROM: 无通用探测接口，仅检查格式
+    """
+    key_value = key_value.strip()
+    if not key_value:
+        return {"ok": False, "message": "Key 为空，请先填写后再检测"}
+
+    try:
+        if key_name in ("ZHIPU_API_KEY", "COGVIDEO_API_KEY"):
+            return await _verify_bigmodel_key(key_value)
+        elif key_name == "RESEND_API_KEY":
+            return await _verify_resend_key(key_value)
+        elif key_name == "DIGITAL_HUMAN_API_KEY":
+            return _verify_digital_human_key(key_value)
+        elif key_name == "EMAIL_FROM":
+            return _verify_email_from(key_value)
+        else:
+            return {"ok": False, "message": f"未知的配置项: {key_name}"}
+    except Exception as e:
+        logger.warning("验证 %s 时异常: %s", key_name, e)
+        return {"ok": False, "message": f"验证异常: {e}"}
+
+
+async def _verify_bigmodel_key(api_key: str) -> dict:
+    """智谱 BigModel 平台 Key 验证（GLM / CogVideoX 共用）。"""
+    url = settings.ZHIPU_BASE_URL.rstrip("/") + "/chat/completions"
+    payload = {
+        "model": settings.ZHIPU_MODEL,
+        "messages": [{"role": "user", "content": "hi"}],
+        "max_tokens": 1,
+    }
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    async with httpx.AsyncClient(timeout=15.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+    if resp.status_code == 200:
+        return {"ok": True, "message": "智谱 API 连通，Key 有效"}
+    if resp.status_code == 401:
+        return {"ok": False, "message": "认证失败：Key 无效或已过期"}
+    if resp.status_code == 403:
+        return {"ok": False, "message": "权限不足：请检查 Key 权限设置"}
+    return {
+        "ok": False,
+        "message": f"API 返回 HTTP {resp.status_code}: {resp.text[:200]}",
+    }
+
+
+async def _verify_resend_key(api_key: str) -> dict:
+    """Resend API Key 验证 — 调用 GET /api-keys 探测认证。"""
+    url = "https://api.resend.com/api-keys"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.get(url, headers=headers)
+    if resp.status_code == 200:
+        return {"ok": True, "message": "Resend API 连通，Key 有效"}
+    if resp.status_code in (401, 403):
+        return {"ok": False, "message": "认证失败：Key 无效或权限不足"}
+    return {
+        "ok": False,
+        "message": f"Resend API 返回 HTTP {resp.status_code}",
+    }
+
+
+def _verify_digital_human_key(api_key: str) -> dict:
+    """数字人 Key 格式检查（无通用探测接口）。"""
+    if len(api_key) < 8:
+        return {"ok": False, "message": "Key 长度过短，请检查"}
+    return {
+        "ok": True,
+        "message": "Key 格式正常（数字人 API 无通用探测，已保存后将在生成时自动生效）",
+    }
+
+
+def _verify_email_from(value: str) -> dict:
+    """邮件发件人地址格式检查。"""
+    if "<" in value and ">" in value and "@" in value:
+        return {"ok": True, "message": "格式正确（如 EduCast <noreply@domain.com>）"}
+    if "@" in value and "." in value.split("@")[-1]:
+        return {"ok": True, "message": "格式正确"}
+    return {"ok": False, "message": "格式不正确，请输入有效邮箱地址"}
