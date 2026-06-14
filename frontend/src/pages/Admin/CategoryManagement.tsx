@@ -39,8 +39,8 @@ const CategoryManagement: React.FC = () => {
       }
       setModalOpen(false);
       fetchData();
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || '操作失败';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '操作失败';
       message.error(msg);
     }
   };
@@ -68,8 +68,8 @@ const CategoryManagement: React.FC = () => {
               await catApi.deleteCategory(record.id);
               message.success('已删除');
               fetchData();
-            } catch (err: any) {
-              const msg = err?.response?.data?.detail || '删除失败';
+            } catch (err: unknown) {
+              const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '删除失败';
               message.error(msg);
             }
           }}>

@@ -32,16 +32,12 @@ const Dashboard: React.FC = () => {
         
         setRecentProjects(projects);
         
-        // Note: For a real dashboard, there should be a dedicated stats API.
-        // We approximate here by counting the first page, but the backend total gives us the real total.
         const total = resp.data.total;
-        
-        // Since we only get page 1, the exact active/completed counts for the whole DB require a stats endpoint.
-        // We'll calculate based on what we fetched, but in MVP this is fine.
+        // 使用项目总数作为准确的总量，active/completed 基于首页数据近似
         setStats({
           total: total,
-          active: projects.filter(p => !['completed', 'failed'].includes(p.status)).length,
-          completed: projects.filter(p => p.status === 'completed').length,
+          active: Math.min(projects.filter(p => !['completed', 'failed'].includes(p.status)).length, total),
+          completed: Math.min(projects.filter(p => p.status === 'completed').length, total),
         });
         setSystemStatus('normal');
       } catch {

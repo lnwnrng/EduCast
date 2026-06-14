@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from app.config import settings
 from app.exceptions import AuthorizationException, ResourceNotFoundException
 from app.middleware.auth import get_current_user_from_cookie
 from app.models.project import Project
@@ -44,6 +45,7 @@ async def _check_resource_ownership(
 async def list_resources(
     project_id: UUID | None = None,
     resource_type: str | None = None,
+    search: str | None = None,
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     db: AsyncSession = Depends(get_db),
@@ -54,7 +56,7 @@ async def list_resources(
     if current_user.role != "admin":
         user_project_ids = await _get_user_project_ids(db, current_user)
     resources, total = await ResourceService.list_resources(
-        db, project_id, resource_type, page, page_size,
+        db, project_id, resource_type, search, page, page_size,
         user_project_ids=user_project_ids,
     )
     return PaginatedResponse(
@@ -89,6 +91,11 @@ async def download_resource(
     resource = await ResourceService.get_resource(db, resource_id)
     if not os.path.exists(resource.file_path):
         raise ResourceNotFoundException(f"资源文件不存在: {resource_id}")
+    # 防止路径遍历攻击：确保文件在 STORAGE_ROOT 内
+    if not os.path.abspath(resource.file_path).startswith(
+        os.path.abspath(settings.STORAGE_ROOT)
+    ):
+        raise ResourceNotFoundException("资源文件不存在")
     return FileResponse(
         resource.file_path,
         media_type=resource.mime_type or "application/octet-stream",

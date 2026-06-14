@@ -17,14 +17,14 @@
 `上传课件 → 文档解析 → IR草稿 → LLM脚本编排 → 教师审核 → 并行生成(TTS+渲染+数字人+生成式片段) → FFmpeg合成 → 资源入库 → 导出`
 
 ## 构建与运行命令
-- 后端安装依赖: `pip install -r requirements.txt`
-- 后端运行: `uvicorn app.main:app --reload --port 8000`
+- 后端安装依赖: `cd backend && pip install -r requirements.txt`
+- 后端运行: `cd backend && uvicorn app.main:app --reload --port 8000`
 - 前端安装依赖: `cd frontend && npm install`
 - 前端运行: `cd frontend && npm run dev`
-- 运行后端测试: `pytest tests/ -v`
-- 运行前端测试: `cd frontend && npm test`
-- 代码格式化: `black backend/ && cd frontend && npx prettier --write src/`
-- 代码检查: `ruff check backend/ && cd frontend && npx eslint src/`
+- 运行后端测试: `cd backend && pytest tests/ -v`
+- 前端类型检查: `cd frontend && npx tsc --noEmit`
+- 代码格式化: `cd backend && black backend/ && cd ../frontend && npx prettier --write src/`
+- 代码检查: `cd backend && ruff check backend/ && cd ../frontend && npx eslint src/`
 
 ## 行为边界
 - **始终**: 运行测试后再提交代码

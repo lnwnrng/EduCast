@@ -21,6 +21,12 @@ class Settings(BaseSettings):
     # ── 存储 ────────────────────────────────────────────────
     STORAGE_ROOT: str = "./storage"
 
+    # ── 网络代理 ──────────────────────────────────────────────
+    # 用于所有外部 HTTP 请求（API 调用、邮件发送等）
+    # 示例: http://127.0.0.1:7890 (Clash) 或 http://127.0.0.1:10809 (V2Ray)
+    # 留空则不使用代理
+    HTTP_PROXY: str = ""
+
     # ── Provider API Keys ──────────────────────────────────
     ZHIPU_API_KEY: str = ""
     COGVIDEO_API_KEY: str = ""
@@ -88,7 +94,8 @@ class Settings(BaseSettings):
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
 
     # ── 认证 ────────────────────────────────────────────────
-    JWT_SECRET_KEY: str = "change-me-to-a-real-secret-in-production"
+    # 启动时若仍是此默认值，系统将拒绝启动以确保安全
+    JWT_SECRET_KEY: str = ""
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 15
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7

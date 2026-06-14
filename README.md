@@ -197,8 +197,8 @@ EduCast/
 |------|------|
 | `uvicorn app.main:app --reload --port 8000` | 启动后端（热重载） |
 | `cd frontend && npm run dev` | 启动前端（热重载） |
-| `pytest tests/ -v` | 运行后端测试 |
-| `cd frontend && npm test` | 运行前端测试 |
+| `cd backend && pytest tests/ -v` | 运行后端测试 |
+| `cd frontend && npx tsc --noEmit` | TypeScript 类型检查 |
 | `black backend/` | Python 代码格式化 |
 | `ruff check backend/` | Python 代码检查 |
 | `cd frontend && npx eslint src/` | TypeScript 代码检查 |
@@ -209,7 +209,7 @@ EduCast/
 所有外部 API 通过统一的 Provider 接口调用，支持自动降级：
 
 ```
-LLM:       智谱 GLM-4.7-Flash → DeepSeek → 降级提示
+LLM:       智谱 GLM-4.7-Flash → 降级为本地轻量规整
 TTS:       Edge TTS（免费）
 数字人:     外部 API → 本地画中画兜底
 视频生成:   CogVideoX → Placeholder
@@ -220,7 +220,7 @@ TTS:       Edge TTS（免费）
 
 | 层级 | 技术 |
 |------|------|
-| 前端 | React 18, TypeScript, Vite, Ant Design, ECharts, Zustand, Axios |
+| 前端 | React 19, TypeScript, Vite, Ant Design, ECharts, Zustand, Axios |
 | 后端 | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic |
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 认证 | JWT (python-jose), bcrypt, HttpOnly Cookie |

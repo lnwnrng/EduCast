@@ -16,6 +16,7 @@ def _patch_transport(monkeypatch, handler) -> None:
 
     def make_client(**kwargs):
         kwargs.pop("transport", None)
+        kwargs.pop("proxy", None)
         return real_client(transport=transport, **kwargs)
 
     monkeypatch.setattr(cog_mod.httpx, "AsyncClient", make_client)

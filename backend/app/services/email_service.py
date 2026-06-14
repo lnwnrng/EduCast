@@ -84,7 +84,8 @@ class EmailService:
         }
 
         try:
-            async with httpx.AsyncClient(timeout=10.0) as client:
+            proxy = settings.HTTP_PROXY.strip() or None
+            async with httpx.AsyncClient(timeout=10.0, proxy=proxy) as client:
                 resp = await client.post(
                     EmailService.RESEND_API_URL,
                     json=payload,

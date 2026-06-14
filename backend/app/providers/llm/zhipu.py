@@ -15,6 +15,7 @@ from typing import Any
 
 import httpx
 
+from app.config import settings
 from app.providers.base import BaseProvider, ProviderResult
 
 logger = logging.getLogger(__name__)
@@ -84,7 +85,8 @@ class ZhipuLLMProvider(BaseProvider):
             "Content-Type": "application/json",
         }
 
-        async with httpx.AsyncClient(timeout=self._timeout) as client:
+        proxy = settings.HTTP_PROXY.strip() or None
+        async with httpx.AsyncClient(timeout=self._timeout, proxy=proxy) as client:
             resp = await client.post(url, json=payload, headers=headers)
 
         if resp.status_code != 200:

@@ -37,16 +37,39 @@ def _build_tree(categories: list[CourseCategory]) -> list[dict]:
     return tree
 
 
-async def _count_projects(node: dict, db: AsyncSession) -> int:
-    pc = await db.execute(
-        select(func.count()).select_from(
-            select(Project).where(Project.category_id == uuid.UUID(node["id"])).subquery()
-        )
+async def _fill_project_counts(tree: list[dict], db: AsyncSession) -> None:
+    """批量查询所有分类的项目计数（一次性查询，避免 N+1）。"""
+    # 收集所有分类 ID（含子节点）
+    all_ids: list[uuid.UUID] = []
+
+    def collect_ids(node: dict) -> None:
+        all_ids.append(uuid.UUID(node["id"]))
+        for child in node["children"]:
+            collect_ids(child)
+
+    for item in tree:
+        collect_ids(item)
+
+    if not all_ids:
+        return
+
+    # 一次性批量查询所有分类的项目数
+    result = await db.execute(
+        select(Project.category_id, func.count())
+        .where(Project.category_id.in_(all_ids))
+        .group_by(Project.category_id)
     )
-    node["project_count"] = pc.scalar() or 0
-    for child in node["children"]:
-        node["project_count"] += await _count_projects(child, db)
-    return node["project_count"]
+    counts: dict[str, int] = {str(cid): cnt for cid, cnt in result.all()}
+
+    def fill_node(node: dict) -> int:
+        pc = counts.get(node["id"], 0)
+        for child in node["children"]:
+            pc += fill_node(child)
+        node["project_count"] = pc
+        return pc
+
+    for item in tree:
+        fill_node(item)
 
 
 async def _check_duplicate_sort(
@@ -82,8 +105,7 @@ async def list_categories(
     categories = list(result.scalars().all())
     tree = _build_tree(categories)
 
-    for item in tree:
-        await _count_projects(item, db)
+    await _fill_project_counts(tree, db)
 
     return [CategoryNode(**item) for item in tree]
 

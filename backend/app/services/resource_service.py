@@ -65,6 +65,7 @@ class ResourceService:
         db: AsyncSession,
         project_id: UUID | None = None,
         resource_type: str | None = None,
+        search: str | None = None,
         page: int = 1,
         page_size: int = 20,
         user_project_ids: list[UUID] | None = None,
@@ -78,6 +79,8 @@ class ResourceService:
             conditions.append(Resource.project_id == project_id)
         if resource_type:
             conditions.append(Resource.resource_type == resource_type)
+        if search:
+            conditions.append(Resource.title.ilike(f"%{search}%"))
         if user_project_ids is not None:
             conditions.append(Resource.project_id.in_(user_project_ids))
 

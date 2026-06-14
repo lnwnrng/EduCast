@@ -120,6 +120,8 @@ const UploadPage: React.FC = () => {
 
   // ── 加载解析结果 IR ───────────────────────────────────
   const loadIR = useCallback(async (pid: string) => {
+    let retries = 0;
+    const MAX_RETRIES = 10;
     const attempt = async (): Promise<void> => {
       setIrLoading(true);
       try {
@@ -127,12 +129,20 @@ const UploadPage: React.FC = () => {
         const scriptData: ScriptResponse = resp.data;
         setParsedIR(scriptData.ir);
       } catch {
+        retries += 1;
+        if (retries >= MAX_RETRIES) {
+          // 超过最大重试次数，停止重试
+          setIrLoading(false);
+          return;
+        }
         // IR 可能还没生成完，等待几秒后重试
         setTimeout(() => {
           void attempt();
         }, 3000);
       } finally {
-        setIrLoading(false);
+        if (retries < MAX_RETRIES) {
+          setIrLoading(false);
+        }
       }
     };
     await attempt();

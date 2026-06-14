@@ -54,9 +54,11 @@ export const useAuthStore = create<AuthState>()(
     }),
     {
       name: 'auth-storage',
+      // 只持久化用户基本信息，不持久化 email 等敏感字段和 isAuthenticated
       partialize: (state) => ({
-        user: state.user,
-        isAuthenticated: state.isAuthenticated,
+        user: state.user
+          ? { id: state.user.id, username: state.user.username, role: state.user.role }
+          : null,
       }),
     }
   )
