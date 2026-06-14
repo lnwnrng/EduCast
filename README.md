@@ -182,7 +182,7 @@ EduCast/
 | **视频** | `VIDEO_WIDTH` / `VIDEO_HEIGHT` | 输出分辨率 | 1920×1080 |
 | **水印** | `WATERMARK_TEXT` | 水印文本 | 课程标题 |
 | **水印** | `WATERMARK_IMAGE_PATH` | 图片水印路径 | — |
-| **认证** | `JWT_SECRET_KEY` | JWT 签名密钥 | `change-me-...` |
+| **认证** | `JWT_SECRET_KEY` | JWT 签名密钥 | 启动时必须配置 |
 | **认证** | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期（分钟） | `15` |
 | **认证** | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期（天） | `7` |
 | **流水线** | `SKIP_REVIEW` | 跳过人工审核 | `false` |
