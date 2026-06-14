@@ -134,8 +134,8 @@ async def verify_api_key(key_name: str, key_value: str) -> dict:
         else:
             return {"ok": False, "message": f"未知的配置项: {key_name}"}
     except Exception as e:
-        logger.warning("验证 %s 时异常: %s", key_name, e)
-        return {"ok": False, "message": f"验证异常: {e}"}
+        logger.warning("验证 %s 时异常: %s: %s", key_name, type(e).__name__, e)
+        return {"ok": False, "message": f"验证失败（{type(e).__name__}）: {e}"}
 
 
 async def _verify_bigmodel_key(api_key: str) -> dict:
@@ -158,6 +158,8 @@ async def _verify_bigmodel_key(api_key: str) -> dict:
         return {"ok": False, "message": "认证失败：Key 无效或已过期"}
     if resp.status_code == 403:
         return {"ok": False, "message": "权限不足：请检查 Key 权限设置"}
+    if resp.status_code == 429:
+        return {"ok": True, "message": "Key 有效（当前请求频率受限，请稍后重试）"}
     return {
         "ok": False,
         "message": f"API 返回 HTTP {resp.status_code}: {resp.text[:200]}",
@@ -171,8 +173,6 @@ async def _verify_cogvideo_key(api_key: str) -> dict:
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    # 发送一个故意不完整的请求来验证认证和模型权限
-    # CogVideoX 会在认证通过后校验参数，返回 400 说明认证 OK
     payload = {
         "model": settings.COGVIDEO_MODEL,
         "prompt": "test",
@@ -180,7 +180,6 @@ async def _verify_cogvideo_key(api_key: str) -> dict:
     async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
     if resp.status_code == 200:
-        # 不太可能，但如果真的提交了任务，也算成功
         return {"ok": True, "message": "CogVideoX API 连通，Key 有效"}
     if resp.status_code == 401:
         return {"ok": False, "message": "认证失败：Key 无效或已过期"}
@@ -190,8 +189,9 @@ async def _verify_cogvideo_key(api_key: str) -> dict:
             "message": "权限不足：该 Key 可能未开通 CogVideoX 视频生成权限",
         }
     if resp.status_code == 400:
-        # 400 表示认证通过但参数有问题，说明 Key 有效
         return {"ok": True, "message": "CogVideoX API 认证通过，Key 有效"}
+    if resp.status_code == 429:
+        return {"ok": True, "message": "Key 有效（当前访问量较大，请稍后重试）"}
     return {
         "ok": False,
         "message": f"CogVideoX API 返回 HTTP {resp.status_code}: {resp.text[:200]}",
@@ -199,8 +199,13 @@ async def _verify_cogvideo_key(api_key: str) -> dict:
 
 
 async def _verify_resend_key(api_key: str) -> dict:
-    """Resend API Key 验证 — 调用 GET /api-keys 探测认证。"""
-    url = "https://api.resend.com/api-keys"
+    """Resend API Key 验证 — 调用 GET /me 探测认证。
+
+    注意：Resend 受限 Key（restricted_api_key）仅能发送邮件，
+    无法访问管理端点，会返回 401 但附带 restricted_api_key 标识，
+    此时 Key 实际有效。
+    """
+    url = "https://api.resend.com/me"
     headers = {
         "Authorization": f"Bearer {api_key}",
     }
@@ -209,6 +214,9 @@ async def _verify_resend_key(api_key: str) -> dict:
     if resp.status_code == 200:
         return {"ok": True, "message": "Resend API 连通，Key 有效"}
     if resp.status_code in (401, 403):
+        # 受限 Key：仅能发邮件，管理端点返回 401 但 Key 实际有效
+        if "restricted_api_key" in resp.text:
+            return {"ok": True, "message": "Key 有效（受限 Key，仅可发送邮件）"}
         return {"ok": False, "message": "认证失败：Key 无效或权限不足"}
     return {
         "ok": False,

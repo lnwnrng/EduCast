@@ -119,6 +119,19 @@ class TestVerifyBigmodelKey:
         assert result["ok"] is False
         assert "500" in result["message"]
 
+    @pytest.mark.asyncio
+    async def test_rate_limit_means_key_valid(self):
+        """HTTP 429 → Key 有效但被限流。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(429))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_bigmodel_key("valid_key")
+        assert result["ok"] is True
+        assert "频率" in result["message"] or "限" in result["message"]
+
 
 class TestVerifyResendKey:
     """Resend Key 探测。"""
@@ -147,6 +160,23 @@ class TestVerifyResendKey:
             result = await _verify_resend_key("re_bad_key")
         assert result["ok"] is False
         assert "认证失败" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_restricted_key_is_valid(self):
+        """受限 Key（restricted_api_key）返回 401 但 Key 实际有效。"""
+        resp = _mock_response(
+            401,
+            '{"statusCode":401,"message":"restricted","name":"restricted_api_key"}',
+        )
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=resp)
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_resend_key("re_restricted_key")
+        assert result["ok"] is True
+        assert "受限" in result["message"] or "有效" in result["message"]
 
 
 # ── verify_api_key 路由分发 ──────────────────────────────────────────
@@ -205,6 +235,19 @@ class TestVerifyCogvideoKey:
             result = await _verify_cogvideo_key("valid_key")
         assert result["ok"] is True
         assert "认证通过" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_rate_limit_429_means_key_valid(self):
+        """HTTP 429 → Key 有效但被限流。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(429))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("valid_key")
+        assert result["ok"] is True
+        assert "访问量" in result["message"] or "限" in result["message"]
 
 
 class TestVerifyApiKeyDispatch:
@@ -284,4 +327,4 @@ class TestVerifyApiKeyDispatch:
         with patch("httpx.AsyncClient", side_effect=Exception("network down")):
             result = await verify_api_key("ZHIPU_API_KEY", "key")
         assert result["ok"] is False
-        assert "验证异常" in result["message"]
+        assert "验证失败" in result["message"]
