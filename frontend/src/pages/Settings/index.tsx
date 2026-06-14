@@ -95,10 +95,16 @@ const SettingsPage: React.FC = () => {
     try {
       const resp = await testApiKey(key, value);
       setTestResults((prev) => ({ ...prev, [key]: resp.data }));
-    } catch {
+    } catch (err: unknown) {
+      // 从 axios 错误中提取后端真实消息，避免泛泛的"网络错误"
+      const axiosErr = err as { response?: { data?: { detail?: string } } };
+      const backendMsg = axiosErr?.response?.data?.detail;
       setTestResults((prev) => ({
         ...prev,
-        [key]: { ok: false, message: '网络错误，无法连接验证' },
+        [key]: {
+          ok: false,
+          message: backendMsg || '验证请求失败，请检查网络连接后重试',
+        },
       }));
     } finally {
       setTesting((prev) => ({ ...prev, [key]: false }));

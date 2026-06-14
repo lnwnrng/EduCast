@@ -121,8 +121,10 @@ async def verify_api_key(key_name: str, key_value: str) -> dict:
         return {"ok": False, "message": "Key 为空，请先填写后再检测"}
 
     try:
-        if key_name in ("ZHIPU_API_KEY", "COGVIDEO_API_KEY"):
+        if key_name == "ZHIPU_API_KEY":
             return await _verify_bigmodel_key(key_value)
+        elif key_name == "COGVIDEO_API_KEY":
+            return await _verify_cogvideo_key(key_value)
         elif key_name == "RESEND_API_KEY":
             return await _verify_resend_key(key_value)
         elif key_name == "DIGITAL_HUMAN_API_KEY":
@@ -137,7 +139,7 @@ async def verify_api_key(key_name: str, key_value: str) -> dict:
 
 
 async def _verify_bigmodel_key(api_key: str) -> dict:
-    """智谱 BigModel 平台 Key 验证（GLM / CogVideoX 共用）。"""
+    """智谱 BigModel 平台 GLM Key 验证。"""
     url = settings.ZHIPU_BASE_URL.rstrip("/") + "/chat/completions"
     payload = {
         "model": settings.ZHIPU_MODEL,
@@ -148,7 +150,7 @@ async def _verify_bigmodel_key(api_key: str) -> dict:
         "Authorization": f"Bearer {api_key}",
         "Content-Type": "application/json",
     }
-    async with httpx.AsyncClient(timeout=15.0) as client:
+    async with httpx.AsyncClient(timeout=10.0) as client:
         resp = await client.post(url, json=payload, headers=headers)
     if resp.status_code == 200:
         return {"ok": True, "message": "智谱 API 连通，Key 有效"}
@@ -159,6 +161,40 @@ async def _verify_bigmodel_key(api_key: str) -> dict:
     return {
         "ok": False,
         "message": f"API 返回 HTTP {resp.status_code}: {resp.text[:200]}",
+    }
+
+
+async def _verify_cogvideo_key(api_key: str) -> dict:
+    """CogVideoX Key 验证 — 智谱同平台，验证 BigModel 认证 + 模型访问权限。"""
+    url = settings.COGVIDEO_BASE_URL.rstrip("/") + "/videos/generations"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    # 发送一个故意不完整的请求来验证认证和模型权限
+    # CogVideoX 会在认证通过后校验参数，返回 400 说明认证 OK
+    payload = {
+        "model": settings.COGVIDEO_MODEL,
+        "prompt": "test",
+    }
+    async with httpx.AsyncClient(timeout=10.0) as client:
+        resp = await client.post(url, json=payload, headers=headers)
+    if resp.status_code == 200:
+        # 不太可能，但如果真的提交了任务，也算成功
+        return {"ok": True, "message": "CogVideoX API 连通，Key 有效"}
+    if resp.status_code == 401:
+        return {"ok": False, "message": "认证失败：Key 无效或已过期"}
+    if resp.status_code == 403:
+        return {
+            "ok": False,
+            "message": "权限不足：该 Key 可能未开通 CogVideoX 视频生成权限",
+        }
+    if resp.status_code == 400:
+        # 400 表示认证通过但参数有问题，说明 Key 有效
+        return {"ok": True, "message": "CogVideoX API 认证通过，Key 有效"}
+    return {
+        "ok": False,
+        "message": f"CogVideoX API 返回 HTTP {resp.status_code}: {resp.text[:200]}",
     }
 
 

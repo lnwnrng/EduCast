@@ -6,6 +6,7 @@ import pytest
 
 from app.services.settings_service import (
     _verify_bigmodel_key,
+    _verify_cogvideo_key,
     _verify_digital_human_key,
     _verify_email_from,
     _verify_resend_key,
@@ -151,6 +152,61 @@ class TestVerifyResendKey:
 # ── verify_api_key 路由分发 ──────────────────────────────────────────
 
 
+class TestVerifyCogvideoKey:
+    """CogVideoX Key 探测（独立验证视频生成权限）。"""
+
+    @pytest.mark.asyncio
+    async def test_success_200(self):
+        """HTTP 200 → Key 有效。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(200))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("valid_key")
+        assert result["ok"] is True
+
+    @pytest.mark.asyncio
+    async def test_auth_failure_401(self):
+        """HTTP 401 → 认证失败。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(401))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("bad_key")
+        assert result["ok"] is False
+        assert "认证失败" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_permission_denied_403(self):
+        """HTTP 403 → 未开通 CogVideoX 权限。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(403))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("no_perm")
+        assert result["ok"] is False
+        assert "权限不足" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_bad_request_400_means_auth_ok(self):
+        """HTTP 400 → 认证通过，参数无效（Key 有效）。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(400))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("valid_key")
+        assert result["ok"] is True
+        assert "认证通过" in result["message"]
+
+
 class TestVerifyApiKeyDispatch:
     """verify_api_key 按 key_name 分发到对应验证函数。"""
 
@@ -188,7 +244,7 @@ class TestVerifyApiKeyDispatch:
 
     @pytest.mark.asyncio
     async def test_dispatch_cogvideo(self):
-        """COGVIDEO_API_KEY 也走 BigModel 验证。"""
+        """COGVIDEO_API_KEY 走 CogVideoX 独立验证。"""
         mock_client = AsyncMock()
         mock_client.post = AsyncMock(return_value=_mock_response(200))
         mock_client.__aenter__ = AsyncMock(return_value=mock_client)
