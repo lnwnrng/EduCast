@@ -93,6 +93,67 @@ async def client(
 
 
 @pytest_asyncio.fixture
+async def non_admin_user(db_session: AsyncSession) -> User:
+    """创建测试用普通用户（非管理员）。"""
+    user = User(
+        id=uuid.uuid4(),
+        username="normaluser",
+        password_hash="fakehash",
+        role="user",
+        display_id=99,
+    )
+    db_session.add(user)
+    await db_session.flush()
+    await db_session.commit()
+    return user
+
+
+@pytest_asyncio.fixture
+async def non_admin_auth_client(
+    async_engine,
+    db_session: AsyncSession,
+    non_admin_user: User,
+) -> AsyncGenerator[AsyncClient, None]:
+    """带普通用户认证 Cookie 的测试 HTTP 客户端。"""
+    from jose import jwt
+
+    test_session_factory = async_sessionmaker(
+        async_engine,
+        class_=AsyncSession,
+        expire_on_commit=False,
+    )
+
+    async def _override_get_db() -> AsyncGenerator[AsyncSession, None]:
+        yield db_session
+
+    app.dependency_overrides[get_db] = _override_get_db
+
+    token = jwt.encode(
+        {"sub": str(non_admin_user.id)},
+        settings.JWT_SECRET_KEY,
+        algorithm=settings.JWT_ALGORITHM,
+    )
+
+    with patch(
+        "app.api.v1.upload.async_session_factory",
+        test_session_factory,
+    ):
+        transport = ASGITransport(app=app)
+        async with AsyncClient(transport=transport, base_url="http://test") as ac:
+            ac.cookies.set("access_token", token)
+            yield ac
+
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def runtime_settings_dir(tmp_path, monkeypatch):
+    """将 STORAGE_ROOT 指向 tmp_path，隔离运行时设置文件 IO。"""
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    return tmp_path
+
+
+@pytest_asyncio.fixture
 async def test_user(db_session: AsyncSession) -> User:
     """创建测试用管理员用户。"""
     user = User(

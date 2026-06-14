@@ -82,7 +82,7 @@ async def test_submit_non_200_raises(monkeypatch) -> None:
         await provider.submit({"prompt": "x"})
 
 
-def test_factory_none_without_any_key(monkeypatch) -> None:
+def test_factory_none_without_any_key(monkeypatch, runtime_settings_dir) -> None:
     monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
     monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
     assert get_video_gen_provider() is None
