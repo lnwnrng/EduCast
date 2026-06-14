@@ -84,15 +84,113 @@ copy .env.example backend\.env
 
 > `.env` 必须放在 `backend/` 目录下，与 `config.py` 同目录。`uvicorn` 启动时自动加载。
 
-### 第二步：配置必需的环境变量
+### 第二步：配置环境变量
 
-编辑 `backend/.env`，至少填写以下两项：
+#### 快速配置摘要
+
+| 必要性 | 变量 | 说明 |
+|--------|------|------|
+| 🔴 必填 | `JWT_SECRET_KEY` | 用 `python -c "import secrets; print(secrets.token_hex(32))"` 生成 64 位随机密钥 |
+| 🔴 必填 | `ZHIPU_API_KEY` | 在 [open.bigmodel.cn](https://open.bigmodel.cn) 注册获取（GLM-4.7-Flash 免费） |
+| 🟡 推荐 | `RESEND_API_KEY` | 如需注册功能，在 [resend.com](https://resend.com) 获取 |
+| 🟡 推荐 | `EMAIL_FROM` | 需与 Resend 验证域名一致，如 `EduCast <noreply@yourdomain.com>` |
+| 🟢 可选 | 其余全部 | 默认值已内置于 `config.py`，可直接使用，需要时再改 |
+
+#### 完整 .env 模板
+
+以下为 `backend/.env` 的完整内容，**复制后只需修改标注行**：
 
 ```ini
-# ── 必填 ──
-JWT_SECRET_KEY=你生成的安全随机字符串
-ZHIPU_API_KEY=你的智谱API密钥
+# ========================================
+# 课影 EduCast — 环境变量配置
+# 复制为 backend/.env 并填入真实值
+# ========================================
+
+# ---------- 数据库 ----------
+DATABASE_URL=sqlite+aiosqlite:///./educast.db
+
+# ---------- 存储 ----------
+STORAGE_ROOT=./storage
+
+# ---------- CORS ----------
+CORS_ORIGINS=["http://localhost:5173"]
+
+# ---------- Provider API Keys ----------
+# 智谱 GLM-4.7-Flash（免费，2026-01 起替代 GLM-4.5-Flash）
+ZHIPU_API_KEY=你的智谱API密钥            ← 🔴 必填
+# CogVideoX（视频生成，留空自动回退用 ZHIPU_API_KEY）
+COGVIDEO_API_KEY=
+# 数字人 API（留空则本地画中画兜底）
+DIGITAL_HUMAN_API_KEY=
+
+# ---------- LLM（智谱 GLM）----------
+ZHIPU_MODEL=glm-4.7-flash
+ZHIPU_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+LLM_TIMEOUT=60.0
+
+# ---------- 生成式片段（智谱 CogVideoX，模块五）----------
+COGVIDEO_BASE_URL=https://open.bigmodel.cn/api/paas/v4
+COGVIDEO_MODEL=cogvideox-flash
+VIDEO_GEN_TIMEOUT=300.0
+VIDEO_GEN_POLL_INTERVAL=5.0
+
+# ---------- 数字人（模块四）----------
+DIGITAL_HUMAN_AVATAR_NAME=AI 讲师
+
+# ---------- 公式动画 ----------
+FORMULA_ENGINE=auto
+
+# ---------- TTS ----------
+EDGE_TTS_VOICE=zh-CN-XiaoxiaoNeural
+
+# ---------- 路由与成本控制 ----------
+DEFAULT_ROUTING_STRATEGY=free_first
+MAX_COST_PER_TASK=10.0
+MAX_COST_PER_PROJECT=100.0
+DIGITAL_HUMAN_COST_PER_SEC=0.5
+VIDEO_GEN_COST_PER_SEC=1.0
+GEN_CLIP_SECONDS=5.0
+TTS_CHARS_PER_SEC=4.0
+
+# ---------- 视频合成（模块三）----------
+FFMPEG_BIN=ffmpeg
+FFPROBE_BIN=ffprobe
+VIDEO_WIDTH=1920
+VIDEO_HEIGHT=1080
+VIDEO_FPS=30
+SLIDE_FONT_PATH=
+
+# ---------- 认证 / JWT ----------
+JWT_SECRET_KEY=你生成的64位随机密钥        ← 🔴 必填
+JWT_ALGORITHM=HS256
+ACCESS_TOKEN_EXPIRE_MINUTES=15
+REFRESH_TOKEN_EXPIRE_DAYS=7
+
+# ---------- 网络代理 ----------
+# 国内网络访问智谱/Resend 可能需要代理，留空直连
+HTTP_PROXY=
+
+# ---------- 视频水印 ----------
+WATERMARK_TEXT=
+WATERMARK_IMAGE_PATH=
+WATERMARK_OPACITY=0.3
+
+# ---------- AI 全自动生成 ----------
+AI_FULL_GEN_DEFAULT=false
+SILENT_SCENE_DURATION=4.0
+
+# ---------- 流水线 ----------
+SKIP_REVIEW=false
+
+# ---------- 邮件验证码 ----------
+RESEND_API_KEY=                          ← 🟡 推荐（需注册功能时填写）
+EMAIL_FROM=EduCast <noreply@yourdomain.com>  ← 🟡 推荐（需注册功能时填写）
+VERIFICATION_CODE_EXPIRE_MINUTES=10
+VERIFICATION_CODE_COOLDOWN_SECONDS=60
+VERIFICATION_CODE_MAX_ATTEMPTS=5
 ```
+
+> 完整注释版模板见 [`.env.example`](.env.example)。
 
 #### 生成 JWT_SECRET_KEY
 
