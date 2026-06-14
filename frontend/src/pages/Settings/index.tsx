@@ -14,6 +14,9 @@ import {
 } from 'antd';
 import {
   ApiOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  ExperimentOutlined,
   LinkOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -21,8 +24,10 @@ import PageHeader from '../../components/common/PageHeader';
 import {
   getApiKeys,
   getApiKeyValues,
+  testApiKey,
   updateApiKeys,
   type ApiKeyDefinition,
+  type TestApiKeyResult,
 } from '../../api/settings';
 
 const { Text, Paragraph } = Typography;
@@ -33,6 +38,10 @@ const SettingsPage: React.FC = () => {
   const [items, setItems] = useState<ApiKeyDefinition[]>([]);
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [dirty, setDirty] = useState(false);
+  const [testing, setTesting] = useState<Record<string, boolean>>({});
+  const [testResults, setTestResults] = useState<
+    Record<string, TestApiKeyResult>
+  >({});
 
   useEffect(() => {
     Promise.all([getApiKeys(), getApiKeyValues()])
@@ -63,6 +72,37 @@ const SettingsPage: React.FC = () => {
   const handleChange = (key: string, value: string) => {
     setFormValues((prev) => ({ ...prev, [key]: value }));
     setDirty(true);
+    // 修改后清除该 key 的测试结果
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+  };
+
+  const handleTest = async (key: string) => {
+    const value = formValues[key] || '';
+    if (!value.trim()) {
+      message.warning('请先填写 Key 值再检测');
+      return;
+    }
+    setTesting((prev) => ({ ...prev, [key]: true }));
+    setTestResults((prev) => {
+      const next = { ...prev };
+      delete next[key];
+      return next;
+    });
+    try {
+      const resp = await testApiKey(key, value);
+      setTestResults((prev) => ({ ...prev, [key]: resp.data }));
+    } catch {
+      setTestResults((prev) => ({
+        ...prev,
+        [key]: { ok: false, message: '网络错误，无法连接验证' },
+      }));
+    } finally {
+      setTesting((prev) => ({ ...prev, [key]: false }));
+    }
   };
 
   return (
@@ -80,7 +120,7 @@ const SettingsPage: React.FC = () => {
         description={
           <span>
             未配置 Key 的功能将自动使用本地降级方案（如 LLM 编排降级为本地轻量规整，视频生成降级为概念图运镜）。
-            配置后，新功能将在下次视频生成时自动生效。
+            配置后，新功能将在下次视频生成时自动生效。点击「检测」可验证 Key 是否有效。
           </span>
         }
       />
@@ -149,20 +189,58 @@ const SettingsPage: React.FC = () => {
                   </div>
                 )}
 
-                {item.is_secret !== false ? (
-                  <Input.Password
-                    placeholder={`输入 ${item.label}（留空表示不配置）`}
-                    value={formValues[item.key] || ''}
-                    onChange={(e) => handleChange(item.key, e.target.value)}
-                    style={{ maxWidth: 500 }}
-                  />
-                ) : (
-                  <Input
-                    placeholder={`输入 ${item.label}（留空表示不配置）`}
-                    value={formValues[item.key] || ''}
-                    onChange={(e) => handleChange(item.key, e.target.value)}
-                    style={{ maxWidth: 500 }}
-                  />
+                <div style={{ display: 'flex', gap: 8, alignItems: 'flex-start' }}>
+                  <div style={{ flex: 1, maxWidth: 500 }}>
+                    {item.is_secret !== false ? (
+                      <Input.Password
+                        placeholder={`输入 ${item.label}（留空表示不配置）`}
+                        value={formValues[item.key] || ''}
+                        onChange={(e) => handleChange(item.key, e.target.value)}
+                      />
+                    ) : (
+                      <Input
+                        placeholder={`输入 ${item.label}（留空表示不配置）`}
+                        value={formValues[item.key] || ''}
+                        onChange={(e) => handleChange(item.key, e.target.value)}
+                      />
+                    )}
+                  </div>
+                  <Button
+                    icon={<ExperimentOutlined />}
+                    loading={testing[item.key]}
+                    onClick={() => handleTest(item.key)}
+                    disabled={!formValues[item.key]?.trim()}
+                  >
+                    检测
+                  </Button>
+                </div>
+
+                {testResults[item.key] && (
+                  <div
+                    style={{
+                      marginTop: 8,
+                      padding: '6px 12px',
+                      borderRadius: 6,
+                      background: testResults[item.key].ok
+                        ? '#f6ffed'
+                        : '#fff2f0',
+                      border: `1px solid ${testResults[item.key].ok ? '#b7eb8f' : '#ffccc7'}`,
+                    }}
+                  >
+                    <Space>
+                      {testResults[item.key].ok ? (
+                        <CheckCircleOutlined style={{ color: '#52c41a' }} />
+                      ) : (
+                        <CloseCircleOutlined style={{ color: '#ff4d4f' }} />
+                      )}
+                      <Text
+                        type={testResults[item.key].ok ? 'success' : 'danger'}
+                        style={{ fontSize: 13 }}
+                      >
+                        {testResults[item.key].message}
+                      </Text>
+                    </Space>
+                  </div>
                 )}
               </Card>
             )}
