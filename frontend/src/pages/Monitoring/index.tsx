@@ -27,6 +27,12 @@ import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;
 
+interface HealthItem {
+  name: string;
+  status: boolean;
+  detail: string | null;
+}
+
 const renderStatus = (status: string) => {
   const cfg = statusMeta(status);
   return <Tag color={cfg.color}>{cfg.label}</Tag>;
@@ -43,7 +49,7 @@ const Monitoring: React.FC = () => {
   const { user } = useAuthStore();
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [loading, setLoading] = useState(false);
-  const [health, setHealth] = useState<any[]>([]);
+  const [health, setHealth] = useState<HealthItem[]>([]);
 
   const fetchStats = async () => {
     setLoading(true);

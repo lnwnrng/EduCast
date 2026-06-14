@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Table, Select, Button, Space, Tag, Typography } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
 import * as adminApi from '../../api/admin';
+import type { AuditLogEntry } from '../../api/admin';
 
 const { Title } = Typography;
 
@@ -15,7 +16,7 @@ const actionLabels: Record<string, { label: string; color: string }> = {
 };
 
 const AuditLog: React.FC = () => {
-  const [logs, setLogs] = useState<any[]>([]);
+  const [logs, setLogs] = useState<AuditLogEntry[]>([]);
   const [total, setTotal] = useState(0);
   const [page, setPage] = useState(1);
   const [loading, setLoading] = useState(false);
@@ -75,7 +76,7 @@ const AuditLog: React.FC = () => {
     },
     {
       title: '详情',
-      dataIndex: 'details',
+      dataIndex: 'detail',
       key: 'details',
       render: (val: string | null) => val || '-',
     },
@@ -117,7 +118,7 @@ const AuditLog: React.FC = () => {
           options={[
             { label: '最近7天', value: 7 },
             { label: '最近30天', value: 30 },
-            { label: '全部', value: undefined as any },
+            { label: '全部', value: undefined },
           ]}
         />
         <Button icon={<ReloadOutlined />} onClick={handleQuery}>

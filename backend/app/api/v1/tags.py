@@ -25,18 +25,18 @@ async def list_tags(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> list[TagResponse]:
     """标签列表（所有登录用户可读）。"""
-    result = await db.execute(select(Tag).order_by(Tag.name))
-    tags = list(result.scalars().all())
+    # 使用 JOIN + GROUP BY 一次性查询所有标签的项目计数，避免 N+1
+    result = await db.execute(
+        select(Tag, func.count(project_tag.c.project_id))
+        .outerjoin(project_tag, Tag.id == project_tag.c.tag_id)
+        .group_by(Tag.id)
+        .order_by(Tag.name)
+    )
     items = []
-    for t in tags:
-        pc = await db.execute(
-            select(func.count()).select_from(
-                select(project_tag).where(project_tag.c.tag_id == t.id).subquery()
-            )
-        )
+    for tag, pc in result.all():
         items.append(TagResponse(
-            id=str(t.id), name=t.name, color=t.color,
-            project_count=pc.scalar() or 0, created_at=t.created_at,
+            id=str(tag.id), name=tag.name, color=tag.color,
+            project_count=pc or 0, created_at=tag.created_at,
         ))
     return items
 

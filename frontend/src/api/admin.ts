@@ -25,9 +25,21 @@ export const toggleUserActive = (userId: string) =>
 export const deleteUser = (userId: string) =>
   apiClient.delete(`/admin/users/${userId}`);
 
+export interface AuditLogEntry {
+  id: string;
+  user_id: string;
+  username: string;
+  action: string;
+  target_type: string;
+  target_id: string | null;
+  detail: string | null;
+  ip_address: string | null;
+  created_at: string;
+}
+
 export const getAuditLogs = (params: {
   page?: number;
   page_size?: number;
   action?: string;
   days?: number;
-}) => apiClient.get<PaginatedResponse<any>>('/admin/logs', { params });
+}) => apiClient.get<PaginatedResponse<AuditLogEntry>>('/admin/logs', { params });

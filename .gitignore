@@ -90,11 +90,9 @@ Desktop.ini
 # ========================
 # Project-specific
 # ========================
-alembic/versions/*.py
-!alembic/versions/.gitkeep
+# 数据库迁移文件应被版本控制追踪已移除 ignore 规则
 
 
 
 
 CLAUDE.md
-AGENTS.md

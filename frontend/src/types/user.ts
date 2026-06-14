@@ -16,6 +16,8 @@ export interface UserAdmin extends User {
 
 export interface UserWithToken {
   user: User;
-  access_token: string;
-  token_type: string;
+  // 注意：认证使用 httpOnly cookie，前端不直接处理 access_token
+  // 此字段由后端返回但前端不存储，仅用于兼容旧接口
+  access_token?: string;
+  token_type?: string;
 }

@@ -4,6 +4,7 @@
   POST /upload/document → 保存文件 → 创建 Project + Task → 后台解析 → 返回 IDs
 """
 
+import logging
 import os
 import uuid
 from pathlib import Path
@@ -27,6 +28,8 @@ from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
 router = APIRouter(prefix="/upload", tags=["文件上传"])
+
+logger = logging.getLogger(__name__)
 
 
 async def _run_parse_in_background(
@@ -56,6 +59,10 @@ async def _run_parse_in_background(
             )
         except Exception:
             # parse_document 内部已处理错误状态更新，解析失败则不再编排
+            logger.error(
+                "后台解析异常: project=%s, task=%s",
+                project_id, task_id, exc_info=True,
+            )
             return
 
         try:
@@ -66,7 +73,10 @@ async def _run_parse_in_background(
             )
         except Exception:
             # orchestrate 内部已处理错误状态更新
-            pass
+            logger.error(
+                "后台编排异常: project=%s, task=%s",
+                project_id, task_id, exc_info=True,
+            )
 
         # 一键全自动：跨过人工审核直接生成（仍走成本护栏）
         if settings.SKIP_REVIEW:
@@ -102,7 +112,10 @@ async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> Non
         )
     except Exception:
         # compose 内部已处理错误状态更新
-        pass
+        logger.error(
+            "后台合成异常: project=%s, task=%s",
+            project_id, task_id, exc_info=True,
+        )
 
 
 @router.post("/document", response_model=SuccessResponse)
@@ -139,8 +152,9 @@ async def upload_document(
     upload_dir = os.path.join(settings.STORAGE_ROOT, "uploads")
     os.makedirs(upload_dir, exist_ok=True)
 
-    # 使用 UUID 前缀防止文件名冲突
-    safe_filename = f"{uuid.uuid4().hex[:8]}_{filename}"
+    # 使用 UUID 前缀 + 安全文件名防止路径遍历
+    safe_name = Path(filename).name
+    safe_filename = f"{uuid.uuid4().hex[:8]}_{safe_name}"
     file_path = os.path.join(upload_dir, safe_filename)
 
     content = await file.read()

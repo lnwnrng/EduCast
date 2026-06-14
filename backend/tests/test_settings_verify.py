@@ -117,7 +117,7 @@ class TestVerifyBigmodelKey:
         with patch("httpx.AsyncClient", return_value=mock_client):
             result = await _verify_bigmodel_key("key")
         assert result["ok"] is False
-        assert "500" in result["message"]
+        assert "服务器错误" in result["message"]
 
     @pytest.mark.asyncio
     async def test_rate_limit_means_key_valid(self):
@@ -131,6 +131,58 @@ class TestVerifyBigmodelKey:
             result = await _verify_bigmodel_key("valid_key")
         assert result["ok"] is True
         assert "频率" in result["message"] or "限" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_bad_request_400_means_key_valid(self):
+        """HTTP 400 → 参数错误但认证通过（Key 有效）。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(400))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_bigmodel_key("valid_key")
+        assert result["ok"] is True
+        assert "认证通过" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_unprocessable_422_means_key_valid(self):
+        """HTTP 422 → 参数错误但认证通过（Key 有效）。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(422))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_bigmodel_key("valid_key")
+        assert result["ok"] is True
+        assert "认证通过" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_502_returns_server_error(self):
+        """HTTP 502 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(502))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_bigmodel_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_503_returns_server_error(self):
+        """HTTP 503 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(503))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_bigmodel_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
 
 
 class TestVerifyResendKey:
@@ -177,6 +229,34 @@ class TestVerifyResendKey:
             result = await _verify_resend_key("re_restricted_key")
         assert result["ok"] is True
         assert "受限" in result["message"] or "有效" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_500_returns_server_error(self):
+        """HTTP 500 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(
+            return_value=_mock_response(500, "Internal Server Error")
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_resend_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_503_returns_server_error(self):
+        """HTTP 503 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.get = AsyncMock(return_value=_mock_response(503))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_resend_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
 
 
 # ── verify_api_key 路由分发 ──────────────────────────────────────────
@@ -248,6 +328,34 @@ class TestVerifyCogvideoKey:
             result = await _verify_cogvideo_key("valid_key")
         assert result["ok"] is True
         assert "访问量" in result["message"] or "限" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_500_returns_server_error(self):
+        """HTTP 500 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(
+            return_value=_mock_response(500, "Internal Server Error")
+        )
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_server_error_503_returns_server_error(self):
+        """HTTP 503 → 服务器错误。"""
+        mock_client = AsyncMock()
+        mock_client.post = AsyncMock(return_value=_mock_response(503))
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await _verify_cogvideo_key("any_key")
+        assert result["ok"] is False
+        assert "服务器错误" in result["message"]
 
 
 class TestVerifyApiKeyDispatch:
@@ -326,5 +434,75 @@ class TestVerifyApiKeyDispatch:
         """验证过程中抛异常被捕获。"""
         with patch("httpx.AsyncClient", side_effect=Exception("network down")):
             result = await verify_api_key("ZHIPU_API_KEY", "key")
+        assert result["ok"] is False
+        assert "验证失败" in result["message"]
+
+
+# ── 网络异常分类 ──────────────────────────────────────────────────────
+
+
+class TestVerifyApiKeyNetworkErrors:
+    """验证 verify_api_key 对不同网络异常的分类处理。"""
+
+    @pytest.mark.asyncio
+    async def test_timeout_exception_returns_network_error(self):
+        """TimeoutException → 返回"检测超时"。"""
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(
+            side_effect=httpx.TimeoutException("request timed out")
+        )
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await verify_api_key("ZHIPU_API_KEY", "test_key")
+        assert result["ok"] is False
+        assert "超时" in result["message"]
+        assert "代理" in result["message"] or "VPN" in result["message"] or "防火墙" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_ssl_connect_error_returns_network_error(self):
+        """SSL 连接错误 → 返回"网络连接失败"。"""
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(
+            side_effect=httpx.ConnectError("SSL certificate verify failed")
+        )
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await verify_api_key("ZHIPU_API_KEY", "test_key")
+        assert result["ok"] is False
+        assert "连接失败" in result["message"] or "网络" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_connect_error_returns_network_error(self):
+        """ConnectError → 返回"网络连接失败"。"""
+        import httpx
+
+        mock_client = AsyncMock()
+        mock_client.__aenter__ = AsyncMock(return_value=mock_client)
+        mock_client.__aexit__ = AsyncMock(return_value=False)
+        mock_client.post = AsyncMock(
+            side_effect=httpx.ConnectError("connection refused")
+        )
+
+        with patch("httpx.AsyncClient", return_value=mock_client):
+            result = await verify_api_key("ZHIPU_API_KEY", "test_key")
+        assert result["ok"] is False
+        assert "连接失败" in result["message"] or "网络" in result["message"]
+
+    @pytest.mark.asyncio
+    async def test_generic_exception_returns_verify_failure(self):
+        """通用 Exception → 返回"验证失败"（保持原行为）。"""
+        with patch(
+            "httpx.AsyncClient",
+            side_effect=ValueError("unexpected config error"),
+        ):
+            result = await verify_api_key("ZHIPU_API_KEY", "test_key")
         assert result["ok"] is False
         assert "验证失败" in result["message"]

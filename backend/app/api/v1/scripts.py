@@ -8,6 +8,7 @@
 """
 
 import json
+import logging
 from typing import Any
 from uuid import UUID
 
@@ -30,6 +31,8 @@ from app.services.parser_service import ParserService
 from app.services.scriptwriter_service import ScriptwriterService
 
 router = APIRouter(prefix="/scripts", tags=["脚本管理"])
+
+logger = logging.getLogger(__name__)
 
 
 class ApproveScriptRequest(BaseModel):
@@ -61,7 +64,10 @@ async def _run_orchestrate_in_background(
             )
         except Exception:
             # orchestrate 内部已处理错误状态更新
-            pass
+            logger.error(
+                "后台编排异常: project=%s, task=%s",
+                project_id, task_id, exc_info=True,
+            )
 
 
 async def _run_composition_in_background(
@@ -78,7 +84,10 @@ async def _run_composition_in_background(
             )
         except Exception:
             # compose 内部已处理错误状态更新
-            pass
+            logger.error(
+                "后台合成异常: project=%s, task=%s",
+                project_id, task_id, exc_info=True,
+            )
 
 
 @router.get("/projects/{project_id}/script")

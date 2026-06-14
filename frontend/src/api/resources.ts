@@ -11,6 +11,7 @@ interface PaginatedResponse<T> {
 interface ResourceListParams {
   project_id?: string;
   resource_type?: string;
+  search?: string;
   page?: number;
   page_size?: number;
 }

@@ -15,6 +15,8 @@ import { getProjects, deleteProject, updateProject } from '../../api/projects';
 import { submitRequest } from '../../api/requests';
 import { statusMeta } from '../../utils/status';
 import type { Project } from '../../types/project';
+import type { CategoryNode } from '../../api/categories';
+import type { TagItem } from '../../api/tags';
 import { useAuthStore } from '../../stores/authStore';
 
 const { Text } = Typography;
@@ -27,8 +29,8 @@ const Projects: React.FC = () => {
   const [pagination, setPagination] = useState({ current: 1, pageSize: 10, total: 0 });
   const [categoryFilter, setCategoryFilter] = useState<string | undefined>(undefined);
   const [tagFilter, setTagFilter] = useState<string[]>([]);
-  const [categories, setCategories] = useState<any[]>([]);
-  const [tags, setTags] = useState<any[]>([]);
+  const [categories, setCategories] = useState<CategoryNode[]>([]);
+  const [tags, setTags] = useState<TagItem[]>([]);
   const [requestModalVisible, setRequestModalVisible] = useState(false);
   const [requestLoading, setRequestLoading] = useState(false);
   const [requestForm, setRequestForm] = useState<{ name: string; type: string; reason: string }>({
@@ -46,7 +48,7 @@ const Projects: React.FC = () => {
   });
 
   // 将分类树展平为 Select 选项（显示层级名称）
-  const flattenCategoryOptions = (nodes: any[], prefix = ''): { label: string; value: string }[] => {
+  const flattenCategoryOptions = (nodes: CategoryNode[], prefix = ''): { label: string; value: string }[] => {
     const opts: { label: string; value: string }[] = [];
     nodes.forEach(n => {
       const label = prefix ? `${prefix} > ${n.name}` : n.name;
@@ -131,8 +133,8 @@ const Projects: React.FC = () => {
       message.success('项目设置已更新');
       setEditModalVisible(false);
       fetchProjects(pagination.current, pagination.pageSize);
-    } catch (err: any) {
-      const msg = err?.response?.data?.detail || '更新失败';
+    } catch (err: unknown) {
+      const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '更新失败';
       message.error(msg);
     } finally {
       setEditLoading(false);
@@ -256,7 +258,7 @@ const Projects: React.FC = () => {
             style={{ width: 180 }}
             value={categoryFilter}
             onChange={(val) => setCategoryFilter(val)}
-            options={categories.map((c: any) => ({ label: c.name, value: c.id }))}
+            options={categories.map((c: CategoryNode) => ({ label: c.name, value: c.id }))}
           />
           <Select
             placeholder="标签筛选"
@@ -266,7 +268,7 @@ const Projects: React.FC = () => {
             style={{ minWidth: 200 }}
             value={tagFilter}
             onChange={(val) => setTagFilter(val || [])}
-            options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
+            options={tags.map((t: TagItem) => ({ label: t.name, value: t.id }))}
           />
           <Button
             type="link"
@@ -315,8 +317,8 @@ const Projects: React.FC = () => {
             // 刷新分类/标签列表
             import('../../api/categories').then(m => m.getCategories().then(r => setCategories(r.data)));
             import('../../api/tags').then(m => m.getTags().then(r => setTags(r.data)));
-          } catch (err: any) {
-            const msg = err?.response?.data?.detail || '提交失败';
+          } catch (err: unknown) {
+            const msg = (err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || '提交失败';
             message.error(msg);
           } finally {
             setRequestLoading(false);
@@ -397,7 +399,7 @@ const Projects: React.FC = () => {
               placeholder="选择标签（可多选）"
               value={editForm.tag_ids}
               onChange={(val) => setEditForm(f => ({ ...f, tag_ids: val }))}
-              options={tags.map((t: any) => ({ label: t.name, value: t.id }))}
+              options={tags.map((t: TagItem) => ({ label: t.name, value: t.id }))}
               style={{ width: '100%' }}
             />
           </div>

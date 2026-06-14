@@ -16,6 +16,24 @@ let failedQueue: Array<{
   reject: (reason: unknown) => void;
 }> = [];
 
+// 错误去重：相同消息 3 秒内只提示一次
+const _recentErrors = new Map<string, number>();
+const ERROR_DEDUP_MS = 3000;
+
+function _showError(msg: string) {
+  const now = Date.now();
+  const last = _recentErrors.get(msg);
+  if (last && now - last < ERROR_DEDUP_MS) return;
+  _recentErrors.set(msg, now);
+  // 定期清理过期条目
+  if (_recentErrors.size > 50) {
+    for (const [k, t] of _recentErrors) {
+      if (now - t > ERROR_DEDUP_MS) _recentErrors.delete(k);
+    }
+  }
+  message.error(msg);
+}
+
 const processQueue = (error: unknown) => {
   failedQueue.forEach(({ resolve, reject }) => {
     if (error) {
@@ -40,7 +58,7 @@ apiClient.interceptors.response.use(
         originalRequest.url?.includes('/auth/send-code')
       ) {
         const msg = error.response?.data?.detail || error.message || '请求失败';
-        message.error(msg);
+        _showError(msg);
         return Promise.reject(error);
       }
 
@@ -76,7 +94,7 @@ apiClient.interceptors.response.use(
       error.message ||
       '请求失败';
     if (error.response?.status !== 401) {
-      message.error(msg);
+      _showError(msg);
     }
     return Promise.reject(error);
   }

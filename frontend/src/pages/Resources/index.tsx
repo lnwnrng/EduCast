@@ -66,6 +66,7 @@ const Resources: React.FC = () => {
     try {
       const resp = await getResources({
         resource_type: typeFilter,
+        search: search || undefined,
         page,
         page_size: pageSize,
       });
@@ -76,7 +77,7 @@ const Resources: React.FC = () => {
     } finally {
       setLoading(false);
     }
-  }, [typeFilter, page, pageSize]);
+  }, [typeFilter, search, page, pageSize]);
 
   useEffect(() => {
     fetchData();
@@ -92,9 +93,10 @@ const Resources: React.FC = () => {
     }
   };
 
-  const visible = items.filter((r) =>
-    search ? r.title.toLowerCase().includes(search.toLowerCase()) : true
-  );
+  const handleSearch = (value: string) => {
+    setSearch(value);
+    setPage(1);
+  };
 
   const columns = [
     {
@@ -178,19 +180,20 @@ const Resources: React.FC = () => {
             setPage(1);
           }}
         />
-        <Input
-          placeholder="按标题搜索（当前页）..."
+        <Input.Search
+          placeholder="按标题搜索..."
           prefix={<SearchOutlined />}
           style={{ width: 250 }}
           allowClear
           value={search}
           onChange={(e) => setSearch(e.target.value)}
+          onSearch={handleSearch}
         />
       </Space>
 
       <Table
         columns={columns}
-        dataSource={visible}
+        dataSource={items}
         rowKey="id"
         loading={loading}
         pagination={{
