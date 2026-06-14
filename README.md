@@ -52,6 +52,8 @@ start.bat
 
 自动检测环境、安装依赖、创建数据库、启动前后端服务。
 
+> **注意**：首次启动前，请先完成下方 [环境配置](#环境配置) 步骤（复制 `.env` 并填写必要的 API Key）。
+
 ### 方式二：手动启动
 
 #### 环境要求
@@ -60,14 +62,100 @@ start.bat
 - Node.js 18+
 - FFmpeg（需加入系统 PATH）
 
-#### 1. 配置环境变量
+---
+
+## 环境配置
+
+### 配置文件层级
+
+| 文件 | 作用 | 是否提交 Git |
+|------|------|:---:|
+| `backend/.env` | 实际生效的环境变量（含密钥） | ❌ 已 gitignore |
+| `.env.example` | 环境变量模板（无真实密钥） | ✅ |
+| `backend/storage/_runtime_settings.json` | **Web 界面**动态保存的 API Key（优先于 .env） | ❌ |
+
+> **优先级**：Web 界面运行时设置 > `.env` 环境变量 > `config.py` 默认值
+
+### 第一步：创建 .env 文件
 
 ```bash
-cp .env.example .env
-# 编辑 .env 填入 API Key（至少配置 ZHIPU_API_KEY 以启用 LLM）
+copy .env.example backend\.env
 ```
 
-#### 2. 启动后端
+> `.env` 必须放在 `backend/` 目录下，与 `config.py` 同目录。`uvicorn` 启动时自动加载。
+
+### 第二步：配置必需的环境变量
+
+编辑 `backend/.env`，至少填写以下两项：
+
+```ini
+# ── 必填 ──
+JWT_SECRET_KEY=你生成的安全随机字符串
+ZHIPU_API_KEY=你的智谱API密钥
+```
+
+#### 生成 JWT_SECRET_KEY
+
+```bash
+python -c "import secrets; print(secrets.token_hex(32))"
+```
+
+将输出的 64 位十六进制字符串填入 `.env`。**不配置将导致系统拒绝启动。**
+
+#### 获取智谱 API Key
+
+在 [open.bigmodel.cn](https://open.bigmodel.cn) 注册，获取 API Key。GLM-4.7-Flash 为**免费**模型，用于 LLM 脚本编排和 CogVideoX 视频生成。
+
+### 全部环境变量参考
+
+| 分类 | 变量 | 说明 | 默认值 |
+|------|------|------|--------|
+| **必填** | `JWT_SECRET_KEY` | JWT 签名密钥（启动时不可为空） | — |
+| **LLM** | `ZHIPU_API_KEY` | 智谱 API 密钥（GLM-4.7-Flash 免费） | — |
+| **LLM** | `ZHIPU_MODEL` | 模型名称 | `glm-4.7-flash` |
+| **LLM** | `ZHIPU_BASE_URL` | API 地址 | `https://open.bigmodel.cn/api/paas/v4` |
+| **LLM** | `LLM_TIMEOUT` | LLM 请求超时（秒） | `60.0` |
+| **视频生成** | `COGVIDEO_API_KEY` | CogVideoX 密钥（留空则回退用 ZHIPU_API_KEY） | — |
+| **视频生成** | `COGVIDEO_MODEL` | 模型名称 | `cogvideox-flash` |
+| **视频生成** | `VIDEO_GEN_TIMEOUT` | 视频生成请求超时（秒） | `300.0` |
+| **视频生成** | `VIDEO_GEN_POLL_INTERVAL` | 轮询间隔（秒） | `5.0` |
+| **TTS** | `EDGE_TTS_VOICE` | Edge TTS 音色 | `zh-CN-XiaoxiaoNeural` |
+| **数字人** | `DIGITAL_HUMAN_API_KEY` | 数字人 API 密钥（不配则本地画中画兜底） | — |
+| **数字人** | `DIGITAL_HUMAN_AVATAR_NAME` | 兜底讲师姓名条文本 | `AI 讲师` |
+| **邮件** | `RESEND_API_KEY` | Resend 邮件 API 密钥（注册验证码） | — |
+| **邮件** | `EMAIL_FROM` | 发件人地址（需 Resend 验证域名） | `EduCast <noreply@yourdomain.com>` |
+| **邮件** | `VERIFICATION_CODE_EXPIRE_MINUTES` | 验证码有效期（分钟） | `10` |
+| **邮件** | `VERIFICATION_CODE_COOLDOWN_SECONDS` | 同邮箱重发冷却（秒） | `60` |
+| **邮件** | `VERIFICATION_CODE_MAX_ATTEMPTS` | 最大验证尝试次数 | `5` |
+| **数据库** | `DATABASE_URL` | 数据库连接串 | `sqlite+aiosqlite:///./educast.db` |
+| **存储** | `STORAGE_ROOT` | 文件存储根目录 | `./storage` |
+| **CORS** | `CORS_ORIGINS` | 允许的前端来源 | `["http://localhost:5173"]` |
+| **网络** | `HTTP_PROXY` | HTTP 代理地址（留空直连） | — |
+| **认证** | `JWT_ALGORITHM` | JWT 签名算法 | `HS256` |
+| **认证** | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期（分钟） | `15` |
+| **认证** | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期（天） | `7` |
+| **视频** | `VIDEO_WIDTH` / `VIDEO_HEIGHT` | 输出分辨率 | 1920×1080 |
+| **视频** | `VIDEO_FPS` | 输出帧率 | `30` |
+| **视频** | `FFMPEG_BIN` / `FFPROBE_BIN` | FFmpeg 可执行路径 | `ffmpeg` / `ffprobe` |
+| **水印** | `WATERMARK_TEXT` | 可见水印文本（留空用课程标题） | — |
+| **水印** | `WATERMARK_IMAGE_PATH` | 图片水印路径（可选） | — |
+| **水印** | `WATERMARK_OPACITY` | 水印透明度 0.0~1.0 | `0.3` |
+| **流水线** | `SKIP_REVIEW` | 跳过人工审核直出成片 | `false` |
+| **流水线** | `AI_FULL_GEN_DEFAULT` | AI 全自动生成模式 | `false` |
+| **流水线** | `SILENT_SCENE_DURATION` | 无声分镜兜底时长（秒） | `4.0` |
+| **成本** | `MAX_COST_PER_TASK` | 单任务最大成本（元） | `10.0` |
+| **成本** | `MAX_COST_PER_PROJECT` | 单项目最大成本（元） | `100.0` |
+| **成本** | `DIGITAL_HUMAN_COST_PER_SEC` | 数字人费率（元/秒） | `0.5` |
+| **成本** | `VIDEO_GEN_COST_PER_SEC` | 视频生成费率（元/秒） | `1.0` |
+| **字体** | `SLIDE_FONT_PATH` | 课件页渲染字体（留空自动探测） | — |
+
+完整模板见 [`.env.example`](.env.example)。
+
+---
+
+## 启动服务
+
+### 1. 启动后端
 
 ```bash
 cd backend
@@ -78,7 +166,7 @@ uvicorn app.main:app --reload --port 8000
 后端地址：http://localhost:8000  
 API 文档：http://localhost:8000/docs
 
-#### 3. 启动前端
+### 2. 启动前端
 
 ```bash
 cd frontend
@@ -90,10 +178,111 @@ npm run dev
 
 ### 默认管理员
 
-首次启动自动创建管理员账号：
+首次启动自动创建：
 
 - 用户名：`admin`
 - 密码：`admin123456`
+
+### 开发命令速查
+
+| 命令 | 说明 |
+|------|------|
+| `cd backend && uvicorn app.main:app --reload --port 8000` | 启动后端（热重载） |
+| `cd frontend && npm run dev` | 启动前端（热重载） |
+| `cd backend && pytest tests/ -v` | 运行后端测试 |
+| `cd frontend && npx tsc --noEmit` | TypeScript 类型检查 |
+| `cd backend && black backend/` | Python 代码格式化 |
+| `cd backend && ruff check backend/` | Python 代码检查 |
+| `cd frontend && npx eslint src/` | TypeScript 代码检查 |
+| `cd frontend && npx prettier --write src/` | TypeScript 代码格式化 |
+
+---
+
+## 运行时配置（Web 界面）
+
+管理员登录后，可通过 **「系统设置」→「API Key 配置」** 页面动态管理密钥，**无需重启服务**。
+
+### 功能一览
+
+| 功能 | 说明 |
+|------|------|
+| **查看配置状态** | 列表展示每个 Key 的已配置/未配置状态 |
+| **编辑 Key** | 填写或修改 API Key 值并保存 |
+| **连通性检测** | 对每个 Key 发起最小化 API 探测，实时验证是否有效 |
+| **运行时优先** | Web 界面保存的 Key 优先级高于 `.env` 文件 |
+
+### 可管理的配置项
+
+| 配置项 | 检测方式 | 说明 |
+|--------|----------|------|
+| 智谱 API Key | 发送 `max_tokens=10` 的聊天请求 | GLM-4.7-Flash + CogVideoX 通用 |
+| CogVideoX Key | 发送最小化视频生成请求 | 认证 + 模型权限验证 |
+| Resend 邮件 Key | 调用 GET /me 管理端点 | 受限 Key 也会正确识别 |
+| 数字人 API Key | 格式检查（≥8字符） | 无通用探测接口，生成时自动生效 |
+| 邮件发件人地址 | 格式校验（含 @） | 必须是 Resend 验证过的域名 |
+
+### 连通性检测结果解读
+
+| 结果 | HTTP 状态 | 含义 |
+|------|-----------|------|
+| ✅ 有效 | 200 | API 连通正常 |
+| ✅ 有效 | 400 / 422 | 认证通过（请求参数问题不影响 Key 有效性） |
+| ✅ 有效 | 429 | Key 有效，被 API 限流（等待 1-2 分钟后重试） |
+| ❌ 无效 | 401 | 认证失败，Key 错误或已过期 |
+| ❌ 无效 | 403 | 权限不足，Key 未开通对应服务 |
+| ⚠️ 网络错误 | 超时/连接失败 | 检查网络、代理、防火墙 |
+
+> 数据存储位置：`backend/storage/_runtime_settings.json`
+
+---
+
+## 特殊配置
+
+### 网络代理
+
+国内网络环境下，访问智谱 / Resend 等境外 API 可能需要代理。在 `.env` 中配置：
+
+```ini
+HTTP_PROXY=http://127.0.0.1:7890
+```
+
+- 支持 Clash (`7890`)、V2Ray (`10809`) 等常见代理工具
+- 留空则不使用代理，直接连接
+- 对所有外部 HTTP 请求生效（API 调用、邮件发送等）
+
+### SSL 证书验证
+
+生产环境使用完整的 SSL 证书校验。开发环境若遇到证书问题，**请配置正确的代理而非禁用 SSL**。
+
+### 认证配置
+
+| 场景 | 配置项 | 建议值 |
+|------|--------|--------|
+| 开发调试 | `ACCESS_TOKEN_EXPIRE_MINUTES` | 默认 15 分钟 |
+| 长期会话 | `REFRESH_TOKEN_EXPIRE_DAYS` | 默认 7 天 |
+| 演示模式 | `SKIP_REVIEW=true` | 跳过脚本审核自动生成 |
+| AI 全生成 | `AI_FULL_GEN_DEFAULT=true` | 所有分镜由 CogVideoX 生成 |
+
+### 成本护栏
+
+| 配置项 | 默认值 | 说明 |
+|--------|--------|------|
+| `MAX_COST_PER_TASK` | ¥10.00 | 单次生成任务上限 |
+| `MAX_COST_PER_PROJECT` | ¥100.00 | 单项目累计上限 |
+
+> 超限时系统拒绝提交，防止意外扣费。**优先使用免费档模型（GLM-4.7-Flash / CogVideoX-Flash）可零成本运行。**
+
+### Provider 降级链
+
+外部 API 失败时自动降级，保证视频仍可产出：
+
+```
+LLM:       智谱 GLM-4.7-Flash → 本地轻量规整
+TTS:       Edge TTS（免费）
+数字人:     外部 API → 本地画中画兜底
+视频生成:   CogVideoX → Placeholder
+公式动画:   manim → matplotlib 图片降级
+```
 
 ## 项目结构
 
@@ -166,54 +355,6 @@ EduCast/
 ├── .env.example                # 环境变量模板
 ├── start.bat                   # Windows 一键启动脚本
 └── AGENTS.md                   # AI 开发助手指引
-```
-
-## 环境变量说明
-
-| 分类 | 变量 | 说明 | 默认值 |
-|------|------|------|--------|
-| **数据库** | `DATABASE_URL` | 数据库连接串 | `sqlite+aiosqlite:///./educast.db` |
-| **LLM** | `ZHIPU_API_KEY` | 智谱 API 密钥 | — |
-| **LLM** | `ZHIPU_MODEL` | 模型名称 | `glm-4.7-flash` |
-| **视频生成** | `COGVIDEO_API_KEY` | CogVideoX 密钥 | 回退用 ZHIPU_API_KEY |
-| **TTS** | `EDGE_TTS_VOICE` | Edge TTS 音色 | `zh-CN-XiaoxiaoNeural` |
-| **邮件** | `RESEND_API_KEY` | Resend 邮件 API 密钥 | — |
-| **邮件** | `EMAIL_FROM` | 发件人地址 | — |
-| **视频** | `VIDEO_WIDTH` / `VIDEO_HEIGHT` | 输出分辨率 | 1920×1080 |
-| **水印** | `WATERMARK_TEXT` | 水印文本 | 课程标题 |
-| **水印** | `WATERMARK_IMAGE_PATH` | 图片水印路径 | — |
-| **认证** | `JWT_SECRET_KEY` | JWT 签名密钥 | 启动时必须配置 |
-| **认证** | `ACCESS_TOKEN_EXPIRE_MINUTES` | Access Token 有效期（分钟） | `15` |
-| **认证** | `REFRESH_TOKEN_EXPIRE_DAYS` | Refresh Token 有效期（天） | `7` |
-| **流水线** | `SKIP_REVIEW` | 跳过人工审核 | `false` |
-| **流水线** | `AI_FULL_GEN_DEFAULT` | AI 全自动生成模式 | `false` |
-| **成本** | `MAX_COST_PER_TASK` | 单任务最大成本（元） | `10.0` |
-
-完整配置见 [`.env.example`](.env.example)。
-
-## 开发命令
-
-| 命令 | 说明 |
-|------|------|
-| `uvicorn app.main:app --reload --port 8000` | 启动后端（热重载） |
-| `cd frontend && npm run dev` | 启动前端（热重载） |
-| `cd backend && pytest tests/ -v` | 运行后端测试 |
-| `cd frontend && npx tsc --noEmit` | TypeScript 类型检查 |
-| `black backend/` | Python 代码格式化 |
-| `ruff check backend/` | Python 代码检查 |
-| `cd frontend && npx eslint src/` | TypeScript 代码检查 |
-| `cd frontend && npx prettier --write src/` | TypeScript 代码格式化 |
-
-## Provider 适配层
-
-所有外部 API 通过统一的 Provider 接口调用，支持自动降级：
-
-```
-LLM:       智谱 GLM-4.7-Flash → 降级为本地轻量规整
-TTS:       Edge TTS（免费）
-数字人:     外部 API → 本地画中画兜底
-视频生成:   CogVideoX → Placeholder
-公式动画:   manim → matplotlib 图片降级
 ```
 
 ## 技术栈
