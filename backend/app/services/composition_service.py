@@ -11,6 +11,7 @@ FFmpeg 拼接为带字幕/章节/水印的 MP4，连同 SRT/VTT/封面/IR 打包
   app.utils.ffmpeg，单元测试通过 monkeypatch 脱离真实 FFmpeg 与网络。
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -47,6 +48,7 @@ from app.services.parser_service import ParserService
 from app.services.resource_service import ResourceService
 from app.utils import ffmpeg
 from app.utils.hash import compute_input_hash
+from app.utils.task_helpers import to_uuid as _to_uuid
 
 # 区分"构造参数未传入"与"显式传入 None（用于关闭某能力）"
 _UNSET = object()
@@ -246,7 +248,8 @@ class CompositionService:
 
             # ── 封面 ──
             cover_path = os.path.join(output_dir, f"gen{gen}_cover.png")
-            self._renderer.render_cover(
+            await asyncio.to_thread(
+                self._renderer.render_cover,
                 title=ir.title or "教学视频",
                 subject=ir.subject,
                 grade=ir.grade,
@@ -448,7 +451,8 @@ class CompositionService:
         scene = fs.scene
         image_path = os.path.join(workspace, f"scene_{index}.png")
         try:
-            self._renderer.render_scene(
+            await asyncio.to_thread(
+                self._renderer.render_scene,
                 title=fs.kp.title or "教学内容",
                 body_lines=_body_lines(scene, fs.kp),
                 subtitle="",
@@ -543,7 +547,8 @@ class CompositionService:
         scene = fs.scene
         try:
             bg = os.path.join(workspace, f"dh_bg_{index}.png")
-            self._renderer.render_scene(
+            await asyncio.to_thread(
+                self._renderer.render_scene,
                 title=fs.kp.title or "教学内容",
                 body_lines=_body_lines(scene, fs.kp),
                 subtitle="",
@@ -654,7 +659,8 @@ class CompositionService:
             else:
                 # 兜底：概念底图 Ken-Burns 运镜
                 bg = os.path.join(workspace, f"gen_bg_{index}.png")
-                self._renderer.render_scene(
+                await asyncio.to_thread(
+                    self._renderer.render_scene,
                     title=fs.kp.title or "概念演示",
                     body_lines=[f"画面：{prompt}"],
                     subtitle="",
@@ -967,10 +973,3 @@ def _bundle_zip(
             if os.path.exists(src):
                 zf.write(src, arcname=arc)
         zf.writestr("course_ir.json", ir.model_dump_json(indent=2))
-
-
-def _to_uuid(value: str) -> UUID | None:
-    try:
-        return UUID(value)
-    except (ValueError, AttributeError, TypeError):
-        return None

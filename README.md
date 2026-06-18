@@ -8,8 +8,9 @@
 
 | 模块 | 功能 |
 |------|------|
-| **文档解析** | 支持 PPTX / PDF / DOCX 上传，自动提取文本、备注、公式，生成课程脚本 IR |
-| **多视频模板** | 微课 / 慕课 / 实验课三种模板，不同配色、LLM 编排风格和分镜偏好 |
+| **文档解析** | 支持 PPTX / PDF / DOCX / MD / TXT 上传，自动提取文本、备注、公式，生成课程脚本 IR |
+| **批量上传** | 多文件同时上传或 ZIP 压缩包自动解压，每个文件创建独立项目 |
+| **多视频模板** | 微课 / 慕课 / 实验课三种模板 + 模板市场自定义模板 |
 | **LLM 脚本编排** | 智谱 GLM 自动润色旁白、拆分分镜、标注公式与生成式片段 |
 | **脚本编辑器** | 在线可视化编辑分镜脚本，实时预览旁白与画面 |
 | **知识图谱** | ECharts 力导向图可视化课程知识点关系，按章节着色 |
@@ -20,17 +21,23 @@
 | **生成式片段** | CogVideoX 视频生成，为抽象概念补充可视化画面 |
 | **视频水印** | FFmpeg drawtext 滤镜，成片右下角半透明文字水印 |
 | **版本对比** | 对比不同版本 IR 差异（知识点新增/删除/修改） |
+| **视频片段重生成** | 不满意某个分镜时，只重新生成该片段而非整段视频 |
+| **视频标注** | 时间线批注、知识点标记、颜色分类，方便学生跳转复习 |
+| **学情分析** | 任务历史、成本统计、资源汇总、标注统计看板 |
 | **FFmpeg 合成** | 并行生成后自动合成 MP4，含字幕、章节导航、水印 |
+| **实时进度推送** | WebSocket 实时推送任务进度，替代轮询机制 |
 | **用户系统** | 注册（邮箱验证码）、登录、JWT Token 轮换、角色权限 |
+| **安全加固** | JWT 启动校验、Logout 黑名单、全局限速、文件内容嗅探、全局 500 处理器 |
 | **管理后台** | 用户管理、审计日志、分类/标签管理、系统监控面板 |
 | **资源管理** | 视频资源入库、分类、标签、搜索、导出 |
+| **模板市场** | 浏览/创建/分享视频模板，自定义配色、字体、片头片尾 |
 
 ## 核心架构
 
 ```
 表现层: React + TypeScript + Vite + Ant Design
 应用层: FastAPI（Python 3.11+）
-编排层: 任务流水线 + 课程脚本 IR + Provider 适配层
+编排层: 任务流水线 + 课程脚本 IR + Provider 适配层 + WebSocket 实时推送
 能力层: LLM/TTS/数字人/视频生成（外部 API）+ FFmpeg/manim（本地）
 数据层: SQLite(毕设)/PostgreSQL + 本地文件系统
 ```
@@ -397,12 +404,15 @@ EduCast/
 │   │   ├── api/v1/             # API 路由
 │   │   │   ├── auth.py         # 注册、登录、验证码
 │   │   │   ├── projects.py     # 项目 CRUD
-│   │   │   ├── upload.py       # 文件上传 & 解析
+│   │   │   ├── upload.py       # 文件上传 & 解析 & 批量上传
 │   │   │   ├── scripts.py      # 脚本编辑 & LLM 编排
 │   │   │   ├── tasks.py        # 任务流水线
 │   │   │   ├── resources.py    # 资源管理
 │   │   │   ├── settings.py     # 运行时配置（API Key 管理）
 │   │   │   ├── monitoring.py   # 系统监控
+│   │   │   ├── annotations.py  # 视频标注 CRUD
+│   │   │   ├── templates.py    # 模板市场
+│   │   │   ├── websocket.py    # WebSocket 进度推送
 │   │   │   └── admin/          # 管理后台接口
 │   │   ├── services/           # 业务逻辑层
 │   │   │   ├── settings_service.py  # 运行时配置持久化（JSON 文件）
@@ -422,8 +432,8 @@ EduCast/
 │   │   │   ├── subtitles.py    # 字幕生成
 │   │   │   └── slide_raster.py # 幻灯片光栅化
 │   │   ├── ir/                 # 课程脚本 IR 定义 & 校验
-│   │   ├── middleware/         # 认证中间件
-│   │   └── utils/              # 工具函数 (FFmpeg, JSON, Hash)
+│   │   ├── middleware/         # 认证中间件 & 访问日志
+│   │   └── utils/              # 工具函数 (FFmpeg, JSON, Hash, TaskHelpers)
 │   ├── tests/                  # 后端测试
 │   ├── alembic/                # 数据库迁移
 │   ├── storage/                # 运行时文件存储
@@ -437,17 +447,20 @@ EduCast/
 │       │   ├── Register/       # 注册（邮箱验证码）
 │       │   ├── Dashboard/      # 仪表盘
 │       │   ├── Projects/       # 项目列表
-│       │   ├── Upload/         # 上传 & 解析
+│       │   ├── Upload/         # 上传 & 解析 & 批量上传
 │       │   ├── ScriptEditor/   # 脚本编辑器
 │       │   ├── Workspace/      # 工作空间
 │       │   ├── Preview/        # 视频预览
 │       │   ├── Resources/      # 资源管理
 │       │   ├── KnowledgeGraph/  # 知识图谱可视化
 │       │   ├── Assessment/     # 随堂测试
+│       │   ├── Analytics/      # 学情分析看板
+│       │   ├── TemplateMarket/ # 模板市场
 │       │   ├── Monitoring/     # 系统监控
 │       │   ├── Settings/       # 系统设置（API Key 配置）
 │       │   └── Admin/          # 管理后台
 │       ├── stores/             # Zustand 状态管理
+│       ├── hooks/              # 自定义 Hooks (WebSocket)
 │       ├── types/              # TypeScript 类型定义
 │       └── styles/             # 全局样式
 ├── .env.example                # 环境变量模板
@@ -460,9 +473,10 @@ EduCast/
 | 层级 | 技术 |
 |------|------|
 | 前端 | React 19, TypeScript, Vite, Ant Design, ECharts, Zustand, Axios |
-| 后端 | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic |
+| 后端 | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, slowapi |
 | 数据库 | SQLite（开发）/ PostgreSQL（生产） |
 | 认证 | JWT (python-jose), bcrypt, HttpOnly Cookie |
+| 实时通信 | WebSocket (原生) |
 | 文档解析 | python-pptx, PyMuPDF, pdfplumber, mammoth |
 | 视频合成 | FFmpeg, matplotlib, Pillow |
 | TTS | Edge TTS |
@@ -478,6 +492,7 @@ EduCast/
 | **P3** | 加深增强：评估出题、manim、管理后台 | ✅ |
 | **P4** | 功能增强：多模板、知识图谱、随堂测试、水印、版本对比 | ✅ |
 | **P5** | 用户系统、设置面板、管理后台增强、全面安全审计 | ✅ |
+| **P6** | 安全加固 + 功能扩展：批量上传、WebSocket、标注、模板市场、学情分析 | ✅ |
 
 ## License
 

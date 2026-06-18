@@ -9,6 +9,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.models.base import Base, BaseMixin
 
 if TYPE_CHECKING:
+    from app.models.annotation import Annotation
     from app.models.category import CourseCategory
     from app.models.resource import Resource
     from app.models.tag import Tag
@@ -44,3 +45,7 @@ class Project(BaseMixin, Base):
     )
     category: Mapped["CourseCategory | None"] = relationship(back_populates="projects")
     tags: Mapped[list["Tag"]] = relationship(secondary="project_tags")
+    annotations: Mapped[list["Annotation"]] = relationship(
+        back_populates="project",
+        cascade="all, delete-orphan",
+    )

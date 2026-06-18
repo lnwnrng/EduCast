@@ -23,17 +23,48 @@ logger = logging.getLogger(__name__)
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
+# ── Access Token 黑名单（进程内）────────────────────────────
+# 存储 (user_id, logout_time) 元组，用于在 logout 后拒绝旧的 access token。
+# JWT 过期后（15分钟）自动从黑名单移除。进程重启时清空，但此时旧 JWT 已失效。
+_access_token_blacklist: dict[str, datetime] = {}
+
+
+def revoke_user_tokens(user_id: str) -> None:
+    """将指定用户的所有当前 access token 加入黑名单（用于 logout）。"""
+    _access_token_blacklist[user_id] = datetime.now(UTC)
+
+
+def is_token_revoked(user_id: str, token_iat: datetime | None = None) -> bool:
+    """检查 access token 是否在黑名单中。
+
+    仅当用户已 logout 且 token 签发时间早于 logout 时间时才拒绝。
+    自动清理已过期的黑名单条目。
+    """
+    revoke_time = _access_token_blacklist.get(user_id)
+    if revoke_time is None:
+        return False
+
+    # 如果 token 签发时间在 revoke 时间之后，说明是新登录的 token，放行
+    if token_iat and token_iat > revoke_time:
+        return False
+
+    # 自动清理：如果 revoke 时间已超过 JWT 有效期，删除条目
+    if (datetime.now(UTC) - revoke_time).total_seconds() > settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60:
+        del _access_token_blacklist[user_id]
+        return False
+
+    return True
+
 
 def _hash_token(token: str) -> str:
     return hashlib.sha256(token.encode()).hexdigest()
 
 
 def _create_access_token(user_id: str) -> str:
-    expire = datetime.now(UTC) + timedelta(
-        minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES
-    )
+    now = datetime.now(UTC)
+    expire = now + timedelta(minutes=settings.ACCESS_TOKEN_EXPIRE_MINUTES)
     return jwt.encode(
-        {"sub": user_id, "exp": expire, "type": "access"},
+        {"sub": user_id, "exp": expire, "iat": int(now.timestamp()), "type": "access"},
         settings.JWT_SECRET_KEY,
         algorithm=settings.JWT_ALGORITHM,
     )
@@ -220,7 +251,7 @@ class AuthService:
 
     @staticmethod
     async def logout(db: AsyncSession, raw_refresh: str) -> None:
-        """登出：撤销 refresh token。"""
+        """登出：撤销 refresh token + 加入 access token 黑名单。"""
         token_hash = _hash_token(raw_refresh)
         result = await db.execute(
             select(RefreshToken).where(
@@ -231,6 +262,9 @@ class AuthService:
         token = result.scalar_one_or_none()
         if token:
             token.is_revoked = True
+            # 将该用户的所有当前 access token 加入黑名单
+            revoke_user_tokens(str(token.user_id))
+            logger.info("用户 %s 的 access token 已加入黑名单", token.user_id)
 
     @staticmethod
     async def get_current_user(

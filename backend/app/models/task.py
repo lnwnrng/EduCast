@@ -22,7 +22,7 @@ class Task(BaseMixin, Base):
     __tablename__ = "tasks"
 
     project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"),
+        ForeignKey("projects.id"), index=True,
     )
     task_type: Mapped[str] = mapped_column(String(50), default="full_pipeline")
     status: Mapped[str] = mapped_column(String(20), default="pending")

@@ -4,6 +4,7 @@ import {
   Button,
   Card,
   Descriptions,
+  List,
   Progress,
   Result,
   Segmented,
@@ -21,6 +22,7 @@ import {
   EditOutlined,
   ExperimentOutlined,
   FileTextOutlined,
+  FileZipOutlined,
   InboxOutlined,
   LoadingOutlined,
   PlayCircleOutlined,
@@ -28,7 +30,7 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
-import { uploadDocument } from '../../api/upload';
+import { uploadDocument, uploadBatch } from '../../api/upload';
 import { getTask } from '../../api/tasks';
 import { getScript, type ScriptResponse } from '../../api/scripts';
 import type { Task, TaskStatus } from '../../types/task';
@@ -56,6 +58,7 @@ const FILE_TYPES = [
   { ext: '.md', label: 'Markdown', color: 'blue' },
   { ext: '.txt', label: '纯文本', color: 'default' },
   { ext: '.docx', label: 'Word', color: 'geekblue' },
+  { ext: '.zip', label: 'ZIP 压缩包', color: 'green' },
 ];
 
 /** 视频模板选项 */
@@ -88,11 +91,18 @@ const UploadPage: React.FC = () => {
   const [currentStep, setCurrentStep] = useState(0);
   const [uploading, setUploading] = useState(false);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('micro_lecture');
+  const [uploadMode, setUploadMode] = useState<string>('single');
   const [uploadedFile, setUploadedFile] = useState<{
     name: string;
     size: number;
     type: string;
   } | null>(null);
+  const [batchResults, setBatchResults] = useState<Array<{
+    project_id: string;
+    task_id: string;
+    filename: string;
+    file_type: string;
+  }> | null>(null);
 
   // 上传结果
   const [projectId, setProjectId] = useState<string | null>(
@@ -234,6 +244,29 @@ const UploadPage: React.FC = () => {
     [startPolling, selectedTemplate]
   );
 
+  // ── 批量上传 ──────────────────────────────────────────
+  const handleBatchUpload = useCallback(
+    async (files: File[]) => {
+      setUploading(true);
+      setErrorMessage(null);
+
+      try {
+        const resp = await uploadBatch(files, selectedTemplate);
+        const data = resp.data.data;
+        setBatchResults(data.items);
+        message.success(`批量上传成功，共创建 ${data.total} 个项目`);
+        setCurrentStep(2);
+      } catch (err: unknown) {
+        const errMsg = err instanceof Error ? err.message : '批量上传失败，请重试';
+        setErrorMessage(errMsg);
+        message.error(errMsg);
+      } finally {
+        setUploading(false);
+      }
+    },
+    [selectedTemplate]
+  );
+
   // ── 跳转到脚本编辑器 ─────────────────────────────────
   const goToScriptEditor = useCallback(() => {
     if (projectId) {
@@ -250,6 +283,7 @@ const UploadPage: React.FC = () => {
     setTaskProgress(0);
     setErrorMessage(null);
     setParsedIR(null);
+    setBatchResults(null);
     if (pollingRef.current) {
       clearInterval(pollingRef.current);
       pollingRef.current = null;
@@ -329,6 +363,22 @@ const UploadPage: React.FC = () => {
         <Card>
           <div style={{ marginBottom: 24 }}>
             <Text strong style={{ display: 'block', marginBottom: 12 }}>
+              上传模式
+            </Text>
+            <Segmented
+              block
+              value={uploadMode}
+              onChange={(val) => setUploadMode(val as string)}
+              disabled={uploading}
+              options={[
+                { value: 'single', label: '单文件上传' },
+                { value: 'batch', label: '批量上传 / ZIP' },
+              ]}
+            />
+          </div>
+
+          <div style={{ marginBottom: 24 }}>
+            <Text strong style={{ display: 'block', marginBottom: 12 }}>
               选择视频模板
             </Text>
             <Segmented
@@ -349,37 +399,79 @@ const UploadPage: React.FC = () => {
             />
           </div>
 
-          <Dragger
-            name="file"
-            multiple={false}
-            accept=".pptx,.pdf,.docx,.md,.txt"
-            showUploadList={false}
-            disabled={uploading}
-            beforeUpload={(file) => {
-              handleUpload(file);
-              return false;
-            }}
-          >
-            <p className="ant-upload-drag-icon">
-              {uploading ? (
-                <LoadingOutlined style={{ fontSize: 48, color: '#1890ff' }} />
-              ) : (
-                <InboxOutlined style={{ fontSize: 48 }} />
-              )}
-            </p>
-            <p className="ant-upload-text">
-              {uploading ? '正在上传...' : '点击或拖拽文件到此区域上传'}
-            </p>
-            <div className="ant-upload-hint">
-              <Space wrap style={{ marginTop: 8 }}>
-                {FILE_TYPES.map((ft) => (
-                  <Tag key={ft.ext} color={ft.color}>
-                    {ft.label} ({ft.ext})
-                  </Tag>
-                ))}
-              </Space>
-            </div>
-          </Dragger>
+          {uploadMode === 'single' ? (
+            <Dragger
+              name="file"
+              multiple={false}
+              accept=".pptx,.pdf,.docx,.md,.txt"
+              showUploadList={false}
+              disabled={uploading}
+              beforeUpload={(file) => {
+                handleUpload(file);
+                return false;
+              }}
+            >
+              <p className="ant-upload-drag-icon">
+                {uploading ? (
+                  <LoadingOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+                ) : (
+                  <InboxOutlined style={{ fontSize: 48 }} />
+                )}
+              </p>
+              <p className="ant-upload-text">
+                {uploading ? '正在上传...' : '点击或拖拽文件到此区域上传'}
+              </p>
+              <div className="ant-upload-hint">
+                <Space wrap style={{ marginTop: 8 }}>
+                  {FILE_TYPES.filter(ft => ft.ext !== '.zip').map((ft) => (
+                    <Tag key={ft.ext} color={ft.color}>
+                      {ft.label} ({ft.ext})
+                    </Tag>
+                  ))}
+                </Space>
+              </div>
+            </Dragger>
+          ) : (
+            <Dragger
+              name="files"
+              multiple
+              accept=".pptx,.pdf,.docx,.md,.txt,.zip"
+              showUploadList
+              disabled={uploading}
+              fileList={[]}
+              beforeUpload={(file, fileList) => {
+                // 收集所有文件后一次性批量上传
+                const allFiles = fileList as File[];
+                if (allFiles.length > 0) {
+                  handleBatchUpload(allFiles);
+                }
+                return false;
+              }}
+            >
+              <p className="ant-upload-drag-icon">
+                {uploading ? (
+                  <LoadingOutlined style={{ fontSize: 48, color: '#1890ff' }} />
+                ) : (
+                  <FileZipOutlined style={{ fontSize: 48 }} />
+                )}
+              </p>
+              <p className="ant-upload-text">
+                {uploading ? '正在批量上传...' : '点击或拖拽多个文件 / ZIP 压缩包到此区域'}
+              </p>
+              <div className="ant-upload-hint">
+                <Space wrap style={{ marginTop: 8 }}>
+                  {FILE_TYPES.map((ft) => (
+                    <Tag key={ft.ext} color={ft.color}>
+                      {ft.label} ({ft.ext})
+                    </Tag>
+                  ))}
+                </Space>
+                <p style={{ color: '#888', marginTop: 8, fontSize: 12 }}>
+                  支持同时上传多个课件文件，或上传 ZIP 压缩包自动解压
+                </p>
+              </div>
+            </Dragger>
+          )}
         </Card>
       )}
 
@@ -434,6 +526,43 @@ const UploadPage: React.FC = () => {
       {/* ── Step 2: 校对结果 ─────────────────────────── */}
       {currentStep === 2 && (
         <div>
+          {/* 批量上传结果列表 */}
+          {batchResults && (
+            <Card title={`批量上传结果 (${batchResults.length} 个项目)`} style={{ marginBottom: 16 }}>
+              <List
+                dataSource={batchResults}
+                renderItem={(item) => (
+                  <List.Item
+                    actions={[
+                      <Button
+                        key="view"
+                        type="link"
+                        onClick={() => navigate(`/projects/${item.project_id}/script`)}
+                      >
+                        查看脚本
+                      </Button>,
+                    ]}
+                  >
+                    <List.Item.Meta
+                      title={item.filename}
+                      description={
+                        <Space>
+                          <Tag color="blue">{item.file_type}</Tag>
+                          <Text type="secondary">项目 ID: {item.project_id.slice(0, 8)}...</Text>
+                        </Space>
+                      }
+                    />
+                  </List.Item>
+                )}
+              />
+              <div style={{ textAlign: 'center', marginTop: 16 }}>
+                <Button type="primary" onClick={() => navigate('/projects')}>
+                  前往项目管理
+                </Button>
+              </div>
+            </Card>
+          )}
+
           {irLoading && !parsedIR ? (
             <Card>
               <div style={{ textAlign: 'center', padding: '40px 0' }}>

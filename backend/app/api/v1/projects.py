@@ -1,5 +1,6 @@
 """项目管理 API。"""
 
+import json
 from collections import defaultdict
 from uuid import UUID
 
@@ -8,7 +9,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db, get_settings
 from app.config import Settings
+from app.exceptions import ResourceNotFoundException, ValidationException
 from app.middleware.auth import get_current_user_from_cookie
+from app.models.project import Project
 from app.models.user import User
 from app.schemas.common import PaginatedResponse, SuccessResponse
 from app.schemas.project import (
@@ -63,6 +66,95 @@ async def list_projects(
         total=total,
         page=page,
         page_size=page_size,
+    )
+
+
+@router.get("/analytics", response_model=SuccessResponse)
+async def global_analytics(
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> SuccessResponse:
+    """全局学情分析 — 跨项目汇总统计。"""
+    from sqlalchemy import func, select
+
+    from app.models.resource import Resource
+    from app.models.task import Task
+
+    # 权限过滤: admin 看全部，普通用户只看自己的项目
+    project_filter = [Project.deleted_at.is_(None)]
+    if current_user.role != "admin":
+        project_filter.append(Project.user_id == current_user.id)
+
+    # 项目总数
+    project_count = (
+        await db.execute(select(func.count(Project.id)).where(*project_filter))
+    ).scalar() or 0
+
+    # 可见项目 ID 列表
+    visible_project_ids = (
+        await db.execute(select(Project.id).where(*project_filter))
+    ).scalars().all()
+
+    # 任务统计
+    task_stmt = (
+        select(Task)
+        .where(
+            Task.project_id.in_(visible_project_ids),
+            Task.deleted_at.is_(None),
+        )
+        .order_by(Task.created_at.desc())
+    )
+    tasks = (await db.execute(task_stmt)).scalars().all()
+
+    status_counts: dict[str, int] = {}
+    total_estimated = 0.0
+    total_actual = 0.0
+    for t in tasks:
+        status_counts[t.status] = status_counts.get(t.status, 0) + 1
+        total_estimated += t.estimated_cost
+        total_actual += t.actual_cost
+
+    # 资源统计
+    res_count = (
+        await db.execute(
+            select(func.count(Resource.id)).where(
+                Resource.project_id.in_(visible_project_ids),
+                Resource.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
+
+    video_count = (
+        await db.execute(
+            select(func.count(Resource.id)).where(
+                Resource.project_id.in_(visible_project_ids),
+                Resource.resource_type == "video",
+                Resource.deleted_at.is_(None),
+            )
+        )
+    ).scalar() or 0
+
+    return SuccessResponse(
+        message="全局学情分析数据",
+        data={
+            "project_count": project_count,
+            "task_count": len(tasks),
+            "status_counts": status_counts,
+            "total_estimated_cost": round(total_estimated, 4),
+            "total_actual_cost": round(total_actual, 4),
+            "resource_count": res_count,
+            "video_count": video_count,
+            "recent_tasks": [
+                {
+                    "id": str(t.id),
+                    "task_type": t.task_type,
+                    "status": t.status,
+                    "progress": t.progress,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                }
+                for t in tasks[:10]
+            ],
+        },
     )
 
 
@@ -268,3 +360,153 @@ async def compare_versions(
         "modified": modified,
         "summary": f"新增 {len(added)} 个、删除 {len(removed)} 个、修改 {len(modified)} 个知识点",
     }
+
+
+# ── 视频片段重新生成 ──────────────────────────────────────
+
+
+@router.post("/{project_id}/regenerate-scene", response_model=SuccessResponse)
+async def regenerate_scene(
+    project_id: UUID,
+    scene_id: str = Query(..., description="要重新生成的分镜 ID"),
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> SuccessResponse:
+    """重新生成指定分镜的视频片段。
+
+    只重新渲染指定分镜的音频 + 画面，然后重新合成该分镜对应的视频片段，
+    不影响其他分镜。合成后更新最终视频的对应时间段。
+    """
+    project = await db.get(Project, project_id)
+    if not project:
+        raise ResourceNotFoundException("项目不存在")
+    _check_project_access(project, current_user)
+
+    if project.status not in ("completed", "failed"):
+        raise ValidationException("只能在已完成或失败的项目上重新生成分镜")
+
+    # 加载 IR 并检查 scene_id 是否存在
+    ir = await ParserService().load_ir(str(project_id))
+    if ir is None:
+        raise ResourceNotFoundException("未找到 IR 草稿")
+
+    scene_exists = any(
+        scene.scene_id == scene_id
+        for chapter in ir.chapters
+        for kp in chapter.knowledge_points
+        for scene in kp.scenes
+    )
+
+    if not scene_exists:
+        raise ResourceNotFoundException(f"分镜 {scene_id} 不存在")
+
+    # 创建重新生成任务
+    from app.models.task import Task
+
+    task = Task(
+        project_id=project_id,
+        task_type="scene_regenerate",
+        status="pending",
+        config_json=json.dumps({"scene_id": scene_id}),
+    )
+    db.add(task)
+    await db.flush()
+    await db.refresh(task)
+    project.status = "generating"
+    await db.commit()
+
+    return SuccessResponse(
+        message=f"分镜 {scene_id} 重新生成任务已创建",
+        data={"task_id": str(task.id), "scene_id": scene_id},
+    )
+
+
+# ── 学情分析看板 ────────────────────────────────────────────
+
+
+@router.get("/{project_id}/analytics", response_model=SuccessResponse)
+async def project_analytics(
+    project_id: UUID,
+    db: AsyncSession = Depends(get_db),
+    current_user: User = Depends(get_current_user_from_cookie),
+) -> SuccessResponse:
+    """项目学情分析看板 — 任务历史、成本汇总、资源统计。"""
+    from sqlalchemy import func, select
+
+    from app.models.annotation import Annotation
+    from app.models.resource import Resource
+    from app.models.task import Task
+
+    project = await db.get(Project, project_id)
+    if not project:
+        raise ResourceNotFoundException("项目不存在")
+    _check_project_access(project, current_user)
+
+    # 任务统计（过滤软删除任务）
+    task_stmt = (
+        select(Task)
+        .where(
+            Task.project_id == project_id,
+            Task.deleted_at.is_(None),
+        )
+        .order_by(Task.created_at.desc())
+    )
+    tasks_result = await db.execute(task_stmt)
+    tasks = tasks_result.scalars().all()
+
+    status_counts: dict[str, int] = {}
+    total_estimated = 0.0
+    total_actual = 0.0
+    for t in tasks:
+        status_counts[t.status] = status_counts.get(t.status, 0) + 1
+        total_estimated += t.estimated_cost
+        total_actual += t.actual_cost
+
+    # 资源统计
+    res_stmt = select(
+        func.count(Resource.id),
+        func.coalesce(func.sum(Resource.file_size), 0),
+    ).where(
+        Resource.project_id == project_id,
+        Resource.deleted_at.is_(None),
+    )
+    res_count, storage_bytes = (await db.execute(res_stmt)).one()
+
+    video_stmt = select(func.count(Resource.id)).where(
+        Resource.project_id == project_id,
+        Resource.resource_type == "video",
+        Resource.deleted_at.is_(None),
+    )
+    video_count = (await db.execute(video_stmt)).scalar() or 0
+
+    # 标注统计
+    ann_stmt = select(func.count(Annotation.id)).where(
+        Annotation.project_id == project_id,
+        Annotation.deleted_at.is_(None),
+    )
+    annotation_count = (await db.execute(ann_stmt)).scalar() or 0
+
+    return SuccessResponse(
+        message="学情分析数据",
+        data={
+            "project_id": str(project_id),
+            "task_count": len(tasks),
+            "status_counts": status_counts,
+            "total_estimated_cost": round(total_estimated, 4),
+            "total_actual_cost": round(total_actual, 4),
+            "resource_count": res_count,
+            "video_count": video_count,
+            "storage_bytes": storage_bytes,
+            "annotation_count": annotation_count,
+            "recent_tasks": [
+                {
+                    "id": str(t.id),
+                    "task_type": t.task_type,
+                    "status": t.status,
+                    "progress": t.progress,
+                    "created_at": t.created_at.isoformat() if t.created_at else None,
+                }
+                for t in tasks[:10]
+            ],
+        },
+    )

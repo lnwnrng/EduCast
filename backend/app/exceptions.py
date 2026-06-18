@@ -1,7 +1,11 @@
 """自定义异常类与全局异常处理器。"""
 
+import logging
+
 from fastapi import FastAPI, Request
 from fastapi.responses import JSONResponse
+
+logger = logging.getLogger(__name__)
 
 
 class EduCastException(Exception):
@@ -155,10 +159,36 @@ def register_exception_handlers(app: FastAPI) -> None:
         request: Request,
         exc: EduCastException,
     ) -> JSONResponse:
+        # 4xx 记录 warning，5xx 记录 error
+        log_fn = logger.warning if exc.status_code < 500 else logger.error
+        log_fn(
+            "[EduCastException] %s %s → %d %s: %s",
+            request.method, request.url.path,
+            exc.status_code, exc.error_code, exc.message,
+        )
         return JSONResponse(
             status_code=exc.status_code,
             content={
                 "detail": exc.message,
                 "error_code": exc.error_code,
+            },
+        )
+
+    @app.exception_handler(Exception)
+    async def generic_exception_handler(
+        request: Request,
+        exc: Exception,
+    ) -> JSONResponse:
+        """全局 500 异常处理器 — 防止堆栈信息泄露。"""
+        logger.error(
+            "[未捕获异常] %s %s: %s",
+            request.method, request.url.path, exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=500,
+            content={
+                "detail": "服务器内部错误",
+                "error_code": "INTERNAL_ERROR",
             },
         )

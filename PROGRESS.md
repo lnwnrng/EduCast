@@ -151,3 +151,52 @@
 - [x] **测试夹具修复**：新增 `auth_client` fixture，修复 40 个失败测试（169 tests all passing）。
 - [x] **前端构建修复**：PageHeader 添加 onBack 支持，清理 7 处未使用 import，TypeScript 编译零错误。
 - [x] **配置文件更新**：`.env.example` 添加 JWT/水印/AI_FULL_GEN 变量，移除过时的 DEEPSEEK_API_KEY；`start.bat` 修复数据库初始化工作目录；`AGENTS.md` 硬编码路径改为相对路径。
+
+---
+
+## ✅ 已完成 (P6 安全加固与功能扩展阶段)
+
+### 安全加固与架构优化 ✅
+- [x] **JWT 密钥安全检查**：`main.py` lifespan 中强制校验 `JWT_SECRET_KEY`，空值拒绝启动。
+- [x] **Logout Token 黑名单**：`auth_service.py` 新增进程内黑名单 + `middleware/auth.py` 检查 `iat` 时间戳，logout 后立即拒绝旧 access token。
+- [x] **全局限速中间件**：集成 `slowapi`，默认 200 请求/分钟/IP，保护 auth 端点免受暴力攻击。
+- [x] **全局 500 异常处理器**：`exceptions.py` 捕获通用 Exception，防止堆栈信息泄露。
+- [x] **文件上传内容嗅探**：`upload.py` 添加 magic bytes 校验（PPTX/DOCX/PDF），防止扩展名伪造。
+- [x] **SQLite 外键约束**：`database.py` 连接时自动启用 `PRAGMA foreign_keys=ON`。
+- [x] **同步阻塞操作卸载**：`parser.py` 所有解析方法改为 sync + `asyncio.to_thread`；`composition_service.py` 渲染调用包裹 `to_thread`。
+- [x] **数据库索引优化**：`Task.project_id`、`Resource.project_id`、`RefreshToken.user_id` 添加 `index=True`。
+- [x] **代码去重**：新建 `utils/task_helpers.py`，提取 `to_uuid`、`update_task_status`、`update_project_status`，消除三个 Service 的重复代码。
+- [x] **httpx 连接池复用**：`zhipu.py` 模块级共享客户端（事件循环感知），避免每次调用重建 TCP 连接。
+- [x] **Provider 缓存 TTL**：`zhipu.py` 和 `edge_tts_provider.py` 添加 LRU 淘汰机制，防止内存泄漏。
+- [x] **asyncio.get_running_loop()**：`cogvideox.py` 替换已过时的 `asyncio.get_event_loop()`。
+- [x] **结构化日志中间件**：新建 `middleware/access_log.py`，记录每个请求的方法/路径/状态码/耗时。
+- [x] **290 tests all passing**，TypeScript 类型检查零错误。
+
+### 功能 1：批量课件上传 + ZIP 解压 ✅
+- [x] **后端 API**：`POST /upload/batch` 支持多文件上传和 ZIP 压缩包自动解压，每个文件创建独立项目。ZIP slip 攻击防护，`__MACOSX` 元数据过滤。
+- [x] **前端 UI**：Upload 页新增「单文件/批量」模式切换，支持拖拽多个文件或 ZIP 压缩包，批量结果列表展示。
+
+### 功能 2：实时进度 WebSocket 推送 ✅
+- [x] **后端 WebSocket**：`api/v1/websocket.py` 实现连接管理器 + `broadcast_progress()` 广播函数，端点 `WS /api/v1/ws/progress/{project_id}`。
+- [x] **自动广播集成**：`task_helpers.update_task_status` 内部自动调用 WebSocket 广播，任务状态变更实时推送。
+- [x] **前端 Hook**：`useProgressWebSocket.ts` 支持自动重连、心跳检测，可替代 2.5s 轮询。
+
+### 功能 3：视频片段重新生成 ✅
+- [x] **后端 API**：`POST /projects/{id}/regenerate-scene` 只重新生成指定分镜的音频 + 画面，不影响其他分镜。
+- [x] **前端集成**：API 调用集成到项目管理流程，支持选择分镜重新生成。
+
+### 功能 4：视频标注与时间线批注 ✅
+- [x] **数据模型**：`Annotation` 模型支持时间戳定位、文字批注、知识点关联、颜色标记。
+- [x] **CRUD API**：`api/v1/annotations.py` 完整增删改查 + 权限控制（只能修改/删除自己的标注，admin 除外）。
+- [x] **前端 API**：`annotations.ts` 封装标注相关接口。
+
+### 功能 5：学情分析看板 ✅
+- [x] **后端 API**：`GET /projects/{id}/analytics` 聚合任务历史、成本统计、资源/视频/标注数据。
+- [x] **前端页面**：`Analytics/index.tsx` 展示概览统计卡片、状态分布、成本对比、任务历史列表。
+- [x] **路由导航**：侧边栏新增「学情分析」菜单项。
+
+### 功能 6：模板市场与自定义模板 ✅
+- [x] **数据模型**：`VideoTemplate` 模型支持系统预设、用户自定义、公开分享、使用次数统计。
+- [x] **模板 API**：`api/v1/templates.py` 提供浏览/创建/更新/删除/使用统计，系统模板不可删除。
+- [x] **前端页面**：`TemplateMarket/index.tsx` 卡片网格展示，支持分类筛选和名称搜索。
+- [x] **路由导航**：侧边栏新增「模板市场」菜单项。

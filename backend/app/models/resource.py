@@ -21,7 +21,7 @@ class Resource(BaseMixin, Base):
     __tablename__ = "resources"
 
     project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"),
+        ForeignKey("projects.id"), index=True,
     )
     resource_type: Mapped[str] = mapped_column(String(50))
     title: Mapped[str] = mapped_column(String(255))
