@@ -20,6 +20,7 @@ from app.models.task import Task
 from app.pipeline.scriptwriter import ScriptWriter
 from app.providers.llm import get_llm_provider
 from app.services.parser_service import ParserService
+from app.utils.task_helpers import update_project_status, update_task_status
 
 logger = logging.getLogger(__name__)
 
@@ -47,7 +48,7 @@ class ScriptwriterService:
         current_ir = await self._parser_service.load_ir(project_id)
         if current_ir is None:
             logger.error("脚本编排找不到 IR: project=%s", project_id)
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status="failed",
@@ -58,15 +59,15 @@ class ScriptwriterService:
 
         try:
             # 2. 置编排中
-            await self._update_task(db, task_id, status="scripting", progress=50)
-            await self._update_project_status(db, project_id, "scripting")
+            await update_task_status(db, task_id, status="scripting", progress=50)
+            await update_project_status(db, project_id, "scripting")
 
             # 3. LLM 编排（进度 50 → 60）
             writer = ScriptWriter(get_llm_provider())
 
             async def _progress(done: int, total: int) -> None:
                 pct = 50 + int(10 * done / total) if total else 60
-                await self._update_task(db, task_id, status="scripting", progress=pct)
+                await update_task_status(db, task_id, status="scripting", progress=pct)
 
             enhanced = await writer.enhance_ir(current_ir, progress_cb=_progress)
 
@@ -78,14 +79,14 @@ class ScriptwriterService:
             )
 
             # 5. 推进到待审核
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status="reviewing",
                 progress=60,
                 ir_snapshot_path=ir_path,
             )
-            await self._update_project_status(db, project_id, "reviewing")
+            await update_project_status(db, project_id, "reviewing")
 
             logger.info(
                 "脚本编排完成: project=%s, version=v%d",
@@ -100,16 +101,16 @@ class ScriptwriterService:
                 exc,
                 exc_info=True,
             )
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status="failed",
                 progress=0,
                 error_message=f"脚本编排失败: {exc}",
             )
-            await self._update_project_status(db, project_id, "failed")
+            await update_project_status(db, project_id, "failed")
 
-    # ── 状态更新 ─────────────────────────────────────────────
+    # ── 状态更新（委托给共享工具函数）──────────────────────
 
     async def _update_task(
         self,
@@ -120,20 +121,12 @@ class ScriptwriterService:
         ir_snapshot_path: str | None = None,
         error_message: str | None = None,
     ) -> None:
-        """更新任务状态。"""
-        try:
-            pk = UUID(task_id)
-        except (ValueError, AttributeError):
-            return
-        task = await db.get(Task, pk)
-        if task:
-            task.status = status
-            task.progress = max(progress, 0)
-            if ir_snapshot_path is not None:
-                task.ir_snapshot_path = ir_snapshot_path
-            if error_message is not None:
-                task.error_message = error_message
-            await db.commit()
+        """更新任务状态（委托给共享 update_task_status）。"""
+        await update_task_status(
+            db, task_id, status, progress,
+            ir_snapshot_path=ir_snapshot_path,
+            error_message=error_message,
+        )
 
     async def _update_project_status(
         self,
@@ -141,12 +134,5 @@ class ScriptwriterService:
         project_id: str,
         status: str,
     ) -> None:
-        """更新项目状态。"""
-        try:
-            pk = UUID(project_id)
-        except (ValueError, AttributeError):
-            return
-        project = await db.get(Project, pk)
-        if project:
-            project.status = status
-            await db.commit()
+        """更新项目状态（委托给共享 update_project_status）。"""
+        await update_project_status(db, project_id, status)

@@ -21,6 +21,7 @@ from app.ir.validator import validate_ir
 from app.models.project import Project
 from app.models.task import Task
 from app.pipeline.parser import DocumentParser
+from app.utils.task_helpers import update_project_status, update_task_status
 
 logger = logging.getLogger(__name__)
 
@@ -63,8 +64,8 @@ class ParserService:
             生成的 CourseIR
         """
         try:
-            # 1. 更新任务状态 → parsing
-            await self._update_task(db, task_id, status="parsing", progress=10)
+            # 6. 更新任务状态 → parsing
+            await update_task_status(db, task_id, status="parsing", progress=10)
 
             # 2. 调用解析器
             logger.info(
@@ -90,7 +91,7 @@ class ParserService:
             ir_path = await self.save_ir(ir, project_id, version=1)
 
             # 6. 更新任务
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status=advance_status,
@@ -99,7 +100,7 @@ class ParserService:
             )
 
             # 7. 更新项目状态
-            await self._update_project_status(db, project_id, status=advance_status)
+            await update_project_status(db, project_id, status=advance_status)
 
             logger.info(
                 "解析完成: project=%s, ir_path=%s",
@@ -109,14 +110,14 @@ class ParserService:
             return ir
 
         except ParseException:
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status="failed",
                 progress=0,
                 error_message="文档解析失败",
             )
-            await self._update_project_status(db, project_id, status="failed")
+            await update_project_status(db, project_id, status="failed")
             raise
 
         except Exception as exc:
@@ -126,14 +127,14 @@ class ParserService:
                 exc,
                 exc_info=True,
             )
-            await self._update_task(
+            await update_task_status(
                 db,
                 task_id,
                 status="failed",
                 progress=0,
                 error_message=str(exc),
             )
-            await self._update_project_status(db, project_id, status="failed")
+            await update_project_status(db, project_id, status="failed")
             raise ParseException(f"解析失败: {exc}") from exc
 
     async def save_ir(
@@ -209,43 +210,3 @@ class ParserService:
 
         versions.sort(key=lambda x: x[0], reverse=True)
         return versions[0][1]
-
-    async def _update_task(
-        self,
-        db: AsyncSession,
-        task_id: str,
-        status: str,
-        progress: int,
-        ir_snapshot_path: str | None = None,
-        error_message: str | None = None,
-    ) -> None:
-        """更新任务状态。"""
-        try:
-            pk = UUID(task_id)
-        except (ValueError, AttributeError):
-            return
-        task = await db.get(Task, pk)
-        if task:
-            task.status = status
-            task.progress = max(progress, 0)
-            if ir_snapshot_path is not None:
-                task.ir_snapshot_path = ir_snapshot_path
-            if error_message is not None:
-                task.error_message = error_message
-            await db.commit()
-
-    async def _update_project_status(
-        self,
-        db: AsyncSession,
-        project_id: str,
-        status: str,
-    ) -> None:
-        """更新项目状态。"""
-        try:
-            pk = UUID(project_id)
-        except (ValueError, AttributeError):
-            return
-        project = await db.get(Project, pk)
-        if project:
-            project.status = status
-            await db.commit()

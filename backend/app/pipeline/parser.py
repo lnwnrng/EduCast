@@ -8,6 +8,7 @@
   3. 教学层: 生成初步分镜（slide → scene 映射）
 """
 
+import asyncio
 import logging
 import os
 import re
@@ -110,7 +111,8 @@ class DocumentParser:
             raise ParseException(f"文件不存在: {file_path}")
 
         try:
-            ir = await parser(file_path, project_id)
+            # 将同步阻塞的解析操作卸载到线程池，避免阻塞事件循环
+            ir = await asyncio.to_thread(parser, file_path, project_id)
         except ParseException:
             raise
         except Exception as exc:
@@ -127,7 +129,7 @@ class DocumentParser:
 
     # ── PPTX 解析 ────────────────────────────────────────
 
-    async def _parse_pptx(
+    def _parse_pptx(
         self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 PPTX 文件。
@@ -250,7 +252,7 @@ class DocumentParser:
 
     # ── PDF 解析 ─────────────────────────────────────────
 
-    async def _parse_pdf(
+    def _parse_pdf(
         self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 PDF 文件。
@@ -369,7 +371,7 @@ class DocumentParser:
 
     # ── DOCX 解析 ────────────────────────────────────────
 
-    async def _parse_docx(
+    def _parse_docx(
         self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 DOCX 文件。
@@ -393,7 +395,7 @@ class DocumentParser:
 
     # ── Markdown 解析 ────────────────────────────────────
 
-    async def _parse_markdown(
+    def _parse_markdown(
         self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析 Markdown 文件。
@@ -415,7 +417,7 @@ class DocumentParser:
 
     # ── 纯文本解析 ───────────────────────────────────────
 
-    async def _parse_text(
+    def _parse_text(
         self, file_path: str, project_id: str | None = None
     ) -> CourseIR:
         """解析纯文本文件。

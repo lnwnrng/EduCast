@@ -128,7 +128,7 @@ class CogVideoXProvider(BaseProvider):
 
     async def get_result(self, task_id: str) -> ProviderResult:
         """轮询至终态（带超时）。"""
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         deadline = loop.time() + self._timeout
         while True:
             result = await self.poll(task_id)

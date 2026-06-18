@@ -1,17 +1,22 @@
 """课影 EduCast — FastAPI 应用入口。"""
 
+import logging
 import os
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from passlib.context import CryptContext
 from sqlalchemy import select
 
 from app.config import settings
 from app.database import init_db
 from app.exceptions import register_exception_handlers
+
+logger = logging.getLogger(__name__)
+
+# 全局共享的密码哈希上下文（供 auth_service 和 main 统一使用）
+from passlib.context import CryptContext  # noqa: E402
 
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
@@ -144,6 +149,14 @@ async def _migrate_add_template_column() -> None:
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
     # ── 启动 ─────────────────────────────────────────────
+    # P0: JWT 密钥安全检查 — 空值或默认值时拒绝启动
+    if not settings.JWT_SECRET_KEY or settings.JWT_SECRET_KEY == "":
+        raise RuntimeError(
+            "安全配置错误: JWT_SECRET_KEY 未设置。"
+            "请在 .env 文件中配置一个强随机密钥后再启动。"
+        )
+    logger.info("JWT_SECRET_KEY 已配置，长度=%d", len(settings.JWT_SECRET_KEY))
+
     await init_db()
     await _migrate_add_email_column()
     await _migrate_add_display_id_column()
@@ -169,6 +182,27 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+# ── 全局限速中间件 ─────────────────────────────────────────
+try:
+    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from slowapi.util import get_remote_address
+    from slowapi.middleware import SlowAPIMiddleware
+
+    limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
+    app.state.limiter = limiter
+    app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)  # type: ignore[arg-type]
+    app.add_middleware(SlowAPIMiddleware)
+    logger.info("全局限速已启用: 200 请求/分钟/IP")
+except ImportError:
+    logger.warning("slowapi 未安装，跳过全局限速 (pip install slowapi)")
+    limiter = None  # type: ignore[assignment]
+
+# ── 请求级结构化日志中间件 ─────────────────────────────────
+from app.middleware.access_log import AccessLogMiddleware  # noqa: E402
+
+app.add_middleware(AccessLogMiddleware)
 
 # ── 异常处理器 ───────────────────────────────────────────
 register_exception_handlers(app)

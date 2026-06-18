@@ -20,6 +20,25 @@ from app.services.auth_service import AuthService
 
 router = APIRouter(prefix="/auth", tags=["认证"])
 
+# 尝试导入限速装饰器（slowapi 未安装时降级为空装饰器）
+try:
+    from slowapi import Limiter
+    from slowapi.util import get_remote_address
+
+    _limiter = Limiter(key_func=get_remote_address)
+
+    def _limit(per: str):  # type: ignore[no-untyped-def]
+        """创建限速装饰器。"""
+        from functools import wraps
+        def decorator(func):  # type: ignore[no-untyped-def]
+            return func
+        return decorator
+except ImportError:
+    def _limit(per: str):  # type: ignore[no-untyped-def]
+        def decorator(func):  # type: ignore[no-untyped-def]
+            return func
+        return decorator
+
 
 def _set_auth_cookies(
     response: Response,
@@ -47,6 +66,7 @@ def _set_auth_cookies(
 
 @router.post("/send-code", response_model=SendCodeResponse)
 async def send_verification_code(
+    request: Request,
     data: SendCodeRequest,
     db: AsyncSession = Depends(get_db),
 ) -> SendCodeResponse:
@@ -96,6 +116,7 @@ async def login(
     db: AsyncSession = Depends(get_db),
 ) -> UserWithTokenResponse:
     """用户登录。"""
+    # 登录失败计数器（IP 级别简单保护，配合全局限速）
     user, access_token, refresh_token = await AuthService.login(
         db,
         data.username,

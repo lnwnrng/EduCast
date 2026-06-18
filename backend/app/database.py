@@ -1,5 +1,8 @@
 """异步数据库引擎与会话工厂。"""
 
+import logging
+
+from sqlalchemy import event
 from sqlalchemy.ext.asyncio import (
     AsyncSession,
     async_sessionmaker,
@@ -9,28 +12,30 @@ from sqlalchemy.ext.asyncio import (
 from app.config import settings
 from app.models.base import Base
 
+logger = logging.getLogger(__name__)
+
 engine = create_async_engine(
     settings.DATABASE_URL,
     echo=False,
     future=True,
 )
 
+
+# 启用 SQLite 外键约束（默认关闭，会导致关联删除/更新不生效）
+@event.listens_for(engine.sync_engine, "connect")
+def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-untyped-def]
+    """SQLite 连接时启用外键约束。"""
+    if "sqlite" in str(engine.url):
+        cursor = dbapi_connection.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+        logger.debug("已启用 SQLite 外键约束")
+
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,
     expire_on_commit=False,
 )
-
-
-async def get_session() -> AsyncSession:  # type: ignore[misc]
-    """FastAPI 依赖注入 — 获取异步数据库会话。"""
-    async with async_session_factory() as session:
-        try:
-            yield session  # type: ignore[misc]
-            await session.commit()
-        except Exception:
-            await session.rollback()
-            raise
 
 
 async def init_db() -> None:

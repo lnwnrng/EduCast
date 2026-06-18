@@ -7,10 +7,10 @@
 ```
 表现层: React + TypeScript + Vite + Ant Design
 应用层: FastAPI（Python 3.11+）
-编排层: 任务流水线 + 课程脚本 IR + Provider 适配层
+编排层: 任务流水线 + 课程脚本 IR + Provider 适配层 + WebSocket 实时推送
 能力层: LLM/TTS/数字人/视频生成（外部 API）+ FFmpeg/manim（本地）
 数据层: SQLite/PostgreSQL + 本地文件系统/MinIO
-模板系统: 微课/慕课/实验课三模板（配色+prompt风格+编排偏好）
+模板系统: 微课/慕课/实验课三模板（配色+prompt风格+编排偏好）+ 模板市场
 ```
 
 ### 核心数据流
@@ -32,6 +32,8 @@
 - **始终**: 外部 API 调用必须通过 Provider 适配层
 - **始终**: Pydantic Schema 中 UUID 字段使用 UUID 类型（非 str）
 - **始终**: SQLAlchemy 异步查询后返回对象前使用 selectinload 预加载关系
+- **始终**: 同步阻塞操作（文件解析、图片渲染）必须包裹 `asyncio.to_thread`
+- **始终**: 任务状态更新使用 `app.utils.task_helpers.update_task_status`（自带 WebSocket 广播）
 - **先问再做**: 修改 IR Schema、数据库 Schema、添加新依赖
 - **禁止**: 提交 API 密钥或 `.env` 文件
 - **禁止**: 在代码中硬编码 API 密钥
@@ -50,6 +52,8 @@
 - P2: 接生成能力（数字人 + 生成式片段）
 - P3: 加深增强（评估出题、manim、React 控制台）
 - P4: 功能增强（多视频模板、知识图谱可视化、随堂测试、视频水印、版本对比）
+- P5: 用户系统与设置面板
+- P6: 安全加固与功能扩展（批量上传、WebSocket、标注、模板市场、学情分析）
 
 ## 外部资源
 - 需求分析文档: [课影-需求分析文档.md](./课影-需求分析文档.md)

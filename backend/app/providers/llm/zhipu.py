@@ -20,6 +20,30 @@ from app.providers.base import BaseProvider, ProviderResult
 
 logger = logging.getLogger(__name__)
 
+# 模块级共享 httpx 连接池（避免每次调用重建 TCP 连接）
+_shared_client: httpx.AsyncClient | None = None
+_shared_client_loop: object | None = None
+
+
+def _get_httpx_client() -> httpx.AsyncClient:
+    """获取或创建共享 httpx 客户端（带连接池复用）。
+
+    跨事件循环自动重建（测试环境每个 test 可能有新 event loop）。
+    """
+    global _shared_client, _shared_client_loop  # noqa: PLW0603
+    import asyncio
+
+    current_loop = asyncio.get_running_loop()
+    if (
+        _shared_client is None
+        or _shared_client.is_closed
+        or _shared_client_loop is not current_loop
+    ):
+        proxy = settings.HTTP_PROXY.strip() or None
+        _shared_client = httpx.AsyncClient(timeout=60.0, proxy=proxy)
+        _shared_client_loop = current_loop
+    return _shared_client
+
 
 class ZhipuLLMProvider(BaseProvider):
     """智谱 GLM-4.7-Flash Provider。
@@ -39,8 +63,10 @@ class ZhipuLLMProvider(BaseProvider):
         self._model = model
         self._base_url = base_url.rstrip("/")
         self._timeout = timeout
-        # submit/get_result 之间缓存结果
+        # submit/get_result 之间缓存结果（带 TTL 淘汰，防止内存泄漏）
         self._results: dict[str, ProviderResult] = {}
+        self._results_order: list[str] = []
+        self._max_cache_size = 100  # 最多缓存 100 个结果
 
     @property
     def provider_name(self) -> str:
@@ -86,8 +112,8 @@ class ZhipuLLMProvider(BaseProvider):
         }
 
         proxy = settings.HTTP_PROXY.strip() or None
-        async with httpx.AsyncClient(timeout=self._timeout, proxy=proxy) as client:
-            resp = await client.post(url, json=payload, headers=headers)
+        client = _get_httpx_client()
+        resp = await client.post(url, json=payload, headers=headers)
 
         if resp.status_code != 200:
             raise RuntimeError(f"GLM API 返回 {resp.status_code}: {resp.text[:500]}")
@@ -124,8 +150,16 @@ class ZhipuLLMProvider(BaseProvider):
             response_format=request.get("response_format"),
             thinking_disabled=request.get("thinking_disabled", True),
         )
-        self._results[result.task_id] = result
+        self._cache_result(result)
         return result.task_id
+
+    def _cache_result(self, result: ProviderResult) -> None:
+        """缓存结果并淘汰超出上限的旧条目。"""
+        self._results[result.task_id] = result
+        self._results_order.append(result.task_id)
+        while len(self._results_order) > self._max_cache_size:
+            old_id = self._results_order.pop(0)
+            self._results.pop(old_id, None)
 
     async def poll(self, task_id: str) -> ProviderResult:
         """轮询任务状态（GLM 为同步调用，直接返回缓存结果）。"""

@@ -21,6 +21,7 @@ from app.providers.digital_human.placeholder import PlaceholderDigitalHumanProvi
 from app.providers.video_gen.placeholder import PlaceholderVideoGenProvider
 from app.schemas.cost import CostEstimate, CostSummary, DashboardStats
 from app.services.settings_service import get_effective_key
+from app.utils.task_helpers import to_uuid as _to_uuid
 
 logger = logging.getLogger(__name__)
 
@@ -203,10 +204,3 @@ async def _project_spent(db: AsyncSession, project_id: str) -> float:
         Task.project_id == pid
     )
     return float((await db.execute(stmt)).scalar() or 0.0)
-
-
-def _to_uuid(value: str) -> UUID | None:
-    try:
-        return UUID(value)
-    except (ValueError, AttributeError, TypeError):
-        return None

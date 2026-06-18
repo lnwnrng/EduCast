@@ -12,7 +12,10 @@ pytestmark = pytest.mark.asyncio
 
 
 def _patch_transport(monkeypatch, handler) -> None:
-    """把 zhipu 模块内的 httpx.AsyncClient 替换为带 MockTransport 的版本。"""
+    """把 zhipu 模块内的 httpx.AsyncClient 替换为带 MockTransport 的版本。
+
+    同时重置共享客户端，确保每个测试用新的 MockTransport。
+    """
     transport = httpx.MockTransport(handler)
     real_client = httpx.AsyncClient
 
@@ -22,6 +25,9 @@ def _patch_transport(monkeypatch, handler) -> None:
         return real_client(transport=transport, **kwargs)
 
     monkeypatch.setattr(zhipu_mod.httpx, "AsyncClient", make_client)
+    # 重置共享客户端，强制下一个调用用新的 MockTransport 创建
+    monkeypatch.setattr(zhipu_mod, "_shared_client", None)
+    monkeypatch.setattr(zhipu_mod, "_shared_client_loop", None)
 
 
 async def test_chat_builds_payload_and_parses(monkeypatch) -> None:

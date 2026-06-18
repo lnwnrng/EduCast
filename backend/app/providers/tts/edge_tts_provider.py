@@ -20,8 +20,10 @@ class EdgeTTSProvider(BaseProvider):
 
     def __init__(self, voice: str | None = None) -> None:
         self._voice = voice or settings.EDGE_TTS_VOICE
-        # submit / get_result 之间缓存结果
+        # submit / get_result 之间缓存结果（带 TTL 淘汰，防止内存泄漏）
         self._results: dict[str, ProviderResult] = {}
+        self._results_order: list[str] = []
+        self._max_cache_size = 200  # 最多缓存 200 个结果
 
     @property
     def provider_name(self) -> str:
@@ -56,12 +58,17 @@ class EdgeTTSProvider(BaseProvider):
         output_path = request["output_path"]
         await self.synthesize(text, output_path, voice=request.get("voice"))
         task_id = str(uuid.uuid4())
-        self._results[task_id] = ProviderResult(
+        result = ProviderResult(
             task_id=task_id,
             status="completed",
             result_url=output_path,
             cost=0.0,
         )
+        self._results[task_id] = result
+        self._results_order.append(task_id)
+        while len(self._results_order) > self._max_cache_size:
+            old_id = self._results_order.pop(0)
+            self._results.pop(old_id, None)
         return task_id
 
     async def poll(self, task_id: str) -> ProviderResult:

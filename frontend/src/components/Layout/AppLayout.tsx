@@ -12,6 +12,8 @@ import {
   LogOut,
   FolderTree,
   Tags,
+  BarChart3,
+  Palette,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -62,6 +64,16 @@ const AppLayout: React.FC = () => {
       icon: <Gauge size={20} strokeWidth={1.5} />,
       label: '监控面板',
     },
+    {
+      key: '/analytics',
+      icon: <BarChart3 size={20} strokeWidth={1.5} />,
+      label: '学情分析',
+    },
+    {
+      key: '/templates',
+      icon: <Palette size={20} strokeWidth={1.5} />,
+      label: '模板市场',
+    },
   ];
 
   const menuItems = user?.role === 'admin'
@@ -89,6 +101,8 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/preview')) return '/preview';
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
+    if (pathname.includes('/analytics')) return '/analytics';
+    if (pathname.includes('/templates')) return '/templates';
     if (pathname.includes('/admin/categories')) return '/admin/categories';
     if (pathname.includes('/admin/tags')) return '/admin/tags';
     if (pathname.includes('/admin/requests')) return '/admin/requests';
