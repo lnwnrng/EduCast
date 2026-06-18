@@ -145,6 +145,7 @@ async def _migrate_add_template_column() -> None:
         logger.warning("迁移 projects.template 列失败（可忽略）: %s", e)
 
 
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""

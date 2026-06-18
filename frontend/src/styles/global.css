@@ -101,14 +101,31 @@ a {
   min-width: 20px !important;
 }
 
-/* 修改侧边栏底部折叠按钮的样式 */
-.ant-layout-sider-trigger {
-  background: transparent !important;
-  color: #666 !important;
-  transition: all 0.3s;
+/* ===== 响应式布局：仪表盘模式 ===== */
+
+/* 大屏（>= 768px）：固定视口高度仪表盘布局 */
+@media (min-width: 768px) {
+  .app-layout-root {
+    height: 100vh;
+    overflow: hidden;
+  }
+
+  .app-content-area {
+    height: calc(100vh - 64px - 12px - 24px);
+  }
 }
 
-.ant-layout-sider-trigger:hover {
-  background: rgba(0, 0, 0, 0.04) !important;
-  color: #1677ff !important;
+/* 小屏（< 768px）：允许页面滚动，内容区自适应 */
+@media (max-width: 767px) {
+  .app-layout-root {
+    min-height: 100vh;
+    overflow: visible;
+  }
+
+  .app-content-area {
+    min-height: calc(100vh - 64px - 12px - 24px);
+    height: auto;
+  }
 }
+
+

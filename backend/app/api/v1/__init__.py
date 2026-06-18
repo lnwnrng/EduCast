@@ -13,7 +13,6 @@ from app.api.v1.scripts import router as scripts_router
 from app.api.v1.settings import router as settings_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.tasks import router as tasks_router
-from app.api.v1.templates import router as templates_router
 from app.api.v1.upload import router as upload_router
 from app.api.v1.websocket import router as ws_router
 
@@ -31,5 +30,4 @@ api_v1_router.include_router(scripts_router)
 api_v1_router.include_router(monitoring_router)
 api_v1_router.include_router(requests_router)
 api_v1_router.include_router(settings_router)
-api_v1_router.include_router(templates_router)
 api_v1_router.include_router(ws_router)

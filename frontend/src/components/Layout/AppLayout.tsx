@@ -13,7 +13,8 @@ import {
   FolderTree,
   Tags,
   BarChart3,
-  Palette,
+  PanelLeftClose,
+  PanelLeftOpen,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
@@ -69,11 +70,6 @@ const AppLayout: React.FC = () => {
       icon: <BarChart3 size={20} strokeWidth={1.5} />,
       label: '学情分析',
     },
-    {
-      key: '/templates',
-      icon: <Palette size={20} strokeWidth={1.5} />,
-      label: '模板市场',
-    },
   ];
 
   const menuItems = user?.role === 'admin'
@@ -102,7 +98,6 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
     if (pathname.includes('/analytics')) return '/analytics';
-    if (pathname.includes('/templates')) return '/templates';
     if (pathname.includes('/admin/categories')) return '/admin/categories';
     if (pathname.includes('/admin/tags')) return '/admin/tags';
     if (pathname.includes('/admin/requests')) return '/admin/requests';
@@ -132,7 +127,7 @@ const AppLayout: React.FC = () => {
   ];
 
   return (
-    <Layout style={{ height: '100vh', overflow: 'hidden', background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
+    <Layout className="app-layout-root" style={{ background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
       <Header
         style={{
           padding: 0,
@@ -163,6 +158,42 @@ const AppLayout: React.FC = () => {
             {sidebarCollapsed ? 'E' : 'EduCast'}
           </span>
         </div>
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
+          onClick={toggleSidebar}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter' || e.key === ' ') {
+              e.preventDefault();
+              toggleSidebar();
+            }
+          }}
+          style={{
+            marginLeft: 4,
+            padding: '6px 8px',
+            cursor: 'pointer',
+            color: '#666',
+            display: 'flex',
+            alignItems: 'center',
+            borderRadius: 6,
+            transition: 'all 0.2s',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = 'rgba(0,0,0,0.04)';
+            e.currentTarget.style.color = '#1677ff';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+            e.currentTarget.style.color = '#666';
+          }}
+        >
+          {sidebarCollapsed ? (
+            <PanelLeftOpen size={20} strokeWidth={1.5} />
+          ) : (
+            <PanelLeftClose size={20} strokeWidth={1.5} />
+          )}
+        </div>
         <div style={{
           paddingLeft: 16,
           transition: 'padding-left 0.2s',
@@ -187,38 +218,49 @@ const AppLayout: React.FC = () => {
       <Layout style={{ background: 'transparent' }}>
         <Sider
           collapsible
+          trigger={null}
           collapsed={sidebarCollapsed}
           onCollapse={toggleSidebar}
           theme="light"
           width={220}
+          collapsedWidth={80}
           style={{
-            overflow: 'auto',
             background: 'transparent',
           }}
         >
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            height: '100%',
+            overflow: 'hidden',
+          }}>
           <Menu
             theme="light"
             mode="inline"
             selectedKeys={[getSelectedKey(location.pathname)]}
+            openKeys={sidebarCollapsed ? [] : undefined}
             items={menuItems}
             onClick={handleMenuClick}
             style={{
+              flex: 1,
+              overflow: 'auto',
               background: 'transparent',
               borderRight: 0,
               fontSize: '15px'
             }}
           />
+          </div>
         </Sider>
 
         <Layout style={{ background: 'transparent' }}>
           <Content style={{ padding: '0 16px 12px 16px' }}>
             <div
+              className="app-content-area"
               style={{
                 padding: 24,
                 background: '#fff',
                 borderRadius: 24,
                 boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-                height: 'calc(100vh - 64px - 12px - 24px)',
                 overflow: 'auto',
               }}
             >

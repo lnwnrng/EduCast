@@ -14,7 +14,6 @@ import Monitoring from './pages/Monitoring';
 import KnowledgeGraph from './pages/KnowledgeGraph';
 import AssessmentPage from './pages/Assessment';
 import AnalyticsPage from './pages/Analytics';
-import TemplateMarket from './pages/TemplateMarket';
 import AdminUserManagement from './pages/Admin/UserManagement';
 import AdminAuditLog from './pages/Admin/AuditLog';
 import CategoryManagement from './pages/Admin/CategoryManagement';
@@ -61,7 +60,6 @@ const App: React.FC = () => {
         <Route path="/monitoring" element={<Monitoring />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/projects/:id/analytics" element={<AnalyticsPage />} />
-        <Route path="/templates" element={<TemplateMarket />} />
         <Route path="/projects/:id/knowledge-graph" element={<KnowledgeGraph />} />
         <Route path="/projects/:id/assessment" element={<AssessmentPage />} />
       </Route>
