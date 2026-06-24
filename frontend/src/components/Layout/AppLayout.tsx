@@ -31,7 +31,7 @@ const AppLayout: React.FC = () => {
 
   const baseMenuItems = [
     {
-      key: '/',
+      key: '/dashboard',
       icon: <LayoutDashboard size={20} strokeWidth={1.5} />,
       label: '仪表盘',
     },

@@ -51,7 +51,7 @@ const RegisterPage: React.FC = () => {
     try {
       await register(values.username, values.password, values.email, values.code);
       message.success('注册成功');
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch {
       // handled by axios interceptor
     } finally {
