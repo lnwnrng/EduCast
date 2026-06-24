@@ -1430,7 +1430,7 @@
 }
 
 /* --- Icon helpers --- */
-.landing-root svg {
+.landing-root svg:not(.landing-kg-lines) {
   width: 22px;
   height: 22px;
   stroke-width: 1.6;
