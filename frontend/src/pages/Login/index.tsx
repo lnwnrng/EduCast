@@ -15,7 +15,7 @@ const LoginPage: React.FC = () => {
     try {
       await login(values.username, values.password);
       message.success('登录成功');
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch {
       // 错误已在 Axios 拦截器中 toast
     } finally {
