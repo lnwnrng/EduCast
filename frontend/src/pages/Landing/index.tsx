@@ -547,6 +547,7 @@ const LandingPage: React.FC = () => {
 
             <div className="landing-kg-canvas">
               <svg
+                className="landing-kg-lines"
                 width="100%"
                 height="100%"
                 viewBox="0 0 100 100"
