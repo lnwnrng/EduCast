@@ -1,9 +1,8 @@
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, Typography, message } from 'antd';
+import { Form, Input, Button, message } from 'antd';
 import { useAuthStore } from '../../stores/authStore';
-
-const { Text } = Typography;
+import './Login.css';
 
 const LoginPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -24,38 +23,16 @@ const LoginPage: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)',
-      }}
-    >
-      <div
-        style={{
-          width: 400,
-          padding: '40px 32px',
-          background: '#fff',
-          borderRadius: 24,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <span
-            style={{
-              fontFamily: '"Dancing Script", cursive',
-              fontSize: 36,
-              color: '#333',
-              fontWeight: 600,
-            }}
-          >
-            EduCast
-          </span>
-          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-            智能教学视频生产平台
-          </Text>
+    <div className="auth-page-root">
+      {/* Animated background orbs */}
+      <div className="auth-bg-orb auth-bg-orb-1" />
+      <div className="auth-bg-orb auth-bg-orb-2" />
+      <div className="auth-bg-orb auth-bg-orb-3" />
+
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="auth-brand-name">EduCast</span>
+          <span className="auth-brand-subtitle">智能教学视频生产平台</span>
         </div>
 
         <Form onFinish={handleSubmit} layout="vertical" size="large">
@@ -82,11 +59,9 @@ const LoginPage: React.FC = () => {
           </Form.Item>
         </Form>
 
-        <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">还没有账号？</Text>
-          <Link to="/register" style={{ color: '#1677ff', marginLeft: 4 }}>
-            立即注册
-          </Link>
+        <div className="auth-footer-link">
+          <span style={{ color: '#807792', fontSize: 14 }}>还没有账号？</span>
+          <Link to="/register">立即注册</Link>
         </div>
       </div>
     </div>

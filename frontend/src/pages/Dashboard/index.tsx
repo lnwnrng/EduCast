@@ -103,7 +103,7 @@ const Dashboard: React.FC = () => {
               title="进行中任务"
               value={stats.active}
               prefix={<PlayCircleOutlined />}
-              valueStyle={{ color: '#1677ff' }}
+              valueStyle={{ color: '#9069e8' }}
             />
           </Card>
         </Col>
