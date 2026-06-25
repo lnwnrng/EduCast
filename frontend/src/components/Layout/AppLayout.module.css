@@ -1,0 +1,291 @@
+/* ===== AppLayout CSS Module ===== */
+
+/* --- Root Layout --- */
+.layoutRoot {
+  background: var(--color-bg) !important;
+}
+
+/* --- Header --- */
+.header {
+  padding: 0 !important;
+  background: transparent !important;
+  display: flex;
+  align-items: center;
+  height: var(--header-height);
+  z-index: var(--z-header);
+  line-height: normal;
+}
+
+/* --- Logo Area (in header) --- */
+.logoArea {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding-top: 6px; /* Moved down slightly per user request */
+  transition: width 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  overflow: hidden;
+  flex-shrink: 0;
+}
+
+.logoAreaExpanded {
+  width: var(--sidebar-width);
+}
+
+.logoAreaCollapsed {
+  width: var(--sidebar-collapsed-width);
+}
+
+.logoText {
+  font-family: var(--font-brand);
+  font-weight: 700;
+  letter-spacing: 1px;
+  white-space: nowrap;
+  background: var(--color-gradient-brand);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  transition: font-size 0.28s cubic-bezier(0.4, 0, 0.2, 1);
+  line-height: 1.1;
+  user-select: none;
+}
+
+.logoTextExpanded {
+  font-size: 30px;
+}
+
+.logoTextCollapsed {
+  font-size: 26px;
+}
+
+.logoSubtitle {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  letter-spacing: 3px;
+  font-weight: 500;
+  margin-top: 1px;
+  opacity: 1;
+  transition: opacity 0.2s ease;
+}
+
+.logoSubtitleHidden {
+  opacity: 0;
+  height: 0;
+  margin: 0;
+  overflow: hidden;
+}
+
+/* --- Collapse Toggle (in header) --- */
+.collapseToggle {
+  margin-left: var(--space-1);
+  padding: 6px 8px;
+  cursor: pointer;
+  color: var(--color-text-tertiary);
+  display: flex;
+  align-items: center;
+  border-radius: var(--radius-xs);
+  transition: background 0.2s, color 0.2s;
+  border: none;
+  background: transparent;
+  outline: none;
+  flex-shrink: 0;
+}
+
+.collapseToggle:hover {
+  background: rgba(144, 105, 232, 0.08);
+  color: var(--color-primary);
+}
+
+.collapseToggle:focus-visible {
+  box-shadow: 0 0 0 2px rgba(157, 123, 239, 0.3);
+}
+
+/* --- Header Center / Subtitle --- */
+.headerSubtitle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  padding-left: 16px;
+}
+
+.headerSubtitleText {
+  font-family: 'Noto Serif SC', serif;
+  font-size: 15.5px;
+  font-weight: 500;
+  letter-spacing: 2.5px;
+  background: linear-gradient(90deg, #7c4fd0, #e06bb0);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  display: inline-flex;
+  align-items: center;
+  white-space: nowrap;
+  position: relative;
+  top: 1px; /* Align visual baseline with the logo */
+}
+
+/* --- User Pill --- */
+.userPillWrapper {
+  padding-right: var(--space-6);
+  display: flex;
+  align-items: center;
+  height: 100%;
+  flex-shrink: 0;
+  gap: 16px;
+}
+
+.taskBellButton {
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  color: var(--color-text-secondary);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  outline: none;
+}
+
+.taskBellButton:hover {
+  background: rgba(255, 255, 255, 0.6);
+  color: var(--color-primary);
+  box-shadow: 0 2px 8px rgba(120, 60, 170, 0.1);
+}
+
+.taskBellButton:focus-visible {
+  box-shadow: 0 0 0 2px rgba(157, 123, 239, 0.3);
+}
+
+.bellDot {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 6px;
+  height: 6px;
+  background: var(--color-accent-pink);
+  border-radius: 50%;
+  box-shadow: 0 0 0 2px var(--color-bg);
+}
+
+.userPill {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  padding: 5px 14px 5px 5px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--color-border-accent);
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(8px);
+  transition: background 0.25s, border-color 0.25s, box-shadow 0.25s;
+}
+
+.userPill:hover {
+  background: rgba(255, 255, 255, 0.88);
+  border-color: var(--color-border-strong);
+  box-shadow: 0 4px 14px -6px rgba(120, 60, 170, 0.15);
+}
+
+.userAvatar {
+  background: var(--color-gradient-brand) !important;
+  font-weight: 700 !important;
+  font-size: 13px !important;
+  flex-shrink: 0;
+}
+
+.userName {
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  font-size: 13.5px;
+  line-height: 1;
+  white-space: nowrap;
+}
+
+/* --- Inner Layout (Sider + Content) --- */
+.innerLayout {
+  background: transparent !important;
+}
+
+/* --- Sidebar --- */
+.sider {
+  background: transparent !important;
+  border-right: none !important;
+  z-index: var(--z-sidebar);
+  transition: all 0.28s cubic-bezier(0.4, 0, 0.2, 1) !important;
+}
+
+.siderInner {
+  display: flex;
+  flex-direction: column;
+  height: calc(100vh - var(--header-height));
+}
+
+.siderMenu {
+  flex: 1;
+  background: transparent !important;
+  border-right: none !important;
+  padding: 12px 0;
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+.siderFooter {
+  flex-shrink: 0;
+  padding: 12px 16px 24px;
+}
+
+.siderToggleButton {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  height: 40px;
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm);
+  color: var(--color-text-tertiary);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.siderToggleButton:hover {
+  background: var(--color-bg-hover);
+  color: var(--color-text-dark);
+}
+
+.siderToggleButton:active {
+  transform: scale(0.98);
+}
+
+/* --- Content Layout --- */
+.contentLayout {
+  background: transparent !important;
+}
+
+.contentWrapper {
+  padding: 0 var(--space-4) var(--space-3) var(--space-4);
+}
+
+/* --- Content Area (glassmorphism card) --- */
+.contentArea {
+  padding: var(--space-6);
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(16px);
+  -webkit-backdrop-filter: saturate(180%) blur(16px);
+  border-radius: var(--radius-xl);
+  border: 1px solid var(--color-border);
+  box-shadow: var(--shadow-lg);
+  overflow: auto;
+}
+
+/* --- Footer --- */
+.footer {
+  text-align: center;
+  color: var(--color-text-muted) !important;
+  background: transparent !important;
+  padding: 0 0 12px 0 !important;
+  font-size: 12px;
+}

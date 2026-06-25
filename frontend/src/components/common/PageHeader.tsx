@@ -1,8 +1,7 @@
 import React from 'react';
-import { Button, Divider, Space, Typography } from 'antd';
+import { Button } from 'antd';
 import { ArrowLeftOutlined } from '@ant-design/icons';
-
-const { Title, Text } = Typography;
+import styles from './PageHeader.module.css';
 
 interface PageHeaderProps {
   title: string;
@@ -13,37 +12,26 @@ interface PageHeaderProps {
 
 const PageHeader: React.FC<PageHeaderProps> = ({ title, subtitle, extra, onBack }) => {
   return (
-    <div style={{ marginBottom: 24 }}>
-      <div
-        style={{
-          display: 'flex',
-          justifyContent: 'space-between',
-          alignItems: 'center',
-        }}
-      >
-        <Space direction="horizontal" size={12} align="center">
+    <div className={styles.wrapper}>
+      <div className={styles.header}>
+        <div className={styles.left}>
           {onBack && (
             <Button
+              className={styles.backButton}
               type="text"
               icon={<ArrowLeftOutlined />}
               onClick={onBack}
               size="small"
             />
           )}
-          <Space direction="vertical" size={0}>
-            <Title level={3} style={{ margin: 0 }}>
-              {title}
-            </Title>
-            {subtitle && (
-              <Text type="secondary" style={{ fontSize: 14 }}>
-                {subtitle}
-              </Text>
-            )}
-          </Space>
-        </Space>
+          <div className={styles.titleGroup}>
+            <h2 className={styles.title}>{title}</h2>
+            {subtitle && <span className={styles.subtitle}>{subtitle}</span>}
+          </div>
+        </div>
         {extra && <div>{extra}</div>}
       </div>
-      <Divider style={{ margin: '16px 0' }} />
+      <div className={styles.divider} />
     </div>
   );
 };
