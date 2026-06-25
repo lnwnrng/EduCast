@@ -1,0 +1,55 @@
+/* ===== PageHeader — CSS Module ===== */
+
+.wrapper {
+  margin-bottom: 24px;
+}
+
+.header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.backButton {
+  border: 1px solid var(--color-border-accent);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  transition: background 0.2s;
+}
+
+.backButton:hover {
+  background: var(--color-bg-hover) !important;
+}
+
+.titleGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.title {
+  font-family: var(--font-heading);
+  font-weight: 700;
+  color: var(--color-text-dark);
+  font-size: 22px;
+  letter-spacing: -0.5px;
+  margin: 0;
+}
+
+.subtitle {
+  font-family: var(--font-body);
+  color: var(--color-text-tertiary);
+  font-size: 14px;
+  margin-top: 2px;
+}
+
+.divider {
+  height: 1px;
+  background: linear-gradient(90deg, var(--color-border-accent), transparent 80%);
+  margin: 20px 0;
+}

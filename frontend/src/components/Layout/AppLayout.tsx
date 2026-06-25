@@ -1,26 +1,25 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { Layout, Menu, Typography, Dropdown, Avatar } from 'antd';
 import {
-  LayoutDashboard,
-  FolderKanban,
-  MonitorPlay,
-  FileUp,
-  FileEdit,
-  Library,
-  Gauge,
-  Shield,
+  LayoutGrid,
+  Folders,
+  Sparkles,
+  CloudUpload,
+  ScrollText,
+  Database,
+  Activity,
+  LineChart,
+  ShieldCheck,
   LogOut,
-  FolderTree,
-  Tags,
-  Cpu,
-  Clapperboard,
-  BarChart3,
-  PanelLeftClose,
-  PanelLeftOpen,
+  ChevronLeft,
+  ChevronRight,
+  Bell,
 } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { useAppStore } from '../../stores/appStore';
 import { useAuthStore } from '../../stores/authStore';
+import { TaskDrawer } from '../common/TaskDrawer';
+import styles from './AppLayout.module.css';
 
 const { Sider, Header, Content, Footer } = Layout;
 const { Title } = Typography;
@@ -30,47 +29,41 @@ const AppLayout: React.FC = () => {
   const location = useLocation();
   const { sidebarCollapsed, toggleSidebar } = useAppStore();
   const { user, logout } = useAuthStore();
+  const [drawerVisible, setDrawerVisible] = useState(false);
+
+  const ICON_SIZE = 18;
+  const ICON_STROKE = 2;
 
   const baseMenuItems = [
     {
       key: '/dashboard',
-      icon: <LayoutDashboard size={20} strokeWidth={1.5} />,
+      icon: <LayoutGrid size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '仪表盘',
     },
     {
       key: '/projects',
-      icon: <FolderKanban size={20} strokeWidth={1.5} />,
+      icon: <Folders size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '项目管理',
     },
     {
       key: '/workspace',
-      icon: <MonitorPlay size={20} strokeWidth={1.5} />,
+      icon: <Sparkles size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '工作台',
     },
     {
       key: '/upload',
-      icon: <FileUp size={20} strokeWidth={1.5} />,
+      icon: <CloudUpload size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '上传课件',
     },
     {
       key: '/script',
-      icon: <FileEdit size={20} strokeWidth={1.5} />,
+      icon: <ScrollText size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '脚本编辑',
     },
     {
       key: '/resources',
-      icon: <Library size={20} strokeWidth={1.5} />,
+      icon: <Database size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
       label: '资源管理',
-    },
-    {
-      key: '/monitoring',
-      icon: <Gauge size={20} strokeWidth={1.5} />,
-      label: '监控面板',
-    },
-    {
-      key: '/analytics',
-      icon: <BarChart3 size={20} strokeWidth={1.5} />,
-      label: '学情分析',
     },
   ];
 
@@ -79,16 +72,16 @@ const AppLayout: React.FC = () => {
         ...baseMenuItems,
         {
           key: 'admin',
-          icon: <Shield size={20} strokeWidth={1.5} />,
-          label: '管理',
+          icon: <ShieldCheck size={ICON_SIZE} strokeWidth={ICON_STROKE} />,
+          label: '系统管理',
           children: [
             { key: '/admin/users', label: '用户管理' },
             { key: '/admin/logs', label: '审计日志' },
-            { key: '/admin/categories', icon: <FolderTree size={16} strokeWidth={1.5} />, label: '分类管理' },
-            { key: '/admin/tags', icon: <Tags size={16} strokeWidth={1.5} />, label: '标签管理' },
+            { key: '/admin/categories', label: '分类管理' },
+            { key: '/admin/tags', label: '标签管理' },
             { key: '/admin/requests', label: '申请管理' },
-            { key: '/admin/llm', icon: <Cpu size={16} strokeWidth={1.5} />, label: 'LLM 管理' },
-            { key: '/admin/video-gen', icon: <Clapperboard size={16} strokeWidth={1.5} />, label: '视频生成' },
+            { key: '/admin/llm', label: 'LLM 管理' },
+            { key: '/admin/video-gen', label: '视频生成' },
             { key: '/admin/settings', label: '系统设置' },
           ],
         },
@@ -133,133 +126,57 @@ const AppLayout: React.FC = () => {
   ];
 
   return (
-    <Layout className="app-layout-root" style={{ background: '#fcfaff' }}>
-      <Header
-        style={{
-          padding: 0,
-          background: 'transparent',
-          display: 'flex',
-          alignItems: 'center',
-          height: 64,
-          zIndex: 10,
-        }}
-      >
-        <div style={{
-          width: sidebarCollapsed ? 80 : 220,
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          transition: 'width 0.2s',
-          overflow: 'hidden'
-        }}>
-          <span style={{
-            fontFamily: '"Dancing Script", cursive',
-            fontSize: sidebarCollapsed ? 28 : 32,
-            fontWeight: 700,
-            letterSpacing: '1px',
-            transition: 'font-size 0.2s',
-            whiteSpace: 'nowrap',
-            background: 'linear-gradient(135deg, #e06bb0, #9069e8)',
-            WebkitBackgroundClip: 'text',
-            WebkitTextFillColor: 'transparent',
-          }}>
+    <Layout className={`app-layout-root ${styles.layoutRoot}`}>
+      <Header className={styles.header}>
+        {/* Logo */}
+        <div
+          className={`${styles.logoArea} ${
+            sidebarCollapsed ? styles.logoAreaCollapsed : styles.logoAreaExpanded
+          }`}
+        >
+          <span
+            className={`${styles.logoText} ${
+              sidebarCollapsed ? styles.logoTextCollapsed : styles.logoTextExpanded
+            }`}
+          >
             {sidebarCollapsed ? 'E' : 'EduCast'}
           </span>
+          <span
+            className={`${styles.logoSubtitle} ${
+              sidebarCollapsed ? styles.logoSubtitleHidden : ''
+            }`}
+          >
+            课影
+          </span>
         </div>
-        <div
-          role="button"
-          tabIndex={0}
-          aria-label={sidebarCollapsed ? '展开侧边栏' : '收起侧边栏'}
-          onClick={toggleSidebar}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter' || e.key === ' ') {
-              e.preventDefault();
-              toggleSidebar();
-            }
-          }}
-          style={{
-            marginLeft: 4,
-            padding: '6px 8px',
-            cursor: 'pointer',
-            color: '#807792',
-            display: 'flex',
-            alignItems: 'center',
-            borderRadius: 6,
-            transition: 'all 0.2s',
-          }}
-          onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(157, 123, 239, 0.08)';
-            e.currentTarget.style.color = '#9069e8';
-          }}
-          onMouseLeave={(e) => {
-            e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#807792';
-          }}
-        >
-          {sidebarCollapsed ? (
-            <PanelLeftOpen size={20} strokeWidth={1.5} />
-          ) : (
-            <PanelLeftClose size={20} strokeWidth={1.5} />
-          )}
-        </div>
-        <div style={{
-          paddingLeft: 16,
-          transition: 'padding-left 0.2s',
-          flex: 1,
-        }}>
-          <Title level={5} style={{ margin: 0, color: '#5f5870' }}>
+
+        {/* Removed Header Collapse toggle */}
+
+        {/* Subtitle */}
+        <div className={styles.headerSubtitle}>
+          <span className={styles.headerSubtitleText}>
             智能教学视频生产平台
-          </Title>
+          </span>
         </div>
-        <div style={{
-          paddingRight: 24,
-          display: 'flex',
-          alignItems: 'center',
-          height: '100%',
-        }}>
+
+        {/* User pill & Task Drawer Trigger */}
+        <div className={styles.userPillWrapper}>
+          <button 
+            type="button"
+            className={styles.taskBellButton}
+            onClick={() => setDrawerVisible(true)}
+            aria-label="生产队列"
+            title="生产队列"
+          >
+            <Bell size={18} strokeWidth={2} />
+          </button>
+
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <div
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 10,
-                cursor: 'pointer',
-                padding: '6px 14px 6px 6px',
-                borderRadius: 50,
-                border: '1px solid rgba(157, 123, 239, 0.12)',
-                background: 'rgba(255, 255, 255, 0.6)',
-                backdropFilter: 'blur(8px)',
-                transition: 'all 0.25s',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.85)';
-                e.currentTarget.style.borderColor = 'rgba(157, 123, 239, 0.28)';
-                e.currentTarget.style.boxShadow = '0 4px 14px -6px rgba(120, 60, 170, 0.15)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.6)';
-                e.currentTarget.style.borderColor = 'rgba(157, 123, 239, 0.12)';
-                e.currentTarget.style.boxShadow = 'none';
-              }}
-            >
-              <Avatar
-                size={30}
-                style={{
-                  background: 'linear-gradient(135deg, #e87cc0, #9d7bef)',
-                  fontWeight: 700,
-                  fontSize: 13,
-                  flexShrink: 0,
-                }}
-              >
+            <div className={styles.userPill}>
+              <Avatar size={30} className={styles.userAvatar}>
                 {user?.username?.[0]?.toUpperCase()}
               </Avatar>
-              <span style={{
-                color: '#5f5870',
-                fontWeight: 600,
-                fontSize: 13.5,
-                lineHeight: 1,
-                whiteSpace: 'nowrap',
-              }}>
+              <span className={styles.userName}>
                 {user?.username}
               </span>
             </div>
@@ -267,7 +184,7 @@ const AppLayout: React.FC = () => {
         </div>
       </Header>
 
-      <Layout style={{ background: 'transparent' }}>
+      <Layout className={styles.innerLayout}>
         <Sider
           collapsible
           trigger={null}
@@ -275,57 +192,48 @@ const AppLayout: React.FC = () => {
           onCollapse={toggleSidebar}
           theme="light"
           width={220}
-          collapsedWidth={80}
-          style={{
-            background: 'transparent',
-          }}
+          collapsedWidth={72}
+          className={styles.sider}
         >
-          <div style={{
-            display: 'flex',
-            flexDirection: 'column',
-            height: '100%',
-            overflow: 'hidden',
-          }}>
-          <Menu
-            theme="light"
-            mode="inline"
-            selectedKeys={[getSelectedKey(location.pathname)]}
-            openKeys={sidebarCollapsed ? [] : undefined}
-            items={menuItems}
-            onClick={handleMenuClick}
-            style={{
-              flex: 1,
-              overflow: 'auto',
-              background: 'transparent',
-              borderRight: 0,
-              fontSize: '15px'
-            }}
-          />
+          <div className={styles.siderInner}>
+            <Menu
+              theme="light"
+              mode="inline"
+              selectedKeys={[getSelectedKey(location.pathname)]}
+              openKeys={sidebarCollapsed ? [] : undefined}
+              items={menuItems}
+              onClick={handleMenuClick}
+              className={styles.siderMenu}
+            />
+            <div className={styles.siderFooter}>
+              <button
+                type="button"
+                className={styles.siderToggleButton}
+                onClick={toggleSidebar}
+                title={sidebarCollapsed ? '展开侧栏' : '收起侧栏'}
+              >
+                {sidebarCollapsed ? (
+                  <ChevronRight size={18} strokeWidth={2} />
+                ) : (
+                  <ChevronLeft size={18} strokeWidth={2} />
+                )}
+              </button>
+            </div>
           </div>
         </Sider>
 
-        <Layout style={{ background: 'transparent' }}>
-          <Content style={{ padding: '0 16px 12px 16px' }}>
-            <div
-              className="app-content-area"
-              style={{
-                padding: 24,
-                background: 'rgba(255, 255, 255, 0.88)',
-                backdropFilter: 'saturate(180%) blur(16px)',
-                borderRadius: 24,
-                border: '1px solid rgba(120, 60, 170, 0.07)',
-                boxShadow: '0 12px 32px -16px rgba(120, 60, 170, 0.12)',
-                overflow: 'auto',
-              }}
-            >
+        <Layout className={styles.contentLayout}>
+          <Content className={styles.contentWrapper}>
+            <div className={`app-content-area ${styles.contentArea}`}>
               <Outlet />
             </div>
           </Content>
-          <Footer style={{ textAlign: 'center', color: '#a99fbb', background: 'transparent', padding: '0 0 12px 0', fontSize: '12px' }}>
+          <Footer className={styles.footer}>
             课影 EduCast ©2026 — 面向高校教学的智能视频生产平台
           </Footer>
         </Layout>
       </Layout>
+      <TaskDrawer visible={drawerVisible} onClose={() => setDrawerVisible(false)} />
     </Layout>
   );
 };
