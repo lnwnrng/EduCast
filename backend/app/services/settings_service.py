@@ -65,21 +65,36 @@ def get_effective_value(env_key: str, default: str = "") -> str:
     return env_val if env_val else default
 
 
+def set_runtime_setting(key: str, value: str | None) -> None:
+    """写入/清除单个运行时设置项（merge 语义，不影响其它 key）。
+
+    value 为空字符串或 None 时删除该 key。供 LLM 管理 页保存 GLM Key 后
+    同步镜像到 ZHIPU_API_KEY（供 CogVideoX / 成本护栏等仍读运行时 Key 的
+    旧路径使用，使「LLM 管理」成为智谱 Key 的唯一配置入口）。
+    """
+    runtime = load_runtime_settings()
+    if value is None or not value.strip():
+        runtime.pop(key, None)
+    else:
+        runtime[key] = value.strip()
+    save_runtime_settings(runtime)
+
+
 # ── 可配置的 API Key 定义（供前端展示）──
+# 注意：LLM（智谱 GLM）的 Key 已迁移至「LLM 管理」页面（DB 管理），
+# 此处不再列出 ZHIPU_API_KEY。LLM 管理保存 GLM 配置时会镜像写入运行时
+# ZHIPU_API_KEY，供 CogVideoX / 成本护栏复用。
 
 API_KEY_DEFINITIONS = [
     {
-        "key": "ZHIPU_API_KEY",
-        "label": "智谱 API Key",
-        "description": "用于 LLM 脚本编排（GLM-4.7-Flash，免费）和 AI 视频生成（CogVideoX-Flash，免费）。在 open.bigmodel.cn 注册获取。",
-        "url": "https://open.bigmodel.cn",
-        "features": ["LLM 脚本编排", "AI 全生成模式（CogVideoX）"],
-        "is_secret": True,
-    },
-    {
         "key": "COGVIDEO_API_KEY",
         "label": "CogVideoX 视频生成 Key",
-        "description": "独立于智谱 GLM 的视频生成 Key。通常无需单独配置，留空时自动回退使用上方的智谱 API Key。仅当你需要为视频生成使用不同账号时才需填写。",
+        "description": (
+            "智谱 CogVideoX 视频生成 Key（与 GLM 同平台同 Key）。"
+            "LLM 脚本编排的 GLM Key 请到「LLM 管理」页面配置。"
+            "此处仅为视频生成使用不同账号而设；留空时自动复用"
+            "「LLM 管理」中配置的 GLM Key（或回退 .env 的 ZHIPU_API_KEY）。"
+        ),
         "url": "https://open.bigmodel.cn",
         "features": ["AI 视频生成（CogVideoX）"],
         "is_secret": True,
@@ -95,7 +110,11 @@ API_KEY_DEFINITIONS = [
     {
         "key": "EMAIL_FROM",
         "label": "邮件发件人地址",
-        "description": "验证码邮件的发件人地址。必须是 Resend 验证过的域名，格式如：EduCast <noreply@yourdomain.com>",
+        "description": (
+            "验证码邮件的发件人地址。"
+            "必须是 Resend 验证过的域名，"
+            "格式如：EduCast <noreply@yourdomain.com>"
+        ),
         "url": "",
         "features": ["邮箱验证码"],
         "is_secret": False,
@@ -103,7 +122,10 @@ API_KEY_DEFINITIONS = [
     {
         "key": "DIGITAL_HUMAN_API_KEY",
         "label": "数字人 API Key",
-        "description": "接入云端真人口播视频（如阿里百炼 wan2.2-s2v）。不配置则使用本地讲师画中画兜底。",
+        "description": (
+            "接入云端真人口播视频（如阿里百炼 wan2.2-s2v）。"
+            "不配置则使用本地讲师画中画兜底。"
+        ),
         "url": "",
         "features": ["数字人讲解"],
         "is_secret": True,
@@ -164,7 +186,10 @@ async def verify_api_key(key_name: str, key_value: str) -> dict:
     except Exception as e:
         logger.warning(
             "验证 %s 时异常: type=%s, msg=%s, key_value_len=%d",
-            key_name, type(e).__name__, e, len(key_value),
+            key_name,
+            type(e).__name__,
+            e,
+            len(key_value),
         )
         return {"ok": False, "message": f"验证失败（{type(e).__name__}）: {e}"}
 
@@ -184,7 +209,9 @@ async def _verify_bigmodel_key(api_key: str) -> dict:
     logger.info("验证智谱 Key: URL=%s, model=%s", url, settings.ZHIPU_MODEL)
     async with httpx.AsyncClient(timeout=15.0, proxy=_get_proxy_url()) as client:
         resp = await client.post(url, json=payload, headers=headers)
-    logger.info("智谱 Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text)
+    logger.info(
+        "智谱 Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text
+    )
     if resp.status_code == 200:
         return {"ok": True, "message": "智谱 API 连通，Key 有效"}
     if resp.status_code in (400, 422):
@@ -194,7 +221,14 @@ async def _verify_bigmodel_key(api_key: str) -> dict:
     if resp.status_code == 403:
         return {"ok": False, "message": "权限不足：请检查 Key 权限设置"}
     if resp.status_code == 429:
-        return {"ok": True, "message": "Key 有效（智谱 API 限流中，这是 API 自身的频率限制，非本系统问题，请 1-2 分钟后重试）"}
+        return {
+            "ok": True,
+            "message": (
+                "Key 有效（智谱 API 限流中，"
+                "这是 API 自身的频率限制，"
+                "非本系统问题，请 1-2 分钟后重试）"
+            ),
+        }
     if resp.status_code in (500, 502, 503):
         return {
             "ok": False,
@@ -220,7 +254,9 @@ async def _verify_cogvideo_key(api_key: str) -> dict:
     logger.info("验证 CogVideoX Key: URL=%s, model=%s", url, settings.COGVIDEO_MODEL)
     async with httpx.AsyncClient(timeout=15.0, proxy=_get_proxy_url()) as client:
         resp = await client.post(url, json=payload, headers=headers)
-    logger.info("CogVideoX Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text)
+    logger.info(
+        "CogVideoX Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text
+    )
     if resp.status_code == 200:
         return {"ok": True, "message": "CogVideoX API 连通，Key 有效"}
     if resp.status_code == 401:
@@ -259,7 +295,9 @@ async def _verify_resend_key(api_key: str) -> dict:
     logger.info("验证 Resend Key: URL=%s", url)
     async with httpx.AsyncClient(timeout=15.0, proxy=_get_proxy_url()) as client:
         resp = await client.get(url, headers=headers)
-    logger.info("Resend Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text)
+    logger.info(
+        "Resend Key 验证响应: status=%d, body=%.300s", resp.status_code, resp.text
+    )
     if resp.status_code == 200:
         return {"ok": True, "message": "Resend API 连通，Key 有效"}
     if resp.status_code in (401, 403):

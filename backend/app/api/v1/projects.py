@@ -53,9 +53,13 @@ async def list_projects(
 ) -> PaginatedResponse[ProjectResponse]:
     """分页查询项目列表。"""
     is_admin = current_user.role == "admin"
-    tag_id_list = [t.strip() for t in tag_ids.split(",") if t.strip()] if tag_ids else None
+    tag_id_list = (
+        [t.strip() for t in tag_ids.split(",") if t.strip()] if tag_ids else None
+    )
     projects, total = await ProjectService.list_projects(
-        db, page, page_size,
+        db,
+        page,
+        page_size,
         user_id=current_user.id,
         is_admin=is_admin,
         category_id=category_id,
@@ -92,8 +96,8 @@ async def global_analytics(
 
     # 可见项目 ID 列表
     visible_project_ids = (
-        await db.execute(select(Project.id).where(*project_filter))
-    ).scalars().all()
+        (await db.execute(select(Project.id).where(*project_filter))).scalars().all()
+    )
 
     # 任务统计
     task_stmt = (
@@ -216,15 +220,17 @@ async def get_knowledge_graph(
 
     for chapter in ir.chapters:
         for kp in chapter.knowledge_points:
-            nodes.append({
-                "id": kp.kp_id,
-                "title": kp.title,
-                "chapter": chapter.title,
-                "chapter_order": chapter.order,
-                "tags": kp.tags or [],
-                "key_points": kp.key_points or [],
-            })
-            for tag in (kp.tags or []):
+            nodes.append(
+                {
+                    "id": kp.kp_id,
+                    "title": kp.title,
+                    "chapter": chapter.title,
+                    "chapter_order": chapter.order,
+                    "tags": kp.tags or [],
+                    "key_points": kp.key_points or [],
+                }
+            )
+            for tag in kp.tags or []:
                 tag_to_kps[tag].append(kp.kp_id)
 
     edges = []
@@ -235,11 +241,13 @@ async def get_knowledge_graph(
                 pair = tuple(sorted([kp_ids[i], kp_ids[j]]))
                 if pair not in seen:
                     seen.add(pair)
-                    edges.append({
-                        "source": pair[0],
-                        "target": pair[1],
-                        "tag": tag,
-                    })
+                    edges.append(
+                        {
+                            "source": pair[0],
+                            "target": pair[1],
+                            "tag": tag,
+                        }
+                    )
 
     return {"nodes": nodes, "edges": edges}
 
@@ -262,21 +270,25 @@ async def get_assessment(
     for chapter in ir.chapters:
         questions = []
         for kp in chapter.knowledge_points:
-            for qs in (kp.quiz_seeds or []):
-                questions.append({
-                    "kp_id": kp.kp_id,
-                    "kp_title": kp.title,
-                    "question": qs.question,
-                    "question_type": qs.question_type or "short",
-                    "answer": qs.answer or "",
-                    "explanation": qs.explanation or "",
-                })
+            for qs in kp.quiz_seeds or []:
+                questions.append(
+                    {
+                        "kp_id": kp.kp_id,
+                        "kp_title": kp.title,
+                        "question": qs.question,
+                        "question_type": qs.question_type or "short",
+                        "answer": qs.answer or "",
+                        "explanation": qs.explanation or "",
+                    }
+                )
         if questions:
-            chapters.append({
-                "chapter_id": chapter.chapter_id,
-                "title": chapter.title,
-                "questions": questions,
-            })
+            chapters.append(
+                {
+                    "chapter_id": chapter.chapter_id,
+                    "title": chapter.title,
+                    "questions": questions,
+                }
+            )
 
     return {"chapters": chapters}
 
@@ -358,7 +370,10 @@ async def compare_versions(
         "added": added,
         "removed": removed,
         "modified": modified,
-        "summary": f"新增 {len(added)} 个、删除 {len(removed)} 个、修改 {len(modified)} 个知识点",
+        "summary": (
+            f"新增 {len(added)} 个、删除 {len(removed)} 个、"
+            f"修改 {len(modified)} 个知识点"
+        ),
     }
 
 

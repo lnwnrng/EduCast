@@ -24,6 +24,7 @@ pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 def _get_sqlite_path() -> str:
     """从 SQLAlchemy engine URL 中提取 SQLite 数据库文件路径。"""
     from app.database import engine
+
     db_url = str(engine.url).replace("sqlite+aiosqlite:///", "")
     if db_url.startswith("/"):
         return db_url[1:]
@@ -38,9 +39,7 @@ async def _seed_default_admin() -> None:
     from app.models.user import User
 
     async with async_session_factory() as db:
-        result = await db.execute(
-            select(User).where(User.role == "admin")
-        )
+        result = await db.execute(select(User).where(User.role == "admin"))
         if result.scalar_one_or_none() is None:
             admin = User(
                 username="admin",
@@ -66,9 +65,7 @@ async def _migrate_add_display_id_column() -> None:
         if "display_id" not in columns:
             conn.execute("ALTER TABLE users ADD COLUMN display_id INTEGER")
             # admin 始终为 display_id=1
-            conn.execute(
-                "UPDATE users SET display_id = 1 WHERE role = 'admin'"
-            )
+            conn.execute("UPDATE users SET display_id = 1 WHERE role = 'admin'")
             # 其他用户按 created_at 顺序分配递增 ID
             conn.execute("""
                 UPDATE users SET display_id = (
@@ -90,7 +87,8 @@ async def _migrate_add_display_id_column() -> None:
                     "UPDATE users SET display_id = ? WHERE id = ?", (i, row[0])
                 )
             conn.execute(
-                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_display_id ON users(display_id)"
+                "CREATE UNIQUE INDEX IF NOT EXISTS ix_users_display_id "
+                "ON users(display_id)"
             )
             conn.commit()
             logger.info("已为 users 表添加 display_id 列")
@@ -145,7 +143,6 @@ async def _migrate_add_template_column() -> None:
         logger.warning("迁移 projects.template 列失败（可忽略）: %s", e)
 
 
-
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
@@ -188,8 +185,8 @@ app.add_middleware(
 try:
     from slowapi import Limiter, _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
-    from slowapi.util import get_remote_address
     from slowapi.middleware import SlowAPIMiddleware
+    from slowapi.util import get_remote_address
 
     limiter = Limiter(key_func=get_remote_address, default_limits=["200/minute"])
     app.state.limiter = limiter

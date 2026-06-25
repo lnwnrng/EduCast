@@ -18,9 +18,7 @@ class ProjectService:
     """项目 CRUD 服务。"""
 
     @staticmethod
-    async def create_project(
-        db: AsyncSession, data: ProjectCreate, user_id
-    ) -> Project:
+    async def create_project(db: AsyncSession, data: ProjectCreate, user_id) -> Project:
         """创建新项目。"""
         project = Project(
             title=data.title,
@@ -70,7 +68,7 @@ class ProjectService:
         db: AsyncSession,
         page: int = 1,
         page_size: int = 20,
-        user_id = None,
+        user_id=None,
         is_admin: bool = False,
         category_id: str | None = None,
         tag_ids: list[str] | None = None,
@@ -80,6 +78,7 @@ class ProjectService:
         cat_uuids: list[UUID] | None = None
         if category_id:
             from app.models.category import CourseCategory
+
             cat_uuid = UUID(category_id)
             # 收集该分类及所有子分类的 ID
             all_cats = (await db.execute(select(CourseCategory))).scalars().all()

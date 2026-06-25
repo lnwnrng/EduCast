@@ -38,9 +38,11 @@ def _is_billed(scene_type: SceneType) -> bool:
     if scene_type == SceneType.DIGITAL_HUMAN:
         return bool(get_effective_key("DIGITAL_HUMAN_API_KEY"))
     if scene_type == SceneType.GENERATIVE_CLIP:
-        # CogVideoX 与 GLM 同平台：COGVIDEO_API_KEY 为空时回退用 ZHIPU_API_KEY
+        # 视频生成 Key：优先「LLM 管理 → 视频生成」激活配置镜像的
+        # VIDEO_GEN_API_KEY，其次 COGVIDEO_API_KEY，最后镜像的 ZHIPU_API_KEY。
         return bool(
-            get_effective_key("COGVIDEO_API_KEY")
+            get_effective_key("VIDEO_GEN_API_KEY")
+            or get_effective_key("COGVIDEO_API_KEY")
             or get_effective_key("ZHIPU_API_KEY")
         )
     return False

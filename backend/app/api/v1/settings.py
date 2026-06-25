@@ -18,6 +18,7 @@ router = APIRouter(prefix="/settings", tags=["系统设置"])
 
 class UpdateSettingsRequest(BaseModel):
     """更新运行时设置。"""
+
     settings: dict[str, str]
 
 
@@ -41,15 +42,21 @@ async def get_api_keys(
         masked = ""
         if runtime_val:
             if is_secret:
-                masked = runtime_val[:6] + "****" + runtime_val[-4:] if len(runtime_val) > 10 else "****"
+                masked = (
+                    runtime_val[:6] + "****" + runtime_val[-4:]
+                    if len(runtime_val) > 10
+                    else "****"
+                )
             else:
                 masked = runtime_val
 
-        items.append({
-            **defn,
-            "is_configured": is_configured,
-            "masked_value": masked,
-        })
+        items.append(
+            {
+                **defn,
+                "is_configured": is_configured,
+                "masked_value": masked,
+            }
+        )
 
     return {"items": items}
 
@@ -91,11 +98,14 @@ async def update_api_keys(
     save_runtime_settings(runtime)
 
     configured = [k for k, v in runtime.items() if v and k in allowed_keys]
-    return SuccessResponse(message=f"设置已保存，已配置: {', '.join(configured) or '无'}")
+    return SuccessResponse(
+        message=f"设置已保存，已配置: {', '.join(configured) or '无'}"
+    )
 
 
 class TestApiKeyRequest(BaseModel):
     """测试 API Key 连通性。"""
+
     key: str
     value: str
 

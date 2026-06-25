@@ -10,7 +10,8 @@ from app.services.settings_service import get_effective_key, get_effective_value
 
 logger = logging.getLogger(__name__)
 
-_VERIFICATION_EMAIL_TEMPLATE = """\
+_VERIFICATION_EMAIL_TEMPLATE = (
+    """\
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -18,27 +19,43 @@ _VERIFICATION_EMAIL_TEMPLATE = """\
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>EduCast 验证码</title>
 </head>
-<body style="margin:0;padding:0;background:#f5f7fa;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
-  <div style="max-width:480px;margin:40px auto;background:#fff;border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);overflow:hidden;">
-    <div style="background:linear-gradient(135deg,#1677ff 0%,#4096ff 100%);padding:28px 32px;text-align:center;">
-      <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">EduCast 课影</h1>
+"""
+    """<body style="margin:0;padding:0;background:#f5f7fa;"""
+    """font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">\n"""
+    """  <div style="max-width:480px;margin:40px auto;background:#fff;"""
+    """border-radius:12px;box-shadow:0 2px 12px rgba(0,0,0,0.06);overflow:hidden;">\n"""
+    """    <div style="background:linear-gradient(135deg,#1677ff 0%,#4096ff 100%);"""
+    """padding:28px 32px;text-align:center;">\n"""
+    """      <h1 style="margin:0;color:#fff;font-size:24px;font-weight:600;">"""
+    """EduCast 课影</h1>
     </div>
     <div style="padding:32px;">
       <p style="margin:0 0 16px;color:#333;font-size:15px;">您好，</p>
-      <p style="margin:0 0 24px;color:#333;font-size:15px;">您正在注册 EduCast 账号，请使用以下验证码完成验证：</p>
-      <div style="background:#f0f5ff;border:1px solid #d6e4ff;border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">
-        <span style="font-size:32px;font-weight:700;letter-spacing:8px;color:#1677ff;">{code}</span>
+"""
+    """      <p style="margin:0 0 24px;color:#333;font-size:15px;">"""
+    """您正在注册 EduCast 账号，请使用以下验证码完成验证：</p>\n"""
+    """      <div style="background:#f0f5ff;border:1px solid #d6e4ff;"""
+    """border-radius:8px;padding:20px;text-align:center;margin:0 0 24px;">\n"""
+    """        <span style="font-size:32px;font-weight:700;"""
+    """letter-spacing:8px;color:#1677ff;">{code}</span>
       </div>
-      <p style="margin:0 0 8px;color:#666;font-size:13px;">⏱ 验证码有效期为 <strong>{expire_minutes}</strong> 分钟，请尽快完成验证。</p>
-      <p style="margin:0;color:#999;font-size:13px;">如非本人操作，请忽略此邮件。</p>
+"""
+    """      <p style="margin:0 0 8px;color:#666;font-size:13px;">"""
+    """⏱ 验证码有效期为 <strong>{expire_minutes}</strong>"""
+    """ 分钟，请尽快完成验证。</p>\n"""
+    """      <p style="margin:0;color:#999;font-size:13px;">"""
+    """如非本人操作，请忽略此邮件。</p>
     </div>
     <div style="background:#f5f7fa;padding:16px 32px;text-align:center;">
-      <p style="margin:0;color:#bbb;font-size:12px;">© EduCast 课影 — 面向高校教学的智能视频生产平台</p>
-    </div>
+"""
+    """      <p style="margin:0;color:#bbb;font-size:12px;">"""
+    """© EduCast 课影 — 面向高校教学的智能视频生产平台</p>\n"""
+    """    </div>
   </div>
 </body>
 </html>
 """
+)
 
 
 class EmailService:
@@ -93,7 +110,9 @@ class EmailService:
                 )
                 resp.raise_for_status()
         except httpx.HTTPStatusError as e:
-            logger.error("Resend API 返回错误: %s %s", e.response.status_code, e.response.text)
+            logger.error(
+                "Resend API 返回错误: %s %s", e.response.status_code, e.response.text
+            )
             raise ProviderException(
                 message=f"邮件发送失败（HTTP {e.response.status_code}）",
                 error_code="EMAIL_SEND_FAILED",

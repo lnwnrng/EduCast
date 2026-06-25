@@ -163,8 +163,11 @@ def register_exception_handlers(app: FastAPI) -> None:
         log_fn = logger.warning if exc.status_code < 500 else logger.error
         log_fn(
             "[EduCastException] %s %s → %d %s: %s",
-            request.method, request.url.path,
-            exc.status_code, exc.error_code, exc.message,
+            request.method,
+            request.url.path,
+            exc.status_code,
+            exc.error_code,
+            exc.message,
         )
         return JSONResponse(
             status_code=exc.status_code,
@@ -182,7 +185,9 @@ def register_exception_handlers(app: FastAPI) -> None:
         """全局 500 异常处理器 — 防止堆栈信息泄露。"""
         logger.error(
             "[未捕获异常] %s %s: %s",
-            request.method, request.url.path, exc,
+            request.method,
+            request.url.path,
+            exc,
             exc_info=True,
         )
         return JSONResponse(

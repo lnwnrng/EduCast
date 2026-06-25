@@ -1,7 +1,7 @@
 """智谱 GLM-4.7-Flash LLM Provider。
 
-GLM-4.7-Flash（2026-01 起免费，替代 GLM-4.5-Flash）是混合思考模型，
-通过 OpenAI 兼容的 chat/completions 端点调用：
+GLM-4.7-Flash（2026-01 起免费，替代 GLM-4.5-Flash）是混合思考模型，通过
+OpenAI 兼容端点调用：
 
     POST {base_url}/chat/completions
     Authorization: Bearer <api_key>
@@ -9,173 +9,31 @@ GLM-4.7-Flash（2026-01 起免费，替代 GLM-4.5-Flash）是混合思考模型
 用于脚本编排、分镜规划、出题、合规审核。免费档，成本为 0。
 """
 
-import logging
-import uuid
-from typing import Any
+from app.providers.llm.openai_compat import OpenAICompatibleLLMProvider
 
-import httpx
-
-from app.config import settings
-from app.providers.base import BaseProvider, ProviderResult
-
-logger = logging.getLogger(__name__)
-
-# 模块级共享 httpx 连接池（避免每次调用重建 TCP 连接）
-_shared_client: httpx.AsyncClient | None = None
-_shared_client_loop: object | None = None
+DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+DEFAULT_MODEL = "glm-4.7-flash"
 
 
-def _get_httpx_client() -> httpx.AsyncClient:
-    """获取或创建共享 httpx 客户端（带连接池复用）。
+class ZhipuLLMProvider(OpenAICompatibleLLMProvider):
+    """智谱 GLM Provider（OpenAI 兼容端点，支持 thinking 字段）。
 
-    跨事件循环自动重建（测试环境每个 test 可能有新 event loop）。
-    """
-    global _shared_client, _shared_client_loop  # noqa: PLW0603
-    import asyncio
-
-    current_loop = asyncio.get_running_loop()
-    if (
-        _shared_client is None
-        or _shared_client.is_closed
-        or _shared_client_loop is not current_loop
-    ):
-        proxy = settings.HTTP_PROXY.strip() or None
-        _shared_client = httpx.AsyncClient(timeout=60.0, proxy=proxy)
-        _shared_client_loop = current_loop
-    return _shared_client
-
-
-class ZhipuLLMProvider(BaseProvider):
-    """智谱 GLM-4.7-Flash Provider。
-
-    核心方法是 `chat()`（同步请求/响应）。`submit`/`get_result` 为适配
-    统一 Provider 接口的薄封装：submit 执行调用并缓存结果，get_result 取回。
+    保留原类名以兼容既有引用与测试。核心实现见 OpenAICompatibleLLMProvider。
     """
 
     def __init__(
         self,
         api_key: str,
-        model: str = "glm-4.7-flash",
-        base_url: str = "https://open.bigmodel.cn/api/paas/v4",
+        model: str = DEFAULT_MODEL,
+        base_url: str = DEFAULT_BASE_URL,
         timeout: float = 60.0,
     ) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
-        # submit/get_result 之间缓存结果（带 TTL 淘汰，防止内存泄漏）
-        self._results: dict[str, ProviderResult] = {}
-        self._results_order: list[str] = []
-        self._max_cache_size = 100  # 最多缓存 100 个结果
-
-    @property
-    def provider_name(self) -> str:
-        return "zhipu_glm4.7_flash"
-
-    async def chat(
-        self,
-        messages: list[dict[str, str]],
-        *,
-        temperature: float = 0.6,
-        max_tokens: int = 4096,
-        response_format: dict[str, Any] | None = None,
-        thinking_disabled: bool = True,
-    ) -> ProviderResult:
-        """调用 GLM chat/completions，返回带 content 的 ProviderResult。
-
-        Args:
-            messages: OpenAI 风格消息列表 [{"role","content"}]。
-            temperature: 采样温度。
-            max_tokens: 最大输出 token。
-            response_format: 如 {"type": "json_object"} 要求 JSON 输出。
-            thinking_disabled: GLM-4.7-Flash 为混合思考模型，默认关闭推理以
-                稳定结构化输出。
-
-        Raises:
-            httpx.HTTPError / RuntimeError: 网络异常或非 2xx 响应，交由上层降级。
-        """
-        url = f"{self._base_url}/chat/completions"
-        payload: dict[str, Any] = {
-            "model": self._model,
-            "messages": messages,
-            "temperature": temperature,
-            "max_tokens": max_tokens,
-        }
-        if thinking_disabled:
-            payload["thinking"] = {"type": "disabled"}
-        if response_format is not None:
-            payload["response_format"] = response_format
-
-        headers = {
-            "Authorization": f"Bearer {self._api_key}",
-            "Content-Type": "application/json",
-        }
-
-        proxy = settings.HTTP_PROXY.strip() or None
-        client = _get_httpx_client()
-        resp = await client.post(url, json=payload, headers=headers)
-
-        if resp.status_code != 200:
-            raise RuntimeError(f"GLM API 返回 {resp.status_code}: {resp.text[:500]}")
-
-        data = resp.json()
-        choices = data.get("choices") or []
-        if not choices:
-            raise RuntimeError(f"GLM API 响应缺少 choices: {data}")
-
-        message = choices[0].get("message", {})
-        # 混合思考模型可能返回 reasoning_content，仅取最终 content
-        content = message.get("content") or ""
-        usage = data.get("usage") or {}
-
-        return ProviderResult(
-            task_id=str(uuid.uuid4()),
-            status="completed",
-            content=content,
-            cost=0.0,
-            prompt_tokens=usage.get("prompt_tokens"),
-            completion_tokens=usage.get("completion_tokens"),
+        super().__init__(
+            api_key,
+            model,
+            base_url,
+            provider_type="glm",
+            provider_name="zhipu_glm4.7_flash",
+            supports_thinking=True,
+            timeout=timeout,
         )
-
-    async def submit(self, request: dict) -> str:
-        """提交 LLM 生成请求。
-
-        request 支持: messages, temperature, max_tokens, response_format,
-        thinking_disabled。执行调用并缓存结果，返回 task_id。
-        """
-        result = await self.chat(
-            messages=request["messages"],
-            temperature=request.get("temperature", 0.6),
-            max_tokens=request.get("max_tokens", 4096),
-            response_format=request.get("response_format"),
-            thinking_disabled=request.get("thinking_disabled", True),
-        )
-        self._cache_result(result)
-        return result.task_id
-
-    def _cache_result(self, result: ProviderResult) -> None:
-        """缓存结果并淘汰超出上限的旧条目。"""
-        self._results[result.task_id] = result
-        self._results_order.append(result.task_id)
-        while len(self._results_order) > self._max_cache_size:
-            old_id = self._results_order.pop(0)
-            self._results.pop(old_id, None)
-
-    async def poll(self, task_id: str) -> ProviderResult:
-        """轮询任务状态（GLM 为同步调用，直接返回缓存结果）。"""
-        return await self.get_result(task_id)
-
-    async def get_result(self, task_id: str) -> ProviderResult:
-        """获取生成结果。"""
-        result = self._results.get(task_id)
-        if result is None:
-            return ProviderResult(
-                task_id=task_id,
-                status="failed",
-                error_msg=f"未找到任务 {task_id} 的结果",
-            )
-        return result
-
-    def estimate_cost(self, request: dict) -> float:
-        """GLM-4.7-Flash 免费档，成本为 0。"""
-        return 0.0

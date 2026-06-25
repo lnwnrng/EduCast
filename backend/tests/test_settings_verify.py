@@ -460,7 +460,11 @@ class TestVerifyApiKeyNetworkErrors:
             result = await verify_api_key("ZHIPU_API_KEY", "test_key")
         assert result["ok"] is False
         assert "超时" in result["message"]
-        assert "代理" in result["message"] or "VPN" in result["message"] or "防火墙" in result["message"]
+        assert (
+            "代理" in result["message"]
+            or "VPN" in result["message"]
+            or "防火墙" in result["message"]
+        )
 
     @pytest.mark.asyncio
     async def test_ssl_connect_error_returns_network_error(self):

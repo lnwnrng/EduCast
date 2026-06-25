@@ -439,7 +439,7 @@ const UploadPage: React.FC = () => {
               showUploadList
               disabled={uploading}
               fileList={[]}
-              beforeUpload={(file, fileList) => {
+              beforeUpload={(_file, fileList) => {
                 // 收集所有文件后一次性批量上传
                 const allFiles = fileList as File[];
                 if (allFiles.length > 0) {

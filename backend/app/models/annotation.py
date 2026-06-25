@@ -10,7 +10,6 @@ from app.models.base import Base, BaseMixin
 
 if TYPE_CHECKING:
     from app.models.project import Project
-    from app.models.user import User
 
 
 class Annotation(BaseMixin, Base):
@@ -26,21 +25,25 @@ class Annotation(BaseMixin, Base):
     __tablename__ = "annotations"
 
     project_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("projects.id"), index=True,
+        ForeignKey("projects.id"),
+        index=True,
     )
     user_id: Mapped[uuid.UUID] = mapped_column(
-        ForeignKey("users.id"), index=True,
+        ForeignKey("users.id"),
+        index=True,
     )
     timestamp: Mapped[float] = mapped_column(Float, default=0.0)
     duration: Mapped[float] = mapped_column(Float, default=0.0)
     text: Mapped[str] = mapped_column(Text)
     annotation_type: Mapped[str] = mapped_column(
-        String(20), default="note",
+        String(20),
+        default="note",
     )
     color: Mapped[str] = mapped_column(String(20), default="#1890ff")
     scene_id: Mapped[str | None] = mapped_column(String(36), nullable=True)
     knowledge_point_id: Mapped[str | None] = mapped_column(
-        String(36), nullable=True,
+        String(36),
+        nullable=True,
     )
     sort_order: Mapped[int] = mapped_column(Integer, default=0)
 

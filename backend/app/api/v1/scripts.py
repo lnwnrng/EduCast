@@ -66,7 +66,9 @@ async def _run_orchestrate_in_background(
             # orchestrate 内部已处理错误状态更新
             logger.error(
                 "后台编排异常: project=%s, task=%s",
-                project_id, task_id, exc_info=True,
+                project_id,
+                task_id,
+                exc_info=True,
             )
 
 
@@ -86,7 +88,9 @@ async def _run_composition_in_background(
             # compose 内部已处理错误状态更新
             logger.error(
                 "后台合成异常: project=%s, task=%s",
-                project_id, task_id, exc_info=True,
+                project_id,
+                task_id,
+                exc_info=True,
             )
 
 

@@ -31,6 +31,7 @@ def _set_sqlite_pragma(dbapi_connection, connection_record):  # type: ignore[no-
         cursor.close()
         logger.debug("已启用 SQLite 外键约束")
 
+
 async_session_factory = async_sessionmaker(
     engine,
     class_=AsyncSession,

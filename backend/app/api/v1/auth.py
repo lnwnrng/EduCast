@@ -29,14 +29,18 @@ try:
 
     def _limit(per: str):  # type: ignore[no-untyped-def]
         """创建限速装饰器。"""
-        from functools import wraps
+
         def decorator(func):  # type: ignore[no-untyped-def]
             return func
+
         return decorator
+
 except ImportError:
+
     def _limit(per: str):  # type: ignore[no-untyped-def]
         def decorator(func):  # type: ignore[no-untyped-def]
             return func
+
         return decorator
 
 
@@ -99,7 +103,11 @@ async def register(
 
     _set_auth_cookies(response, access_token, refresh_token)
     await AuditService.log(
-        db, str(user.id), "register", "user", str(user.id),
+        db,
+        str(user.id),
+        "register",
+        "user",
+        str(user.id),
         f"username={user.username}, email={user.email}",
     )
     return UserWithTokenResponse(
@@ -126,7 +134,11 @@ async def login(
     )
     _set_auth_cookies(response, access_token, refresh_token)
     await AuditService.log(
-        db, str(user.id), "login", "user", str(user.id),
+        db,
+        str(user.id),
+        "login",
+        "user",
+        str(user.id),
         f"ip={request.client.host if request.client else None}",
     )
     return UserWithTokenResponse(
@@ -164,10 +176,12 @@ async def logout(
         # 尝试记录审计日志（best-effort，失败不影响登出）
         try:
             from jose import jwt as jose_jwt
+
             access_token = request.cookies.get("access_token")
             if access_token:
                 payload = jose_jwt.decode(
-                    access_token, settings.JWT_SECRET_KEY,
+                    access_token,
+                    settings.JWT_SECRET_KEY,
                     algorithms=[settings.JWT_ALGORITHM],
                     options={"verify_exp": False},
                 )

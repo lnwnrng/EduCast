@@ -32,12 +32,16 @@ from app.ir.schema import (
     SceneIR,
     SceneType,
 )
-from app.providers.llm.zhipu import ZhipuLLMProvider
+from app.providers.base import ProviderResult
+from app.providers.llm.base_llm import LLMProviderBase
 from app.utils.json_parse import extract_json
 
 logger = logging.getLogger(__name__)
 
 ProgressCallback = Callable[[int, int], Awaitable[None]]
+
+#: LLM provider 解析器 — 给定阶段 key，返回有序 provider 列表（逐级降级用）。
+LLMResolver = Callable[[str], list[LLMProviderBase]]
 
 # 单个分镜原始文字截断长度，避免超长输入
 _MAX_SCENE_CHARS = 1500
@@ -47,10 +51,64 @@ _VALID_SCENE_TYPES = {t.value for t in SceneType}
 
 
 class ScriptWriter:
-    """LLM 脚本编排器 — 三阶段多智能体管道。"""
+    """LLM 脚本编排器 — 三阶段多智能体管道。
 
-    def __init__(self, llm_provider: ZhipuLLMProvider | None) -> None:
+    LLM 取用通过 `llm_resolver` 按阶段解析：每个调用点传入 stage_key
+    （course_metadata / outline / scene / review），resolver 返回该阶段的
+    有序 provider 列表，`_call_llm` 逐个尝试，首个成功即返回，全部失败
+    返回 None 由各阶段降级。保留 `llm_provider` 位置参数以兼容旧调用与
+    测试（传入单个 provider 时自动包成「所有阶段都用它」的 resolver）。
+    """
+
+    def __init__(
+        self,
+        llm_provider: LLMProviderBase | None = None,
+        *,
+        llm_resolver: LLMResolver | None = None,
+    ) -> None:
+        # 保留 self._llm 供既有测试访问；新代码应使用 _call_llm。
         self._llm = llm_provider
+        if llm_resolver is not None:
+            self._resolver: LLMResolver = llm_resolver
+        elif llm_provider is not None:
+            self._resolver = lambda stage: [llm_provider]
+        else:
+            self._resolver = lambda stage: []
+
+    async def _call_llm(
+        self,
+        stage_key: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.6,
+        max_tokens: int = 4096,
+        response_format: dict[str, Any] | None = None,
+        thinking_disabled: bool = True,
+    ) -> ProviderResult | None:
+        """按阶段取用 LLM，逐个 provider 尝试，首个成功即返回。
+
+        全部失败返回 None，交由调用方降级（本地规整 / 保留原文）。
+        """
+        providers = self._resolver(stage_key) or self._resolver("default")
+        for provider in providers:
+            try:
+                return await provider.chat(
+                    messages,
+                    temperature=temperature,
+                    max_tokens=max_tokens,
+                    response_format=response_format,
+                    thinking_disabled=thinking_disabled,
+                )
+            except Exception as exc:  # noqa: BLE001 — 单 provider 失败切备选
+                logger.warning(
+                    "阶段 %s provider %s 调用失败，尝试下一备选: %s",
+                    stage_key,
+                    getattr(provider, "provider_name", "?"),
+                    exc,
+                )
+                continue
+        logger.warning("阶段 %s 无可用 LLM provider 或全部失败", stage_key)
+        return None
 
     async def enhance_ir(
         self,
@@ -79,9 +137,9 @@ class ScriptWriter:
 
         total_kps = sum(len(ch.knowledge_points) for ch in ir.chapters)
 
-        if self._llm is None:
+        if not self._resolver("default"):
             logger.warning(
-                "未配置 LLM Provider，脚本编排降级为本地轻量规整: %s",
+                "未配置任何 LLM Provider，脚本编排降级为本地轻量规整: %s",
                 ir.title,
             )
             _local_normalize(ir)
@@ -152,12 +210,16 @@ class ScriptWriter:
             },
         ]
         try:
-            result = await self._llm.chat(
+            result = await self._call_llm(
+                "course_metadata",
                 messages,
                 temperature=0.3,
                 max_tokens=512,
                 response_format={"type": "json_object"},
             )
+            if result is None:
+                logger.warning("课程元信息推断无可用 provider，跳过")
+                return
             data = extract_json(result.content)
         except Exception as exc:  # noqa: BLE001
             logger.warning("课程元信息推断失败: %s", exc)
@@ -235,12 +297,16 @@ class ScriptWriter:
             },
         ]
         try:
-            result = await self._llm.chat(
+            result = await self._call_llm(
+                "outline",
                 messages,
                 temperature=0.4,
                 max_tokens=4096,
                 response_format={"type": "json_object"},
             )
+            if result is None:
+                logger.warning("教学大纲生成无可用 provider，继续无大纲模式")
+                return {}
             data = extract_json(result.content)
         except Exception as exc:  # noqa: BLE001
             logger.warning("教学大纲生成失败，继续无大纲模式: %s", exc)
@@ -270,12 +336,15 @@ class ScriptWriter:
             return
 
         messages = self._build_kp_messages(ir, chapter, kp, context)
-        result = await self._llm.chat(
+        result = await self._call_llm(
+            "scene",
             messages,
             temperature=0.6,
             max_tokens=4096,
             response_format={"type": "json_object"},
         )
+        if result is None:
+            raise ValueError("无可用 LLM Provider")
         data = extract_json(result.content)
         if not data:
             raise ValueError("知识点 JSON 解析失败")
@@ -444,9 +513,7 @@ class ScriptWriter:
             text = (scene.narration_text or "").strip()
             if len(text) > 200:
                 text = text[:200] + "…"
-            scene_summaries.append(
-                f"[章{ci + 1}-知{ki + 1}-镜{order}] {text}"
-            )
+            scene_summaries.append(f"[章{ci + 1}-知{ki + 1}-镜{order}] {text}")
         script_block = "\n".join(scene_summaries)
 
         messages = [
@@ -487,12 +554,16 @@ class ScriptWriter:
             },
         ]
         try:
-            result = await self._llm.chat(
+            result = await self._call_llm(
+                "review",
                 messages,
                 temperature=0.4,
                 max_tokens=4096,
                 response_format={"type": "json_object"},
             )
+            if result is None:
+                logger.warning("Review Agent 无可用 provider，保留原稿")
+                return
             data = extract_json(result.content)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Review Agent 审校失败，保留原稿: %s", exc)

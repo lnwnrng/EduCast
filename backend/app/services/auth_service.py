@@ -49,7 +49,9 @@ def is_token_revoked(user_id: str, token_iat: datetime | None = None) -> bool:
         return False
 
     # 自动清理：如果 revoke 时间已超过 JWT 有效期，删除条目
-    if (datetime.now(UTC) - revoke_time).total_seconds() > settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60:
+    if (
+        datetime.now(UTC) - revoke_time
+    ).total_seconds() > settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60:
         del _access_token_blacklist[user_id]
         return False
 
@@ -77,9 +79,7 @@ def _create_refresh_token() -> str:
 class AuthService:
 
     @staticmethod
-    async def send_verification_code(
-        db: AsyncSession, email: str
-    ) -> int:
+    async def send_verification_code(db: AsyncSession, email: str) -> int:
         """生成并发送邮箱验证码，返回冷却秒数。
 
         Raises:
@@ -87,9 +87,7 @@ class AuthService:
             ProviderException: 邮件发送失败。
         """
         # 检查邮箱是否已注册
-        existing = await db.execute(
-            select(User).where(User.email == email)
-        )
+        existing = await db.execute(select(User).where(User.email == email))
         if existing.scalar_one_or_none():
             raise ValueError("该邮箱已被注册")
 
@@ -98,19 +96,20 @@ class AuthService:
             seconds=settings.VERIFICATION_CODE_COOLDOWN_SECONDS
         )
         recent = await db.execute(
-            select(VerificationCode).where(
+            select(VerificationCode)
+            .where(
                 VerificationCode.email == email,
                 VerificationCode.is_used == False,  # noqa: E712
                 VerificationCode.created_at > cooldown_threshold,
-            ).order_by(VerificationCode.created_at.desc())
+            )
+            .order_by(VerificationCode.created_at.desc())
         )
         if recent.scalars().first():
             raise ValueError("发送过于频繁，请稍后再试")
 
         # 生成 6 位验证码（大写字母 + 数字，排除易混淆字符 0/O/I/L）
         charset = "".join(
-            c for c in string.ascii_uppercase + string.digits
-            if c not in "0OIL"
+            c for c in string.ascii_uppercase + string.digits if c not in "0OIL"
         )
         code = "".join(secrets.choice(charset) for _ in range(6))
 
@@ -133,23 +132,26 @@ class AuthService:
 
     @staticmethod
     async def register(
-        db: AsyncSession, username: str, password: str,
-        email: str, code: str,
+        db: AsyncSession,
+        username: str,
+        password: str,
+        email: str,
+        code: str,
     ) -> tuple[User, str, str]:
         """注册新用户。返回 (user, access_token, refresh_token)。"""
-        existing = await db.execute(
-            select(User).where(User.username == username)
-        )
+        existing = await db.execute(select(User).where(User.username == username))
         if existing.scalar_one_or_none():
             raise ValueError("用户名已存在")
 
         # 校验验证码
         result = await db.execute(
-            select(VerificationCode).where(
+            select(VerificationCode)
+            .where(
                 VerificationCode.email == email,
                 VerificationCode.is_used == False,  # noqa: E712
                 VerificationCode.expires_at > datetime.now(UTC),
-            ).order_by(VerificationCode.created_at.desc())
+            )
+            .order_by(VerificationCode.created_at.desc())
         )
         record = result.scalars().first()
         if not record:
@@ -164,15 +166,15 @@ class AuthService:
         record.is_used = True
 
         # 检查邮箱唯一性（双重保障）
-        existing_email = await db.execute(
-            select(User).where(User.email == email)
-        )
+        existing_email = await db.execute(select(User).where(User.email == email))
         if existing_email.scalar_one_or_none():
             raise ValueError("该邮箱已被注册")
 
         # 分配最小可用 display_id（填补删除留下的空缺）
         used_ids_result = await db.execute(
-            select(User.display_id).where(User.display_id.isnot(None)).order_by(User.display_id)
+            select(User.display_id)
+            .where(User.display_id.isnot(None))
+            .order_by(User.display_id)
         )
         used_ids = {row[0] for row in used_ids_result.all()}
         next_display_id = 1
@@ -196,13 +198,14 @@ class AuthService:
 
     @staticmethod
     async def login(
-        db: AsyncSession, username: str, password: str,
-        device_info: str | None = None, ip: str | None = None,
+        db: AsyncSession,
+        username: str,
+        password: str,
+        device_info: str | None = None,
+        ip: str | None = None,
     ) -> tuple[User, str, str]:
         """登录验证。返回 (user, access_token, refresh_token)。"""
-        result = await db.execute(
-            select(User).where(User.username == username)
-        )
+        result = await db.execute(select(User).where(User.username == username))
         user = result.scalar_one_or_none()
         if not user or not pwd_context.verify(password, user.password_hash):
             raise AuthenticationException("用户名或密码错误")
@@ -217,9 +220,13 @@ class AuthService:
 
     @staticmethod
     async def refresh(
-        db: AsyncSession, raw_refresh: str,
+        db: AsyncSession,
+        raw_refresh: str,
     ) -> tuple[User, str, str]:
-        """刷新 access token + token 轮换。返回 (user, new_access_token, new_refresh_token)。"""
+        """刷新 access token + token 轮换。
+
+        返回 (user, new_access_token, new_refresh_token)。
+        """
         token_hash = _hash_token(raw_refresh)
         result = await db.execute(
             select(RefreshToken).where(
@@ -244,8 +251,11 @@ class AuthService:
         new_access = _create_access_token(str(user.id))
         new_refresh = _create_refresh_token()
         await _store_refresh_token(
-            db, user.id, new_refresh,
-            token_record.device_info, token_record.ip_address,
+            db,
+            user.id,
+            new_refresh,
+            token_record.device_info,
+            token_record.ip_address,
         )
         return user, new_access, new_refresh
 
@@ -267,9 +277,7 @@ class AuthService:
             logger.info("用户 %s 的 access token 已加入黑名单", token.user_id)
 
     @staticmethod
-    async def get_current_user(
-        db: AsyncSession, user_id: str
-    ) -> User:
+    async def get_current_user(db: AsyncSession, user_id: str) -> User:
         """根据 user_id 查询用户。"""
         result = await db.execute(select(User).where(User.id == uuid.UUID(user_id)))
         user = result.scalar_one_or_none()
@@ -286,9 +294,7 @@ async def _store_refresh_token(
     ip: str | None,
 ) -> None:
     """持久化 refresh token。"""
-    expires = datetime.now(UTC) + timedelta(
-        days=settings.REFRESH_TOKEN_EXPIRE_DAYS
-    )
+    expires = datetime.now(UTC) + timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     record = RefreshToken(
         user_id=user_id,
         token_hash=_hash_token(raw_token),
