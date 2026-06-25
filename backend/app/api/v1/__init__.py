@@ -15,6 +15,7 @@ from app.api.v1.settings import router as settings_router
 from app.api.v1.tags import router as tags_router
 from app.api.v1.tasks import router as tasks_router
 from app.api.v1.upload import router as upload_router
+from app.api.v1.video_gen_providers import router as video_gen_providers_router
 from app.api.v1.websocket import router as ws_router
 
 api_v1_router = APIRouter(prefix="/api/v1")
@@ -32,4 +33,5 @@ api_v1_router.include_router(monitoring_router)
 api_v1_router.include_router(requests_router)
 api_v1_router.include_router(settings_router)
 api_v1_router.include_router(llm_providers_router)
+api_v1_router.include_router(video_gen_providers_router)
 api_v1_router.include_router(ws_router)

@@ -4,13 +4,18 @@ import json
 
 import httpx
 
-import app.providers.video_gen.cogvideox as cog_mod
+import app.providers.video_gen.base as vg_base
 from app.config import settings
 from app.providers.video_gen import get_video_gen_provider
 from app.providers.video_gen.cogvideox import CogVideoXProvider
 
 
 def _patch_transport(monkeypatch, handler) -> None:
+    """把 base 模块内的 httpx.AsyncClient 替换为带 MockTransport 的版本。
+
+    重构后 CogVideoXProvider 的 httpx 调用集中在 VideoGenProviderBase.
+    _http_client（base.py），故 patch base 模块的 httpx。
+    """
     transport = httpx.MockTransport(handler)
     real_client = httpx.AsyncClient
 
@@ -19,7 +24,7 @@ def _patch_transport(monkeypatch, handler) -> None:
         kwargs.pop("proxy", None)
         return real_client(transport=transport, **kwargs)
 
-    monkeypatch.setattr(cog_mod.httpx, "AsyncClient", make_client)
+    monkeypatch.setattr(vg_base.httpx, "AsyncClient", make_client)
 
 
 async def test_generate_submit_poll_download(monkeypatch, tmp_path) -> None:

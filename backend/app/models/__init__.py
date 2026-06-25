@@ -13,6 +13,7 @@ from app.models.tag import Tag
 from app.models.task import SubTask, Task
 from app.models.user import User
 from app.models.verification_code import VerificationCode
+from app.models.video_gen_provider import VideoGenProviderConfig
 
 __all__ = [
     "AuditLog",
@@ -29,5 +30,6 @@ __all__ = [
     "Tag",
     "Task",
     "User",
+    "VideoGenProviderConfig",
     "VerificationCode",
 ]

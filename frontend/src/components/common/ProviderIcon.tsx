@@ -1,25 +1,33 @@
 import React from 'react';
 import type { LLMProviderType } from '../../types/llm';
+import type { VideoGenProviderType } from '../../types/video_gen';
 import claudeIcon from '../../assets/icons/llm/claude.svg';
 import openaiIcon from '../../assets/icons/llm/openai.svg';
 import glmIcon from '../../assets/icons/llm/glm.svg';
 import deepseekIcon from '../../assets/icons/llm/deepseek.svg';
+import cogvideoxIcon from '../../assets/icons/llm/cogvideox.svg';
+import klingIcon from '../../assets/icons/llm/kling.svg';
+import minimaxIcon from '../../assets/icons/llm/minimax.svg';
 
-const ICON_MAP: Record<LLMProviderType, string> = {
+const ICON_MAP: Record<string, string> = {
   claude: claudeIcon,
   openai: openaiIcon,
   glm: glmIcon,
   deepseek: deepseekIcon,
+  cogvideox: cogvideoxIcon,
+  kling: klingIcon,
+  minimax: minimaxIcon,
 };
 
 interface ProviderIconProps {
-  providerType: LLMProviderType;
+  /** provider 类型：LLM(claude/openai/glm/deepseek) 或视频生成(cogvideox/kling/minimax)。 */
+  providerType: LLMProviderType | VideoGenProviderType | string;
   size?: number;
   /** 圆形背景衬底，让纯字形图标在浅色卡片上更醒目；默认关闭。 */
   withBackground?: boolean;
 }
 
-/** LLM 厂商品牌图标。SVG 已内置品牌色，按 provider 类型渲染对应 logo。 */
+/** 厂商品牌图标。SVG 已内置品牌色，按 provider 类型渲染对应 logo。 */
 const ProviderIcon: React.FC<ProviderIconProps> = ({
   providerType,
   size = 22,

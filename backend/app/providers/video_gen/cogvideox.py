@@ -10,15 +10,12 @@ CogVideoX 与 GLM 同在智谱 BigModel 平台，走异步「提交→轮询→�
 ``cogvideox-flash`` 为免费/极低价档，不接受 quality/size/fps 参数。
 """
 
-import asyncio
 import logging
-import os
 from typing import Any
 
-import httpx
-
 from app.config import settings
-from app.providers.base import BaseProvider, ProviderResult
+from app.providers.base import ProviderResult
+from app.providers.video_gen.base import VideoGenProviderBase
 
 logger = logging.getLogger(__name__)
 
@@ -26,27 +23,24 @@ logger = logging.getLogger(__name__)
 _STATUS_SUCCESS = "SUCCESS"
 _STATUS_FAIL = "FAIL"
 
+DEFAULT_BASE_URL = "https://open.bigmodel.cn/api/paas/v4"
+DEFAULT_MODEL = "cogvideox-flash"
 
-class CogVideoXProvider(BaseProvider):
-    """智谱 CogVideoX 视频生成 Provider。
 
-    核心方法是 ``generate()``（submit→轮询→下载 mp4 落地），供合成层直接调用。
-    submit/poll/get_result 为统一 Provider 接口实现。
-    """
+class CogVideoXProvider(VideoGenProviderBase):
+    """智谱 CogVideoX 视频生成 Provider。"""
 
     def __init__(
         self,
         api_key: str,
-        model: str = "cogvideox-flash",
-        base_url: str = "https://open.bigmodel.cn/api/paas/v4",
+        model: str = DEFAULT_MODEL,
+        base_url: str = DEFAULT_BASE_URL,
         timeout: float = 300.0,
         poll_interval: float = 5.0,
     ) -> None:
-        self._api_key = api_key
-        self._model = model
-        self._base_url = base_url.rstrip("/")
-        self._timeout = timeout
-        self._poll_interval = poll_interval
+        super().__init__(
+            api_key, model, base_url, timeout=timeout, poll_interval=poll_interval
+        )
 
     @property
     def provider_name(self) -> str:
@@ -84,9 +78,7 @@ class CogVideoXProvider(BaseProvider):
                     payload[key] = request[key]
 
         url = f"{self._base_url}/videos/generations"
-        async with httpx.AsyncClient(
-            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
-        ) as client:
+        async with self._http_client() as client:
             resp = await client.post(url, json=payload, headers=self._headers)
         if resp.status_code != 200:
             raise RuntimeError(
@@ -102,9 +94,7 @@ class CogVideoXProvider(BaseProvider):
     async def poll(self, task_id: str) -> ProviderResult:
         """查询一次任务状态。"""
         url = f"{self._base_url}/async-result/{task_id}"
-        async with httpx.AsyncClient(
-            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
-        ) as client:
+        async with self._http_client() as client:
             resp = await client.get(url, headers=self._headers)
         if resp.status_code != 200:
             raise RuntimeError(
@@ -129,51 +119,6 @@ class CogVideoXProvider(BaseProvider):
                 task_id=task_id, status="failed", error_msg="CogVideoX 任务失败"
             )
         return ProviderResult(task_id=task_id, status="processing")
-
-    async def get_result(self, task_id: str) -> ProviderResult:
-        """轮询至终态（带超时）。"""
-        loop = asyncio.get_running_loop()
-        deadline = loop.time() + self._timeout
-        while True:
-            result = await self.poll(task_id)
-            if result.status in ("completed", "failed"):
-                return result
-            if loop.time() >= deadline:
-                return ProviderResult(
-                    task_id=task_id,
-                    status="failed",
-                    error_msg=f"CogVideoX 轮询超时（>{self._timeout:.0f}s）",
-                )
-            await asyncio.sleep(self._poll_interval)
-
-    # ── 合成层便捷方法 ────────────────────────────────────────
-
-    async def generate(
-        self,
-        prompt: str,
-        output_path: str,
-        *,
-        image_url: str | None = None,
-    ) -> str:
-        """提交→轮询→下载生成视频到 ``output_path``，返回路径。失败抛异常。"""
-        task_id = await self.submit({"prompt": prompt, "image_url": image_url})
-        result = await self.get_result(task_id)
-        if result.status != "completed" or not result.result_url:
-            raise RuntimeError(result.error_msg or "CogVideoX 生成失败")
-        await self._download(result.result_url, output_path)
-        logger.info("CogVideoX 生成完成: %s", output_path)
-        return output_path
-
-    async def _download(self, url: str, output_path: str) -> None:
-        os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        async with httpx.AsyncClient(
-            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
-        ) as client:
-            async with client.stream("GET", url) as resp:
-                resp.raise_for_status()
-                with open(output_path, "wb") as f:
-                    async for chunk in resp.aiter_bytes():
-                        f.write(chunk)
 
     def estimate_cost(self, request: dict) -> float:
         """flash 档免费记 0；正式档按片段时长 × 费率估算（元）。"""
