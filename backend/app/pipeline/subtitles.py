@@ -5,6 +5,7 @@
 """
 
 import re
+import unicodedata
 
 # (start_seconds, end_seconds, text)
 Segment = tuple[float, float, str]
@@ -12,7 +13,9 @@ Segment = tuple[float, float, str]
 _PRIMARY_SPLIT_RE = re.compile(r"[^。！？!?；;\n]+[。！？!?；;]?", re.MULTILINE)
 _SOFT_SPLIT_RE = re.compile(r"[^，、：:,]+[，、：:,]?", re.MULTILINE)
 
-DEFAULT_MAX_CUE_CHARS = 28
+# 字幕单 cue 最大「可视宽度」：CJK 字符算 2 宽度，ASCII 算 1。
+# 22 宽度 ≈ 11 个汉字或 22 个字母，视觉上单行舒适不溢出。
+DEFAULT_MAX_CUE_CHARS = 22
 DEFAULT_MIN_CUE_SECONDS = 1.2
 
 
@@ -178,7 +181,16 @@ def _join_chunks(left: str, right: str) -> str:
 
 
 def _visible_len(text: str) -> int:
-    return len((text or "").strip())
+    """CJK 宽度感知的「可视长度」：汉字/全角字符算 2，其余算 1。
+
+    用于字幕 cue 宽度限制，避免一行汉字过多溢出屏幕。
+    """
+    text = (text or "").strip()
+    width = 0
+    for ch in text:
+        eaw = unicodedata.east_asian_width(ch)
+        width += 2 if eaw in ("W", "F") else 1
+    return width
 
 
 def build_srt(segments: list[Segment]) -> str:

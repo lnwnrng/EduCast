@@ -195,8 +195,8 @@ async def test_formula_failure_degrades_to_slide(
         tts_provider=FakeTTS(), formula_renderer=BoomFormula()
     ).compose(pid, tid, db_session)
 
-    # 公式失败 → 课件页静图兜底
-    assert rec_ffmpeg["image_audio"] == 1
+    # 公式失败 → 课件页 Ken-Burns 运镜兜底
+    assert rec_ffmpeg["kenburns"] == 1
     subs = await _subtasks(db_session, tid)
     assert any(s.subtask_type == "formula" and s.status == "failed" for s in subs)
     assert any(s.subtask_type == "render" and s.status == "completed" for s in subs)
@@ -231,7 +231,7 @@ async def test_digital_human_disabled_degrades_to_slide(
     await CompositionService(tts_provider=FakeTTS()).compose(pid, tid, db_session)
 
     assert rec_ffmpeg["pip"] == 0
-    assert rec_ffmpeg["image_audio"] == 1  # 纯课件页
+    assert rec_ffmpeg["kenburns"] == 1  # 纯课件页（Ken-Burns 运镜）
     subs = await _subtasks(db_session, tid)
     assert any(s.subtask_type == "render" for s in subs)
     assert not any(s.subtask_type == "digital_human" for s in subs)

@@ -218,3 +218,156 @@ async def test_progress_callback_invoked() -> None:
     await writer.enhance_ir(draft, progress_cb=cb)
 
     assert seen[-1] == (1, 1)  # 1 个知识点
+
+
+# ── 三阶段多智能体管道 ─────────────────────────────────────
+
+
+class MultiStageFakeLLM:
+    """按 user prompt 关键字分发四类调用（元信息/大纲/知识点/审校）。"""
+
+    def __init__(self, meta, outline, kp, review) -> None:
+        self._meta = meta
+        self._outline = outline
+        self._kp = kp
+        self._review = review
+        self.stage_calls: list[str] = []
+
+    async def chat(
+        self,
+        messages,
+        *,
+        temperature=0.6,
+        max_tokens=4096,
+        response_format=None,
+        thinking_disabled=True,
+    ) -> ProviderResult:
+        user = messages[-1]["content"]
+        if "target_audience" in user:
+            self.stage_calls.append("meta")
+            content = json.dumps(self._meta, ensure_ascii=False)
+        elif "narrative_arc" in user:
+            self.stage_calls.append("outline")
+            content = json.dumps(self._outline, ensure_ascii=False)
+        elif "corrections" in user:
+            self.stage_calls.append("review")
+            content = json.dumps(self._review, ensure_ascii=False)
+        else:
+            self.stage_calls.append("kp")
+            content = json.dumps(self._kp, ensure_ascii=False)
+        return ProviderResult(task_id="fake", status="completed", content=content)
+
+
+def _make_3scene_draft() -> CourseIR:
+    """3 分镜草稿（满足 Review Agent ≥3 分镜的触发条件）。"""
+    scenes = [
+        SceneIR(
+            order=i,
+            scene_type=SceneType.SLIDE,
+            narration_text=f"原始讲稿{i}",
+            visual_spec=VisualSpec(slide_ref=f"slide_{i}.png"),
+            source_page=i,
+        )
+        for i in (1, 2, 3)
+    ]
+    kp = KnowledgePointIR(title="知识点甲", key_points=["要点1"], scenes=scenes)
+    chapter = ChapterIR(title="第一章", order=1, knowledge_points=[kp])
+    return CourseIR(title="abcd_课程名", chapters=[chapter])
+
+
+_OUTLINE = {
+    "narrative_arc": "从平均变化率过渡到瞬时变化率",
+    "opening_hook": "提问：如何描述瞬时速度",
+    "closing_summary": "回顾导数定义",
+    "kp_strategies": [
+        {
+            "kp_title": "知识点甲",
+            "teaching_method": "问题驱动",
+            "pacing": "slow",
+            "transition_in": "上节我们讲了极限",
+            "visual_hint": "slide",
+            "pause_points": "引出定义前停顿",
+        }
+    ],
+}
+
+_KP_SSML = {
+    "tags": ["导数"],
+    "quiz_seeds": [],
+    "scenes": [
+        {
+            "order": i,
+            "scene_type": "slide",
+            "narration_text": (
+                f"第{i}段讲解[PAUSE:0.5]这里是[EMPHASIS]重点{i}[/EMPHASIS]"
+            ),
+            "gen_prompt": "",
+            "latex_steps": [],
+        }
+        for i in (1, 2, 3)
+    ],
+}
+
+_REVIEW = {
+    "corrections": [
+        {
+            "chapter_index": 0,
+            "kp_index": 0,
+            "scene_order": 2,
+            "narration_text": "审校修正后的第二镜讲稿[PAUSE:0.8]",
+            "reason": "衔接断裂",
+        }
+    ]
+}
+
+
+async def test_three_stage_pipeline_stores_outline_and_applies_review() -> None:
+    """Stage1 大纲回填；Stage2 讲稿含 SSML 标记；Stage3 审校修正被应用。"""
+    draft = _make_3scene_draft()
+    writer = ScriptWriter(MultiStageFakeLLM(_META, _OUTLINE, _KP_SSML, _REVIEW))
+    result = await writer.enhance_ir(draft)
+
+    # Stage 1：大纲回填
+    assert (
+        result.teaching_outline.get("narrative_arc") == "从平均变化率过渡到瞬时变化率"
+    )
+    assert result.teaching_outline.get("kp_strategies")
+
+    # Stage 2：讲稿含 SSML 标记
+    s1 = result.chapters[0].knowledge_points[0].scenes[0]
+    assert "[PAUSE:0.5]" in s1.narration_text
+    assert "[EMPHASIS]" in s1.narration_text
+
+    # Stage 3：审校修正覆盖第二镜
+    s2 = result.chapters[0].knowledge_points[0].scenes[1]
+    assert s2.narration_text == "审校修正后的第二镜讲稿[PAUSE:0.8]"
+
+    # 四个阶段都被调用（meta/outline/kp/review）
+    llm: MultiStageFakeLLM = writer._llm  # type: ignore[assignment]
+    assert llm.stage_calls.count("outline") == 1
+    assert llm.stage_calls.count("review") == 1
+
+
+async def test_outline_failure_degrades_gracefully() -> None:
+    """大纲生成返回空 → teaching_outline 为空，但讲稿仍正常生成。"""
+
+    class NoOutlineLLM(MultiStageFakeLLM):
+        async def chat(self, messages, **kw):
+            user = messages[-1]["content"]
+            if "narrative_arc" in user:
+                self.stage_calls.append("outline")
+                return ProviderResult(task_id="f", status="completed", content="{}")
+            return await super().chat(messages, **kw)
+
+    draft = _make_3scene_draft()
+    result = await ScriptWriter(
+        NoOutlineLLM(_META, _OUTLINE, _KP_SSML, _REVIEW)
+    ).enhance_ir(draft)
+    # 大纲为空但不崩，讲稿仍被覆盖
+    assert result.teaching_outline == {}
+    assert (
+        result.chapters[0]
+        .knowledge_points[0]
+        .scenes[0]
+        .narration_text.startswith("第1段讲解")
+    )

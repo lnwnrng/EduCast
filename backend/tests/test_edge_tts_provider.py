@@ -68,6 +68,35 @@ async def test_get_result_unknown_task() -> None:
     assert result.status == "failed"
 
 
+async def test_synthesize_converts_markers_to_ssml(tmp_path: Path, monkeypatch) -> None:
+    """含 SSML 标记的讲稿 → 转换为 SSML 文档后传给 Edge-TTS。"""
+    monkeypatch.setattr(edge_tts, "Communicate", _FakeCommunicate)
+    out = str(tmp_path / "ssml.mp3")
+    provider = EdgeTTSProvider(voice="zh-CN-XiaoxiaoNeural")
+
+    await provider.synthesize("请看[PAUSE:0.5]这里是[EMPHASIS]重点[/EMPHASIS]", out)
+
+    text_passed, voice_passed = _FakeCommunicate.last_args
+    # 标记被转换为 SSML（<speak> 包裹 + <break> + <prosody>）
+    assert text_passed.startswith("<speak")
+    assert '<break time="500ms"/>' in text_passed
+    assert "<prosody" in text_passed
+    assert "[PAUSE" not in text_passed and "[EMPHASIS]" not in text_passed
+    assert voice_passed == "zh-CN-XiaoxiaoNeural"
+
+
+async def test_synthesize_plain_text_unchanged(tmp_path: Path, monkeypatch) -> None:
+    """无标记文本走纯文本路径，不包裹 SSML。"""
+    monkeypatch.setattr(edge_tts, "Communicate", _FakeCommunicate)
+    out = str(tmp_path / "plain.mp3")
+    provider = EdgeTTSProvider()
+
+    await provider.synthesize("普通讲稿无标记", out)
+
+    text_passed, _ = _FakeCommunicate.last_args
+    assert text_passed == "普通讲稿无标记"
+
+
 def test_metadata_and_factory() -> None:
     provider = get_tts_provider()
     assert isinstance(provider, EdgeTTSProvider)
