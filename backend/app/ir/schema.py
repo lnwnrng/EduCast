@@ -131,6 +131,14 @@ class SceneIR(BaseModel):
     production_meta: ProductionMeta = Field(
         default_factory=ProductionMeta, description="生产元数据"
     )
+    ssml_markers: list[dict] = Field(
+        default_factory=list,
+        description="SSML 语音标记: [{'type':'pause','duration':0.8,'position':42}]",
+    )
+    visual_direction: str = Field(
+        default="",
+        description="视觉指令（如'缓慢推近标题'、'高亮第3个要点'）",
+    )
 
 
 # ── 第三层：知识点 (KnowledgePoint) ──────────────────────
@@ -185,3 +193,7 @@ class CourseIR(BaseModel):
         description="创建时间",
     )
     chapters: list[ChapterIR] = Field(default_factory=list, description="章节列表")
+    teaching_outline: dict = Field(
+        default_factory=dict,
+        description="教学大纲（Outline Agent 产出，含叙事弧线、策略、衔接）",
+    )

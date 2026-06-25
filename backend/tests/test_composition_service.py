@@ -5,6 +5,7 @@
 TTS 失败与无旁白的静音降级。
 """
 
+import asyncio
 import uuid
 from pathlib import Path
 
@@ -92,7 +93,7 @@ def fake_ffmpeg(monkeypatch):
         Path(out).write_bytes(b"clip")
         return out
 
-    async def fake_concat(clips, out) -> str:
+    async def fake_concat(clips, out, **kw) -> str:
         Path(out).write_bytes(b"video")
         return out
 
@@ -421,3 +422,153 @@ async def test_tts_voice_from_task_config(
 
     assert fake_tts.voices  # 有配音调用
     assert all(v == "zh-CN-YunxiNeural" for v in fake_tts.voices)
+
+
+# ── 视觉增强：转场 + 片头片尾 ─────────────────────────────
+
+
+async def test_compose_with_transitions_and_intro_outro(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """VIDEO_TRANSITIONS + VIDEO_INTRO_OUTRO 开启时：
+    - 生成片头/片尾并传入 composer；
+    - 用 concat_with_transitions（非 concat_clips）；
+    - 时间轴补偿：首镜字幕起点 = INTRO_DURATION - TRANSITION_DURATION。
+    """
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    monkeypatch.setattr(settings, "VIDEO_TRANSITIONS", True)
+    monkeypatch.setattr(settings, "VIDEO_INTRO_OUTRO", True)
+    monkeypatch.setattr(settings, "INTRO_DURATION", 4.0)
+    monkeypatch.setattr(settings, "OUTRO_DURATION", 3.0)
+    monkeypatch.setattr(settings, "TRANSITION_DURATION", 0.5)
+
+    calls: dict = {"intro": 0, "outro": 0, "xfade": 0}
+
+    async def fake_intro(out, **kw) -> str:
+        calls["intro"] += 1
+        Path(out).write_bytes(b"intro")
+        return out
+
+    async def fake_outro(out, **kw) -> str:
+        calls["outro"] += 1
+        Path(out).write_bytes(b"outro")
+        return out
+
+    async def fake_xfade(clips, out, transitions=None, **kw) -> str:
+        calls["xfade"] += 1
+        calls["xfade_clips"] = list(clips)
+        calls["xfade_transitions"] = transitions
+        Path(out).write_bytes(b"video")
+        return out
+
+    monkeypatch.setattr(ffmpeg_mod, "generate_intro_clip", fake_intro)
+    monkeypatch.setattr(ffmpeg_mod, "generate_outro_clip", fake_outro)
+    monkeypatch.setattr(ffmpeg_mod, "concat_with_transitions", fake_xfade)
+
+    project_id, task_id = await _seed(db_session)
+    scenes = [
+        SceneIR(
+            order=i, scene_type=SceneType.SLIDE, narration_text=f"第{i}段讲解内容。"
+        )
+        for i in (1, 2, 3)
+    ]
+    kp = KnowledgePointIR(title="知识点", key_points=["要点"], scenes=scenes)
+    ch = ChapterIR(title="章", order=1, knowledge_points=[kp])
+    ir = CourseIR(
+        course_id=project_id, title="转场测试", subject="数学", version=1, chapters=[ch]
+    )
+    await ParserService().save_ir(ir, project_id, version=1)
+
+    await CompositionService(
+        tts_provider=FakeTTS(), formula_renderer=FakeFormula()
+    ).compose(project_id, task_id, db_session)
+
+    task = await db_session.get(Task, _uuid(task_id))
+    assert task.status == "completed"
+
+    # 片头/片尾/转场拼接都被调用
+    assert calls["intro"] == 1 and calls["outro"] == 1 and calls["xfade"] == 1
+    # intro/outro 插入首尾；3 分镜 + intro + outro = 5 片段
+    assert calls["xfade_clips"][0].endswith("intro.mp4")
+    assert calls["xfade_clips"][-1].endswith("outro.mp4")
+    assert len(calls["xfade_clips"]) == 5
+    assert len(calls["xfade_transitions"]) == 4  # 含首尾 fade
+
+    # 时间轴补偿：首镜字幕起点 = 4.0 - 0.5 = 3.5s
+    srt = (tmp_path / project_id / "output" / "gen1.srt").read_text(encoding="utf-8")
+    assert "00:00:03,500 --> " in srt
+    # 片头无旁白 → 字幕不以 00:00:00 起首
+    assert "00:00:00,000 --> " not in srt
+    assert "第1段讲解内容。" in srt
+
+
+async def test_compose_transitions_disabled_uses_plain_concat(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """默认（关闭转场/片头）走 concat_clips，不生成片头片尾、不走 xfade。"""
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    # 默认 VIDEO_TRANSITIONS=False / VIDEO_INTRO_OUTRO=False
+
+    xfaded = {"v": 0}
+
+    async def fake_xfade(clips, out, transitions=None, **kw) -> str:
+        xfaded["v"] += 1
+        Path(out).write_bytes(b"v")
+        return out
+
+    monkeypatch.setattr(ffmpeg_mod, "concat_with_transitions", fake_xfade)
+
+    project_id, task_id = await _seed(db_session)
+    await ParserService().save_ir(_make_ir(project_id), project_id, version=1)
+    await CompositionService(
+        tts_provider=FakeTTS(), formula_renderer=FakeFormula()
+    ).compose(project_id, task_id, db_session)
+
+    task = await db_session.get(Task, _uuid(task_id))
+    assert task.status == "completed"
+    assert xfaded["v"] == 0  # 未走转场拼接
+
+
+async def test_tts_and_render_run_in_parallel(
+    db_session, tmp_path, monkeypatch, fake_ffmpeg
+):
+    """TTS 合成与课件页渲染应并行：渲染在 TTS 完成前就启动。"""
+    import threading
+
+    import app.pipeline.renderer as renderer_mod
+
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+
+    tts_done = threading.Event()
+    render_started_before_tts_done = threading.Event()
+    orig_render = renderer_mod.SlideRenderer.render_scene
+
+    def spy_render(self, **kwargs):
+        if not tts_done.is_set():
+            render_started_before_tts_done.set()
+        return orig_render(self, **kwargs)
+
+    monkeypatch.setattr(renderer_mod.SlideRenderer, "render_scene", spy_render)
+
+    class SlowTTS(FakeTTS):
+        async def synthesize(self, text, output_path, *, voice=None):
+            # 让出事件循环，给并行渲染启动的机会
+            await asyncio.sleep(0.15)
+            Path(output_path).parent.mkdir(parents=True, exist_ok=True)
+            Path(output_path).write_bytes(b"audio")
+            tts_done.set()
+            return output_path
+
+    project_id, task_id = await _seed(db_session)
+    s1 = SceneIR(order=1, scene_type=SceneType.SLIDE, narration_text="并行测试讲解。")
+    kp = KnowledgePointIR(title="kp", key_points=["要点"], scenes=[s1])
+    ch = ChapterIR(title="ch", order=1, knowledge_points=[kp])
+    ir = CourseIR(course_id=project_id, title="并行", version=1, chapters=[ch])
+    await ParserService().save_ir(ir, project_id, version=1)
+
+    await CompositionService(tts_provider=SlowTTS()).compose(
+        project_id, task_id, db_session
+    )
+
+    # 渲染在 TTS 完成前启动 → 证明二者并行而非串行
+    assert render_started_before_tts_done.is_set()

@@ -32,12 +32,14 @@ from app.models.task import SubTask, Task
 from app.pipeline.composer import VideoComposer
 from app.pipeline.formula import FormulaRenderer
 from app.pipeline.renderer import SlideRenderer
+from app.pipeline.ssml_converter import strip_markers
 from app.pipeline.subtitles import (
     build_chapter_metadata,
     build_narration_segments,
     build_srt,
     build_vtt,
 )
+from app.pipeline.templates import get_template
 from app.providers.digital_human import (
     LocalDigitalHumanProvider,
     get_digital_human_provider,
@@ -78,6 +80,28 @@ class _FlatScene:
     end: float = 0.0
 
 
+@dataclass
+class _Visual:
+    """单镜画面资产（渲染产物，待与旁白合成）。
+
+    ``_render_*_asset`` 只负责产出资产并记失败 subtask；成功 subtask 由
+    ``_build_scene_clip`` 在 ``_mux_visual`` 成功后补记（与原串行实现语义一致）。
+    """
+
+    mux: str  # "kenburns" | "video_audio" | "overlay_pip"
+    image: str | None = None  # kenburns / overlay_pip 的底图
+    video: str | None = None  # video_audio 的源视频
+    fg: str | None = None  # overlay_pip 的前景
+    fg_is_video: bool = False
+    pip_position: str = "bottom_right"
+    pip_size: str = "small"
+    # 成功后由调用方补记的 subtask 信息
+    subtask_pending: bool = False  # True=需补记成功 subtask（slide 已自记，False）
+    subtask_type: str = "render"
+    subtask_url: str | None = None  # None → 用 clip_path
+    provider: str | None = None
+
+
 class CompositionService:
     """教学视频合成编排服务。"""
 
@@ -96,6 +120,9 @@ class CompositionService:
         self._tts = tts_provider if tts_provider is not None else get_tts_provider()
         self._renderer = renderer or SlideRenderer()
         self._composer = composer or VideoComposer()
+        # 并行（TTS ‖ 渲染）时串行化 DB flush——async session 不可重入，
+        # 并发 db.add/flush 会损坏状态；锁只护 flush，不阻塞 I/O。
+        self._db_lock = asyncio.Lock()
         self._formula = formula_renderer or FormulaRenderer()
         # 云端视频生成（CogVideoX）；无 Key → None → Ken-Burns 兜底
         self._video_gen = (
@@ -164,9 +191,63 @@ class CompositionService:
             watermark = settings.WATERMARK_TEXT or ir.title or "课影 EduCast"
             task_uuid = _to_uuid(task_id)
 
+            # ── 视觉增强开关 ──
+            use_transitions = bool(settings.VIDEO_TRANSITIONS)
+            use_intro_outro = bool(settings.VIDEO_INTRO_OUTRO)
+            td = settings.TRANSITION_DURATION if use_transitions else 0.0
+            tpl = get_template(ir.template or "micro_lecture")
+            cover_bg = tpl.colors.cover_bg
+
+            # ── 片头（可选）──
+            intro_path: str | None = None
+            intro_dur = 0.0
+            if use_intro_outro:
+                intro_path = os.path.join(workspace, "intro.mp4")
+                try:
+                    await ffmpeg.generate_intro_clip(
+                        intro_path,
+                        title=ir.title or "教学视频",
+                        subject=ir.subject or "",
+                        template_colors=cover_bg,
+                        duration=settings.INTRO_DURATION,
+                        width=settings.VIDEO_WIDTH,
+                        height=settings.VIDEO_HEIGHT,
+                        fps=settings.VIDEO_FPS,
+                    )
+                    intro_dur = settings.INTRO_DURATION
+                except Exception as exc:  # noqa: BLE001 — 片头失败不阻断出片
+                    logger.warning("片头生成失败，跳过: %s", exc)
+                    intro_path = None
+                    intro_dur = 0.0
+
+            # ── 片尾（可选）──
+            outro_path: str | None = None
+            if use_intro_outro:
+                outro_path = os.path.join(workspace, "outro.mp4")
+                try:
+                    await ffmpeg.generate_outro_clip(
+                        outro_path,
+                        title=ir.title or "教学视频",
+                        summary_text="感谢观看",
+                        template_colors=cover_bg,
+                        duration=settings.OUTRO_DURATION,
+                        width=settings.VIDEO_WIDTH,
+                        height=settings.VIDEO_HEIGHT,
+                        fps=settings.VIDEO_FPS,
+                    )
+                except Exception as exc:  # noqa: BLE001
+                    logger.warning("片尾生成失败，跳过: %s", exc)
+                    outro_path = None
+
             # ── 逐分镜：渲染 + 配音 + 单镜片段 ──
+            # 时间轴补偿：转场 (xfade) 会让相邻分镜音频重叠 td，故每镜起点前移 td；
+            # 字幕终点在转场开始处截断，避免与下一镜字幕重叠。片头占 [0, intro_dur]，
+            # 若同时启用转场，首镜与片头重叠 td。
             clip_paths: list[str] = []
-            cursor = 0.0
+            scene_transitions: list[str] = []
+            cursor = intro_dur
+            if use_transitions and intro_path:
+                cursor = max(cursor - td, 0.0)
             total = len(flat)
             for i, fs in enumerate(flat):
                 clip = await self._build_scene_clip(
@@ -184,10 +265,15 @@ class CompositionService:
                 if clip is None:
                     continue
                 clip_path, duration = clip
+                full_end = cursor + duration
+                has_next = (i < total - 1) or bool(outro_path)
+                cut = td if (use_transitions and has_next) else 0.0
                 fs.start = cursor
-                fs.end = cursor + duration
-                cursor = fs.end
+                fs.end = full_end - cut
+                # 下一镜音频起点（转场重叠 td）
+                cursor = full_end - (td if (use_transitions and i < total - 1) else 0.0)
                 clip_paths.append(clip_path)
+                scene_transitions.append(fs.scene.transition.value)
 
                 progress = 50 + int(30 * (i + 1) / total)
                 await self._update_task(db, task_id, "generating", progress)
@@ -197,9 +283,10 @@ class CompositionService:
 
             # ── 字幕 / 章节 ──
             await self._update_task(db, task_id, "composing", 82)
+            # 字幕用纯文本（剥离 SSML 标记），时间轴已按转场补偿
             segments = build_narration_segments(
                 [
-                    (fs.start, fs.end, fs.scene.narration_text)
+                    (fs.start, fs.end, strip_markers(fs.scene.narration_text))
                     for fs in flat
                     if fs.scene.narration_text.strip()
                 ]
@@ -215,11 +302,22 @@ class CompositionService:
 
             # ── FFmpeg 合成 ──
             video_path = os.path.join(output_dir, f"gen{gen}.mp4")
+            # 转场列表 = 分镜间转场（长度 = len(clip_paths)-1）；片头/片尾的 fade
+            # 由 VideoComposer 自动补齐
+            transitions = (
+                scene_transitions[: max(len(clip_paths) - 1, 0)]
+                if use_transitions
+                else None
+            )
             await self._composer.compose(
                 clip_paths,
                 video_path,
                 srt_path=srt_path,
                 chapter_metadata_path=chapter_path,
+                transitions=transitions,
+                intro_path=intro_path,
+                outro_path=outro_path,
+                transition_duration=settings.TRANSITION_DURATION,
             )
 
             # ── 视频级水印（文字 drawtext）──
@@ -228,6 +326,7 @@ class CompositionService:
                 wm_watermarked = os.path.join(output_dir, f"gen{gen}_wm.mp4")
                 try:
                     from app.utils.ffmpeg import FFmpegCommand
+
                     cmd = FFmpegCommand()
                     cmd.add_input(video_path)
                     escaped = wm_text.replace("'", "\u2019").replace(":", "\\:")
@@ -238,7 +337,10 @@ class CompositionService:
                     )
                     cmd.set_output(wm_watermarked)
                     await cmd.run()
-                    if os.path.exists(wm_watermarked) and os.path.getsize(wm_watermarked) > 0:
+                    if (
+                        os.path.exists(wm_watermarked)
+                        and os.path.getsize(wm_watermarked) > 0
+                    ):
                         os.replace(wm_watermarked, video_path)
                         logger.info("视频水印已添加")
                     else:
@@ -321,80 +423,139 @@ class CompositionService:
     ) -> tuple[str, float] | None:
         """配音 + 按 scene_type 生成单镜片段，返回 (片段路径, 时长)。失败返回 None。
 
+        **TTS 与画面渲染并行**：旁白合成（网络 I/O）与画面资产渲染（CPU/网络）
+        无依赖，用 ``asyncio.gather`` 并行执行以提速；两者仅在 DB subtask 写入时
+        经 ``self._db_lock`` 串行化 flush。合成（mux）需音频+画面就绪后执行。
+
         公式/数字人/生成式各有专用画面，任一失败均降级为课件页静图，保证出片。
         """
         scene = fs.scene
         clip_path = os.path.join(workspace, f"clip_{index}.mp4")
 
-        # 配音 + 时长（所有画面类型共享，旁白驱动时长）
-        audio_path, duration = await self._narration_audio(
-            db, task_uuid, scene, index, workspace, voice
+        # ── 并行：TTS（含 tts subtask）‖ 画面资产渲染 ──
+        audio_task = asyncio.create_task(
+            self._narration_audio(db, task_uuid, scene, index, workspace, voice)
         )
 
         st = scene.scene_type
-        built = False
+        visual: _Visual | None = None
         try:
             if use_ai_full_gen:
                 # AI 全生成模式：忽略 scene_type，所有画面走 CogVideoX
-                built = await self._build_generative(
-                    db, task_uuid, fs, index, workspace, watermark,
-                    audio_path, duration, clip_path,
+                visual = await self._render_gen_asset(
+                    db,
+                    task_uuid,
+                    fs,
+                    index,
+                    workspace,
+                    watermark,
+                    clip_path,
                     use_generative=True,
                     ai_auto_prompt=True,
                 )
             elif st == SceneType.FORMULA_ANIMATION:
-                built = await self._build_formula(
-                    db,
-                    task_uuid,
-                    scene,
-                    index,
-                    workspace,
-                    audio_path,
-                    duration,
-                    clip_path,
+                visual = await self._render_formula_asset(
+                    db, task_uuid, scene, index, workspace, clip_path
                 )
             elif st == SceneType.DIGITAL_HUMAN and use_digital_human:
-                built = await self._build_digital_human(
-                    db,
-                    task_uuid,
-                    fs,
-                    index,
-                    workspace,
-                    watermark,
-                    audio_path,
-                    duration,
-                    clip_path,
+                visual = await self._render_dh_asset(
+                    db, task_uuid, fs, index, workspace, watermark, clip_path
                 )
             elif st == SceneType.GENERATIVE_CLIP:
-                built = await self._build_generative(
+                visual = await self._render_gen_asset(
                     db,
                     task_uuid,
                     fs,
                     index,
                     workspace,
                     watermark,
-                    audio_path,
-                    duration,
                     clip_path,
                     use_generative=use_generative,
                 )
+            else:
+                # slide 主路径（与 TTS 并行渲染）
+                visual = await self._render_slide_asset(
+                    db, task_uuid, fs, index, workspace, watermark
+                )
         except Exception as exc:  # noqa: BLE001 — 专用画面异常 → 课件页兜底
-            logger.warning("分镜 %d 专用画面失败，降级课件页: %s", index, exc)
+            logger.warning("分镜 %d 专用画面渲染失败，降级课件页: %s", index, exc)
+            visual = None
+
+        # 等音频就绪（若渲染先完成，此处即等待 TTS）
+        audio_path, duration = await audio_task
+
+        # 主画面未就绪 → 课件页兜底（此时音频已就绪，串行渲染）
+        if visual is None:
+            visual = await self._render_slide_asset(
+                db, task_uuid, fs, index, workspace, watermark
+            )
+        if visual is None:
+            return None
+
+        # 合成（需音频 + 画面）
+        try:
+            built = await self._mux_visual(visual, audio_path, duration, clip_path)
+        except Exception as exc:  # noqa: BLE001 — mux 失败则跳过该镜
+            logger.warning("分镜 %d 片段合成失败，跳过: %s", index, exc)
             built = False
 
-        if not built:
-            built = await self._build_slide_clip(
+        if built and visual.subtask_pending:
+            await self._add_subtask(
                 db,
                 task_uuid,
-                fs,
-                index,
-                workspace,
-                watermark,
-                audio_path,
-                duration,
-                clip_path,
+                visual.subtask_type,
+                scene.scene_id,
+                "completed",
+                visual.subtask_url or clip_path,
+                provider=visual.provider,
             )
         return (clip_path, duration) if built else None
+
+    async def _mux_visual(
+        self,
+        visual: _Visual,
+        audio_path: str | None,
+        duration: float,
+        clip_path: str,
+    ) -> bool:
+        """按画面类型把资产与旁白合成为单镜片段。"""
+        if visual.mux == "kenburns":
+            await ffmpeg.image_to_kenburns_clip(
+                visual.image,
+                audio_path,
+                clip_path,
+                width=settings.VIDEO_WIDTH,
+                height=settings.VIDEO_HEIGHT,
+                fps=settings.VIDEO_FPS,
+                duration=duration,
+            )
+        elif visual.mux == "video_audio":
+            await ffmpeg.video_audio_to_clip(
+                visual.video,
+                audio_path,
+                clip_path,
+                width=settings.VIDEO_WIDTH,
+                height=settings.VIDEO_HEIGHT,
+                fps=settings.VIDEO_FPS,
+                duration=duration,
+            )
+        elif visual.mux == "overlay_pip":
+            await ffmpeg.overlay_pip_clip(
+                visual.image,
+                visual.fg,
+                audio_path,
+                clip_path,
+                position=visual.pip_position,
+                size=visual.pip_size,
+                fg_is_video=visual.fg_is_video,
+                width=settings.VIDEO_WIDTH,
+                height=settings.VIDEO_HEIGHT,
+                fps=settings.VIDEO_FPS,
+                duration=duration,
+            )
+        else:
+            return False
+        return True
 
     async def _narration_audio(
         self,
@@ -435,7 +596,7 @@ class CompositionService:
             duration = settings.SILENT_SCENE_DURATION
         return used_audio, duration
 
-    async def _build_slide_clip(
+    async def _render_slide_asset(
         self,
         db: AsyncSession,
         task_uuid: UUID | None,
@@ -443,11 +604,11 @@ class CompositionService:
         index: int,
         workspace: str,
         watermark: str,
-        audio_path: str | None,
-        duration: float,
-        clip_path: str,
-    ) -> bool:
-        """课件页静图 → 单镜片段（slide 默认 + 所有失败的统一兜底）。"""
+    ) -> _Visual | None:
+        """渲染课件页静图（Ken-Burns 运镜的底图）。成功记 render subtask。
+
+        所有课件页分镜默认启用 Ken-Burns 推近运镜，避免「配音 PPT」的呆板感。
+        """
         scene = fs.scene
         image_path = os.path.join(workspace, f"scene_{index}.png")
         try:
@@ -470,68 +631,45 @@ class CompositionService:
             await self._add_subtask(
                 db, task_uuid, "render", scene.scene_id, "failed", error=str(exc)
             )
-            return False
+            return None
+        return _Visual(mux="kenburns", image=image_path)
 
-        try:
-            await ffmpeg.image_audio_to_clip(
-                image_path,
-                audio_path,
-                clip_path,
-                width=settings.VIDEO_WIDTH,
-                height=settings.VIDEO_HEIGHT,
-                fps=settings.VIDEO_FPS,
-                duration=duration,
-            )
-        except Exception as exc:  # noqa: BLE001 — 片段生成失败则跳过该镜
-            logger.warning("分镜 %d 片段生成失败，跳过: %s", index, exc)
-            return False
-        return True
-
-    async def _build_formula(
+    async def _render_formula_asset(
         self,
         db: AsyncSession,
         task_uuid: UUID | None,
         scene: SceneIR,
         index: int,
         workspace: str,
-        audio_path: str | None,
-        duration: float,
         clip_path: str,
-    ) -> bool:
-        """公式推导动画（manim/图片显影）→ 叠加旁白。无步骤或失败返回 False。"""
+    ) -> _Visual | None:
+        """渲染公式推导动画视频。无步骤返回 None（不记 subtask）；失败记 failed。
+
+        成功 subtask 由 ``_build_scene_clip`` 在 mux 后补记（result_url=clip_path）。
+        """
         steps = [s for s in scene.visual_spec.latex_steps if s and s.strip()]
         if not steps:
-            return False
+            return None
         try:
             formula_video = os.path.join(workspace, f"formula_{index}.mp4")
-            await self._formula.render(steps, formula_video, duration=duration)
-            await ffmpeg.video_audio_to_clip(
-                formula_video,
-                audio_path,
-                clip_path,
-                width=settings.VIDEO_WIDTH,
-                height=settings.VIDEO_HEIGHT,
-                fps=settings.VIDEO_FPS,
-                duration=duration,
-            )
-            await self._add_subtask(
-                db,
-                task_uuid,
-                "formula",
-                scene.scene_id,
-                "completed",
-                clip_path,
+            # 时长由旁白驱动，渲染时用占位时长；mux 阶段会用真实 duration 对齐
+            await self._formula.render(steps, formula_video)
+            return _Visual(
+                mux="video_audio",
+                video=formula_video,
+                subtask_pending=True,
+                subtask_type="formula",
+                subtask_url=clip_path,
                 provider="formula",
             )
-            return True
         except Exception as exc:  # noqa: BLE001 — 公式动画失败 → 课件页兜底
             logger.warning("分镜 %d 公式动画失败，降级课件页: %s", index, exc)
             await self._add_subtask(
                 db, task_uuid, "formula", scene.scene_id, "failed", error=str(exc)
             )
-            return False
+            return None
 
-    async def _build_digital_human(
+    async def _render_dh_asset(
         self,
         db: AsyncSession,
         task_uuid: UUID | None,
@@ -539,11 +677,12 @@ class CompositionService:
         index: int,
         workspace: str,
         watermark: str,
-        audio_path: str | None,
-        duration: float,
         clip_path: str,
-    ) -> bool:
-        """讲师画中画：课件底图 + 讲师前景（云端口播视频 / 本地头像）。"""
+    ) -> _Visual | None:
+        """渲染讲师画中画资产：课件底图 + 讲师前景（云端视频 / 本地头像）。
+
+        成功 subtask 由 ``_build_scene_clip`` 在 mux 后补记。
+        """
         scene = fs.scene
         try:
             bg = os.path.join(workspace, f"dh_bg_{index}.png")
@@ -572,29 +711,18 @@ class CompositionService:
                 fg_is_video = False
                 provider_name = self._dh_local.provider_name
 
-            await ffmpeg.overlay_pip_clip(
-                bg,
-                fg,
-                audio_path,
-                clip_path,
-                position=scene.visual_spec.pip_position.value,
-                size=scene.visual_spec.pip_size.value,
+            return _Visual(
+                mux="overlay_pip",
+                image=bg,
+                fg=fg,
                 fg_is_video=fg_is_video,
-                width=settings.VIDEO_WIDTH,
-                height=settings.VIDEO_HEIGHT,
-                fps=settings.VIDEO_FPS,
-                duration=duration,
-            )
-            await self._add_subtask(
-                db,
-                task_uuid,
-                "digital_human",
-                scene.scene_id,
-                "completed",
-                clip_path,
+                pip_position=scene.visual_spec.pip_position.value,
+                pip_size=scene.visual_spec.pip_size.value,
+                subtask_pending=True,
+                subtask_type="digital_human",
+                subtask_url=clip_path,
                 provider=provider_name,
             )
-            return True
         except Exception as exc:  # noqa: BLE001 — 数字人失败 → 课件页兜底
             logger.warning("分镜 %d 数字人失败，降级课件页: %s", index, exc)
             await self._add_subtask(
@@ -605,9 +733,9 @@ class CompositionService:
                 "failed",
                 error=str(exc),
             )
-            return False
+            return None
 
-    async def _build_generative(
+    async def _render_gen_asset(
         self,
         db: AsyncSession,
         task_uuid: UUID | None,
@@ -615,85 +743,65 @@ class CompositionService:
         index: int,
         workspace: str,
         watermark: str,
-        audio_path: str | None,
-        duration: float,
         clip_path: str,
         *,
         use_generative: bool,
         ai_auto_prompt: bool = False,
-    ) -> bool:
-        """生成式片段：CogVideoX 真生成（带缓存）；否则概念图 Ken-Burns 运镜。"""
+    ) -> _Visual | None:
+        """渲染生成式片段资产：CogVideoX 真生成（带缓存）；否则概念图。
+
+        成功 subtask 由 ``_build_scene_clip`` 在 mux 后补记。
+        """
         scene = fs.scene
         prompt = (scene.visual_spec.gen_prompt or "").strip()
         # AI 全生成模式下，若 gen_prompt 为空，自动从旁白生成提示词
         if not prompt and ai_auto_prompt:
             narration = (scene.narration_text or "").strip()
             kp_title = fs.kp.title or ""
-            prompt = f"教学场景：{kp_title}。{narration[:80]}" if narration else f"教学场景：{kp_title}"
+            prompt = (
+                f"教学场景：{kp_title}。{narration[:80]}"
+                if narration
+                else f"教学场景：{kp_title}"
+            )
         if not prompt:
-            return False
+            return None
         try:
-            generated: str | None = None
             if use_generative and self._video_gen is not None:
                 generated = await self._generate_or_cache(prompt)
-                await self._add_subtask(
-                    db,
-                    task_uuid,
-                    "video_gen",
-                    scene.scene_id,
-                    "completed",
-                    generated,
+                return _Visual(
+                    mux="video_audio",
+                    video=generated,
+                    subtask_pending=True,
+                    subtask_type="video_gen",
+                    subtask_url=generated,
                     provider=self._video_gen.provider_name,
                 )
-
-            if generated:
-                await ffmpeg.video_audio_to_clip(
-                    generated,
-                    audio_path,
-                    clip_path,
-                    width=settings.VIDEO_WIDTH,
-                    height=settings.VIDEO_HEIGHT,
-                    fps=settings.VIDEO_FPS,
-                    duration=duration,
-                )
-            else:
-                # 兜底：概念底图 Ken-Burns 运镜
-                bg = os.path.join(workspace, f"gen_bg_{index}.png")
-                await asyncio.to_thread(
-                    self._renderer.render_scene,
-                    title=fs.kp.title or "概念演示",
-                    body_lines=[f"画面：{prompt}"],
-                    subtitle="",
-                    output_path=bg,
-                    watermark=watermark,
-                    badge=_BADGES.get(scene.scene_type),
-                    background_path=_real_slide(scene),
-                )
-                await ffmpeg.image_to_kenburns_clip(
-                    bg,
-                    audio_path,
-                    clip_path,
-                    width=settings.VIDEO_WIDTH,
-                    height=settings.VIDEO_HEIGHT,
-                    fps=settings.VIDEO_FPS,
-                    duration=duration,
-                )
-                await self._add_subtask(
-                    db,
-                    task_uuid,
-                    "video_gen",
-                    scene.scene_id,
-                    "completed",
-                    clip_path,
-                    provider="kenburns_fallback",
-                )
-            return True
+            # 兜底：概念底图（Ken-Burns 运镜在 mux 阶段应用）
+            bg = os.path.join(workspace, f"gen_bg_{index}.png")
+            await asyncio.to_thread(
+                self._renderer.render_scene,
+                title=fs.kp.title or "概念演示",
+                body_lines=[f"画面：{prompt}"],
+                subtitle="",
+                output_path=bg,
+                watermark=watermark,
+                badge=_BADGES.get(scene.scene_type),
+                background_path=_real_slide(scene),
+            )
+            return _Visual(
+                mux="kenburns",
+                image=bg,
+                subtask_pending=True,
+                subtask_type="video_gen",
+                subtask_url=clip_path,
+                provider="kenburns_fallback",
+            )
         except Exception as exc:  # noqa: BLE001 — 生成式失败 → 课件页兜底
             logger.warning("分镜 %d 生成式片段失败，降级课件页: %s", index, exc)
             await self._add_subtask(
                 db, task_uuid, "video_gen", scene.scene_id, "failed", error=str(exc)
             )
-            return False
+            return None
 
     async def _generate_or_cache(self, prompt: str) -> str:
         """生成式片段缓存：相同 (模型, 提示词) 命中复用，避免重复付费。"""
@@ -794,20 +902,22 @@ class CompositionService:
     ) -> None:
         if task_uuid is None:
             return
-        db.add(
-            SubTask(
-                task_id=task_uuid,
-                subtask_type=subtask_type,
-                scene_id=scene_id,
-                status=status,
-                progress=100 if status == "completed" else 0,
-                provider_name=provider,
-                result_url=result_url,
-                error_message=error,
-                cost=0.0,
+        # 并行场景下（TTS ‖ 渲染）serialize flush，避免 async session 重入损坏
+        async with self._db_lock:
+            db.add(
+                SubTask(
+                    task_id=task_uuid,
+                    subtask_type=subtask_type,
+                    scene_id=scene_id,
+                    status=status,
+                    progress=100 if status == "completed" else 0,
+                    provider_name=provider,
+                    result_url=result_url,
+                    error_message=error,
+                    cost=0.0,
+                )
             )
-        )
-        await db.flush()
+            await db.flush()
 
     async def _update_task(
         self,

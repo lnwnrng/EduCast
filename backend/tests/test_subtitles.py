@@ -100,3 +100,25 @@ def test_build_narration_segments_merges_when_scene_is_short() -> None:
     segments = build_narration_segments([(0.0, 1.0, "第一句。第二句。第三句。")])
 
     assert segments == [(0.0, 1.0, "第一句。第二句。第三句。")]
+
+
+def test_visible_len_counts_cjk_as_two() -> None:
+    from app.pipeline.subtitles import _visible_len
+
+    # 汉字算 2 宽度，ASCII 算 1
+    assert _visible_len("导数") == 4
+    assert _visible_len("ab") == 2
+    assert _visible_len("导ab") == 4  # 2 + 1 + 1
+
+
+def test_build_segments_caps_cjk_width() -> None:
+    """CJK 宽度感知：单 cue 不超过 22 宽度单位（≈11 汉字）。"""
+    long_cjk = "我们一起来理解导数的几何含义及其在瞬时变化率中的应用。" * 2
+    segments = build_narration_segments([(0.0, 20.0, long_cjk)])
+    assert len(segments) > 1
+    from app.pipeline.subtitles import _visible_len
+
+    # 合并后单 cue 也不超过 max_chars*2 = 44 宽度（合并阈值）
+    assert all(_visible_len(cue) <= 44 for _, _, cue in segments)
+    assert segments[0][0] == 0.0
+    assert segments[-1][1] == 20.0

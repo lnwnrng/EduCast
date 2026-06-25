@@ -71,6 +71,18 @@ class Settings(BaseSettings):
     # 分镜无旁白音频时的兜底时长（秒）
     SILENT_SCENE_DURATION: float = 4.0
 
+    # ── 视觉增强（转场 / 片头片尾）─────────────────────────
+    # True 时分镜间用 FFmpeg xfade 转场替代无损拼接（重编码，时长略增）。
+    # 关闭时退化为 concat -c copy。转场会重叠相邻分镜，字幕时间轴自动补偿。
+    VIDEO_TRANSITIONS: bool = False
+    # True 时在成片首尾插入动态片头/片尾片段（标题卡 + 感谢卡）。
+    VIDEO_INTRO_OUTRO: bool = False
+    # 转场时长（秒）；xfade overlap，过长会拖慢节奏
+    TRANSITION_DURATION: float = 0.5
+    # 片头/片尾时长（秒）
+    INTRO_DURATION: float = 4.0
+    OUTRO_DURATION: float = 3.0
+
     # ── Provider 路由 ──────────────────────────────────────
     DEFAULT_ROUTING_STRATEGY: str = "free_first"
 

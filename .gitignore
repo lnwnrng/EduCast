@@ -96,3 +96,9 @@ Desktop.ini
 
 
 CLAUDE.md
+# ========================
+# 本地测试文件（不纳入版本控制，仅本地保留）
+# 本轮视频质量重设计新增的测试文件；他人克隆项目时不会下载
+# ========================
+backend/tests/test_composer.py
+backend/tests/test_ssml_converter.py
