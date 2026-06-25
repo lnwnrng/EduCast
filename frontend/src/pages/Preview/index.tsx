@@ -137,9 +137,9 @@ const Preview: React.FC = () => {
         subtitle="在线播放生成的教学视频"
         extra={<Button onClick={() => navigate('/preview')}>返回列表</Button>}
       />
-      <Row gutter={16}>
-        <Col xs={24} md={16}>
-          <Card>
+      <Row gutter={16} className="layout-row-stretch">
+        <Col xs={24} md={16} className="layout-col-stretch">
+          <Card className="card-stretch">
             {video ? (
               <video
                 key={video.id}
@@ -162,8 +162,8 @@ const Preview: React.FC = () => {
             )}
           </Card>
         </Col>
-        <Col xs={24} md={8}>
-          <Card title="项目资源" size="small">
+        <Col xs={24} md={8} className="layout-col-stretch">
+          <Card title="项目资源" size="small" className="card-stretch">
             {resources.length > 0 ? (
               <Space direction="vertical" style={{ width: '100%' }} size={12}>
                 {resources.map((r) => (

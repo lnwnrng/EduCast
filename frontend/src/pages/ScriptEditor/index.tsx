@@ -463,9 +463,9 @@ const ScriptEditor: React.FC = () => {
         </Space>
       )}
 
-      <Row gutter={16}>
+      <Row gutter={16} className="layout-row-stretch">
         {/* ── 左侧: 分镜列表 ─────────────────────────── */}
-        <Col xs={24} md={8} lg={7}>
+        <Col xs={24} md={8} lg={7} className="layout-col-stretch">
           <Card
             title={
               <Space>
@@ -475,7 +475,8 @@ const ScriptEditor: React.FC = () => {
               </Space>
             }
             size="small"
-            bodyStyle={{ padding: 0, maxHeight: 'calc(100vh - 280px)', overflowY: 'auto' }}
+            className="card-stretch"
+            bodyStyle={{ padding: 0 }}
           >
             <Collapse
               defaultActiveKey={ir.chapters.map((_, i) => String(i))}
@@ -572,7 +573,7 @@ const ScriptEditor: React.FC = () => {
         </Col>
 
         {/* ── 右侧: 分镜详情编辑 ─────────────────────── */}
-        <Col xs={24} md={16} lg={17}>
+        <Col xs={24} md={16} lg={17} className="layout-col-stretch">
           {currentScene ? (
             <Card
               title={
@@ -589,6 +590,7 @@ const ScriptEditor: React.FC = () => {
                 </Space>
               }
               size="small"
+              className="card-stretch"
             >
               <Form layout="vertical">
                 <Form.Item label="画面类型">

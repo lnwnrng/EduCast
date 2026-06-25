@@ -463,3 +463,24 @@ a {
     height: auto;
   }
 }
+
+/* --- Flex Stretch Utilities --- */
+.layout-row-stretch {
+  display: flex !important;
+  align-items: stretch !important;
+}
+.layout-col-stretch {
+  display: flex !important;
+  flex-direction: column !important;
+}
+.card-stretch {
+  flex: 1 !important;
+  display: flex !important;
+  flex-direction: column !important;
+}
+.card-stretch > .ant-card-body {
+  flex: 1;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
