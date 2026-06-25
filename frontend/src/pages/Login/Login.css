@@ -1,0 +1,229 @@
+/* ===== Login / Register Shared Styles ===== */
+/* Matching the Landing page white-pink-purple gradient palette */
+
+@import url('https://fonts.googleapis.com/css2?family=Dancing+Script:wght@600;700&family=Manrope:wght@400;500;600;700;800&family=Noto+Sans+SC:wght@400;500;700&display=swap');
+
+/* --- Keyframes --- */
+@keyframes auth-float-1 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(30px, -20px) scale(1.05); }
+}
+
+@keyframes auth-float-2 {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50% { transform: translate(-20px, 15px) scale(1.03); }
+}
+
+@keyframes auth-card-in {
+  from {
+    opacity: 0;
+    transform: translateY(30px) scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes auth-gradShift {
+  0% { background-position: 0% 50%; }
+  50% { background-position: 100% 50%; }
+  100% { background-position: 0% 50%; }
+}
+
+/* --- Root Container --- */
+.auth-page-root {
+  min-height: 100vh;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #fcfaff;
+  position: relative;
+  overflow: hidden;
+  font-family: 'Manrope', 'Noto Sans SC', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+}
+
+/* --- Animated Background Orbs --- */
+.auth-bg-orb {
+  position: absolute;
+  border-radius: 50%;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-bg-orb-1 {
+  top: -120px;
+  right: -80px;
+  width: 500px;
+  height: 500px;
+  background: radial-gradient(circle, rgba(157, 123, 239, 0.18), transparent 65%);
+  animation: auth-float-1 12s ease-in-out infinite;
+}
+
+.auth-bg-orb-2 {
+  bottom: -80px;
+  left: -100px;
+  width: 420px;
+  height: 420px;
+  background: radial-gradient(circle, rgba(227, 111, 179, 0.14), transparent 65%);
+  animation: auth-float-2 10s ease-in-out infinite;
+}
+
+.auth-bg-orb-3 {
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(157, 123, 239, 0.06), transparent 60%);
+}
+
+/* --- Glass Card --- */
+.auth-card {
+  position: relative;
+  z-index: 1;
+  width: 420px;
+  padding: 44px 36px 36px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: saturate(180%) blur(16px);
+  border-radius: 24px;
+  border: 1px solid rgba(120, 60, 170, 0.09);
+  box-shadow:
+    0 20px 50px -20px rgba(120, 60, 170, 0.2),
+    0 8px 20px -10px rgba(120, 60, 170, 0.08);
+  animation: auth-card-in 0.6s cubic-bezier(0.16, 0.84, 0.44, 1) forwards;
+}
+
+/* --- Brand Title --- */
+.auth-brand {
+  text-align: center;
+  margin-bottom: 36px;
+}
+
+.auth-brand-name {
+  font-family: 'Dancing Script', cursive;
+  font-size: 40px;
+  font-weight: 700;
+  background: linear-gradient(135deg, #e06bb0, #9069e8);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  letter-spacing: 1px;
+  line-height: 1.2;
+}
+
+.auth-brand-subtitle {
+  display: block;
+  margin-top: 8px;
+  font-size: 14px;
+  color: #807792;
+  font-weight: 500;
+}
+
+/* --- Form Overrides (Ant Design) --- */
+.auth-card .ant-form-item-label > label {
+  color: #5f5870;
+  font-weight: 600;
+  font-size: 13.5px;
+}
+
+.auth-card .ant-input,
+.auth-card .ant-input-password .ant-input {
+  border-radius: 12px;
+  border-color: rgba(157, 123, 239, 0.18);
+  padding: 10px 14px;
+  font-size: 14.5px;
+  transition: all 0.25s;
+}
+
+.auth-card .ant-input:hover,
+.auth-card .ant-input-password:hover .ant-input,
+.auth-card .ant-input-affix-wrapper:hover {
+  border-color: rgba(157, 123, 239, 0.4);
+}
+
+.auth-card .ant-input:focus,
+.auth-card .ant-input-password:focus-within .ant-input,
+.auth-card .ant-input-affix-wrapper:focus,
+.auth-card .ant-input-affix-wrapper-focused {
+  border-color: #9d7bef;
+  box-shadow: 0 0 0 3px rgba(157, 123, 239, 0.1);
+}
+
+.auth-card .ant-input-affix-wrapper {
+  border-radius: 12px;
+  border-color: rgba(157, 123, 239, 0.18);
+  transition: all 0.25s;
+}
+
+/* --- Primary Button --- */
+.auth-page-root .auth-card .ant-btn-primary,
+.auth-page-root .auth-card .ant-btn-primary:not(:disabled) {
+  height: 46px;
+  border-radius: 13px;
+  font-size: 15px;
+  font-weight: 700;
+  border: none !important;
+  background: linear-gradient(135deg, #e87cc0, #9d7bef) !important;
+  color: #fff !important;
+  box-shadow: 0 14px 30px -15px rgba(157, 123, 239, 0.5) !important;
+  transition: transform 0.2s, box-shadow 0.25s, filter 0.2s;
+}
+
+.auth-page-root .auth-card .ant-btn-primary:hover,
+.auth-page-root .auth-card .ant-btn-primary:focus {
+  background: linear-gradient(135deg, #e87cc0, #9d7bef) !important;
+  color: #fff !important;
+  transform: translateY(-2px);
+  filter: brightness(1.06);
+  box-shadow: 0 16px 34px -14px rgba(157, 123, 239, 0.55) !important;
+}
+
+.auth-page-root .auth-card .ant-btn-primary:active {
+  transform: translateY(0);
+}
+
+/* --- Footer Link --- */
+.auth-footer-link {
+  text-align: center;
+  margin-top: 4px;
+}
+
+.auth-footer-link a {
+  color: #9069e8;
+  font-weight: 600;
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.auth-footer-link a:hover {
+  color: #7c4fd0;
+}
+
+/* --- Verification Code Button --- */
+.auth-card .auth-send-code-btn {
+  border-radius: 12px;
+  border-color: rgba(157, 123, 239, 0.25);
+  color: #9069e8;
+  font-weight: 600;
+}
+
+.auth-card .auth-send-code-btn:hover:not(:disabled) {
+  border-color: #9d7bef;
+  color: #7c4fd0;
+  background: #faf4fd;
+}
+
+/* --- Responsive --- */
+@media (max-width: 480px) {
+  .auth-card {
+    width: calc(100vw - 32px);
+    padding: 32px 24px 28px;
+    margin: 16px;
+  }
+
+  .auth-brand-name {
+    font-size: 32px;
+  }
+}

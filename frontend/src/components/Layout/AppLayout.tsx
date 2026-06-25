@@ -1,5 +1,5 @@
 import React from 'react';
-import { Layout, Menu, Typography, Dropdown, Avatar, Space } from 'antd';
+import { Layout, Menu, Typography, Dropdown, Avatar } from 'antd';
 import {
   LayoutDashboard,
   FolderKanban,
@@ -127,7 +127,7 @@ const AppLayout: React.FC = () => {
   ];
 
   return (
-    <Layout className="app-layout-root" style={{ background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)' }}>
+    <Layout className="app-layout-root" style={{ background: '#fcfaff' }}>
       <Header
         style={{
           padding: 0,
@@ -149,11 +149,13 @@ const AppLayout: React.FC = () => {
           <span style={{
             fontFamily: '"Dancing Script", cursive',
             fontSize: sidebarCollapsed ? 28 : 32,
-            color: '#333',
-            fontWeight: 600,
+            fontWeight: 700,
             letterSpacing: '1px',
             transition: 'font-size 0.2s',
-            whiteSpace: 'nowrap'
+            whiteSpace: 'nowrap',
+            background: 'linear-gradient(135deg, #e06bb0, #9069e8)',
+            WebkitBackgroundClip: 'text',
+            WebkitTextFillColor: 'transparent',
           }}>
             {sidebarCollapsed ? 'E' : 'EduCast'}
           </span>
@@ -173,19 +175,19 @@ const AppLayout: React.FC = () => {
             marginLeft: 4,
             padding: '6px 8px',
             cursor: 'pointer',
-            color: '#666',
+            color: '#807792',
             display: 'flex',
             alignItems: 'center',
             borderRadius: 6,
             transition: 'all 0.2s',
           }}
           onMouseEnter={(e) => {
-            e.currentTarget.style.background = 'rgba(0,0,0,0.04)';
-            e.currentTarget.style.color = '#1677ff';
+            e.currentTarget.style.background = 'rgba(157, 123, 239, 0.08)';
+            e.currentTarget.style.color = '#9069e8';
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = '#666';
+            e.currentTarget.style.color = '#807792';
           }}
         >
           {sidebarCollapsed ? (
@@ -199,18 +201,62 @@ const AppLayout: React.FC = () => {
           transition: 'padding-left 0.2s',
           flex: 1,
         }}>
-          <Title level={5} style={{ margin: 0, color: '#333' }}>
+          <Title level={5} style={{ margin: 0, color: '#5f5870' }}>
             智能教学视频生产平台
           </Title>
         </div>
-        <div style={{ paddingRight: 24 }}>
+        <div style={{
+          paddingRight: 24,
+          display: 'flex',
+          alignItems: 'center',
+          height: '100%',
+        }}>
           <Dropdown menu={{ items: userMenuItems }} placement="bottomRight">
-            <Space style={{ cursor: 'pointer' }}>
-              <Avatar size={32} style={{ backgroundColor: '#1677ff' }}>
+            <div
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: 10,
+                cursor: 'pointer',
+                padding: '6px 14px 6px 6px',
+                borderRadius: 50,
+                border: '1px solid rgba(157, 123, 239, 0.12)',
+                background: 'rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(8px)',
+                transition: 'all 0.25s',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.85)';
+                e.currentTarget.style.borderColor = 'rgba(157, 123, 239, 0.28)';
+                e.currentTarget.style.boxShadow = '0 4px 14px -6px rgba(120, 60, 170, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.background = 'rgba(255, 255, 255, 0.6)';
+                e.currentTarget.style.borderColor = 'rgba(157, 123, 239, 0.12)';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
+              <Avatar
+                size={30}
+                style={{
+                  background: 'linear-gradient(135deg, #e87cc0, #9d7bef)',
+                  fontWeight: 700,
+                  fontSize: 13,
+                  flexShrink: 0,
+                }}
+              >
                 {user?.username?.[0]?.toUpperCase()}
               </Avatar>
-              <span style={{ color: '#333' }}>{user?.username}</span>
-            </Space>
+              <span style={{
+                color: '#5f5870',
+                fontWeight: 600,
+                fontSize: 13.5,
+                lineHeight: 1,
+                whiteSpace: 'nowrap',
+              }}>
+                {user?.username}
+              </span>
+            </div>
           </Dropdown>
         </div>
       </Header>
@@ -258,16 +304,18 @@ const AppLayout: React.FC = () => {
               className="app-content-area"
               style={{
                 padding: 24,
-                background: '#fff',
+                background: 'rgba(255, 255, 255, 0.88)',
+                backdropFilter: 'saturate(180%) blur(16px)',
                 borderRadius: 24,
-                boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
+                border: '1px solid rgba(120, 60, 170, 0.07)',
+                boxShadow: '0 12px 32px -16px rgba(120, 60, 170, 0.12)',
                 overflow: 'auto',
               }}
             >
               <Outlet />
             </div>
           </Content>
-          <Footer style={{ textAlign: 'center', color: '#999', background: 'transparent', padding: '0 0 12px 0', fontSize: '12px' }}>
+          <Footer style={{ textAlign: 'center', color: '#a99fbb', background: 'transparent', padding: '0 0 12px 0', fontSize: '12px' }}>
             课影 EduCast ©2026 — 面向高校教学的智能视频生产平台
           </Footer>
         </Layout>

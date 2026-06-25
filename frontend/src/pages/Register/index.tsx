@@ -1,10 +1,9 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Form, Input, Button, Typography, message } from 'antd';
+import { Form, Input, Button, message } from 'antd';
 import { useAuthStore } from '../../stores/authStore';
 import * as authApi from '../../api/auth';
-
-const { Text } = Typography;
+import '../Login/Login.css';
 
 const RegisterPage: React.FC = () => {
   const [loading, setLoading] = useState(false);
@@ -60,38 +59,16 @@ const RegisterPage: React.FC = () => {
   };
 
   return (
-    <div
-      style={{
-        height: '100vh',
-        display: 'flex',
-        justifyContent: 'center',
-        alignItems: 'center',
-        background: 'linear-gradient(135deg, #f0f5ff 0%, #f8fafd 100%)',
-      }}
-    >
-      <div
-        style={{
-          width: 420,
-          padding: '40px 32px',
-          background: '#fff',
-          borderRadius: 24,
-          boxShadow: '0 8px 24px rgba(0,0,0,0.04)',
-        }}
-      >
-        <div style={{ textAlign: 'center', marginBottom: 32 }}>
-          <span
-            style={{
-              fontFamily: '"Dancing Script", cursive',
-              fontSize: 36,
-              color: '#333',
-              fontWeight: 600,
-            }}
-          >
-            EduCast
-          </span>
-          <Text type="secondary" style={{ display: 'block', marginTop: 8 }}>
-            创建新账号
-          </Text>
+    <div className="auth-page-root">
+      {/* Animated background orbs */}
+      <div className="auth-bg-orb auth-bg-orb-1" />
+      <div className="auth-bg-orb auth-bg-orb-2" />
+      <div className="auth-bg-orb auth-bg-orb-3" />
+
+      <div className="auth-card">
+        <div className="auth-brand">
+          <span className="auth-brand-name">EduCast</span>
+          <span className="auth-brand-subtitle">创建新账号</span>
         </div>
 
         <Form form={form} onFinish={handleSubmit} layout="vertical" size="large">
@@ -159,13 +136,10 @@ const RegisterPage: React.FC = () => {
                   { len: 6, message: '验证码为6位' },
                 ]}
               >
-                <Input
-                  placeholder="请输入6位验证码"
-                  maxLength={6}
-                  style={{ borderColor: '#91caff' }}
-                />
+                <Input placeholder="请输入6位验证码" maxLength={6} />
               </Form.Item>
               <Button
+                className="auth-send-code-btn"
                 disabled={countdown > 0}
                 loading={sendingCode}
                 onClick={handleSendCode}
@@ -183,11 +157,9 @@ const RegisterPage: React.FC = () => {
           </Form.Item>
         </Form>
 
-        <div style={{ textAlign: 'center' }}>
-          <Text type="secondary">已有账号？</Text>
-          <Link to="/login" style={{ color: '#1677ff', marginLeft: 4 }}>
-            立即登录
-          </Link>
+        <div className="auth-footer-link">
+          <span style={{ color: '#807792', fontSize: 14 }}>已有账号？</span>
+          <Link to="/login">立即登录</Link>
         </div>
       </div>
     </div>
