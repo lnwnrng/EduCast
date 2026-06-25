@@ -264,13 +264,37 @@
 }
 
 .systemStatusDotError {
-  background: #e5534b;
-  box-shadow: 0 0 6px rgba(229, 83, 75, 0.4);
+  background: var(--color-error);
+  box-shadow: 0 0 0 3px rgba(229, 83, 75, 0.2);
 }
 
 .systemStatusLabel {
-  font-weight: 600;
-  color: var(--color-text-dark);
+  flex: 1;
+  color: var(--color-text-secondary);
+  font-weight: 500;
+}
+
+/* --- Layout Extensions --- */
+.sectionRow {
+  display: flex;
+  align-items: stretch;
+}
+
+.flexCol {
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboardCard {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.dashboardCard :global(.ant-card-body) {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
 }
 
 /* --- Section spacing --- */

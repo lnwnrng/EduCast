@@ -174,9 +174,10 @@ const Dashboard: React.FC = () => {
       {/* ---- Two-column Content ---- */}
       <Row gutter={[20, 20]} className={styles.sectionRow}>
         {/* Left — Recent Projects */}
-        <Col xs={24} lg={16}>
+        <Col xs={24} lg={16} className={styles.flexCol}>
           <Card
             title="最近项目"
+            className={styles.dashboardCard}
             extra={
               <Button type="link" onClick={() => navigate('/projects')}>
                 查看全部 <RightOutlined />
@@ -218,8 +219,8 @@ const Dashboard: React.FC = () => {
         </Col>
 
         {/* Right — Quick Actions + System Status */}
-        <Col xs={24} lg={8}>
-          <Card title="快捷操作">
+        <Col xs={24} lg={8} className={styles.flexCol}>
+          <Card title="快捷操作" className={styles.dashboardCard}>
             {quickActions.map((action) => (
               <div
                 key={action.key}

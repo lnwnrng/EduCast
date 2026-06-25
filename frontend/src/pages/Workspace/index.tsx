@@ -434,8 +434,8 @@ const Workspace: React.FC = () => {
             description="建议用最新脚本重新生成，得到新版本成片。"
           />
         )}
-        <Row gutter={16}>
-          <Col xs={24} lg={16}>
+        <Row gutter={16} className="layout-row-stretch">
+          <Col xs={24} lg={16} className="layout-col-stretch">
             <Card
               title={`成片预览 — 第 ${activeVideo.version} 版`}
               extra={
@@ -482,8 +482,8 @@ const Workspace: React.FC = () => {
             </Card>
           </Col>
 
-          <Col xs={24} lg={8}>
-            <Card title="版本历史" size="small">
+          <Col xs={24} lg={8} className="layout-col-stretch">
+            <Card title="版本历史" size="small" className="card-stretch">
               <List
                 dataSource={videos}
                 renderItem={(v) => (
