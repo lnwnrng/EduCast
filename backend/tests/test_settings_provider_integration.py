@@ -17,6 +17,7 @@ class TestLLMProviderIntegration:
         save_runtime_settings({"ZHIPU_API_KEY": "runtime_zhipu_key"})
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.providers.llm import get_llm_provider
+
         provider = get_llm_provider()
         assert provider is not None
         assert provider._api_key == "runtime_zhipu_key"
@@ -26,6 +27,7 @@ class TestLLMProviderIntegration:
         save_runtime_settings({})
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "env_zhipu_key")
         from app.providers.llm import get_llm_provider
+
         provider = get_llm_provider()
         assert provider is not None
         assert provider._api_key == "env_zhipu_key"
@@ -35,6 +37,7 @@ class TestLLMProviderIntegration:
         save_runtime_settings({})
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.providers.llm import get_llm_provider
+
         assert get_llm_provider() is None
 
 
@@ -46,13 +49,16 @@ class TestVideoGenProviderIntegration:
 
     def test_prefers_cogvideo_key(self, runtime_settings_dir, monkeypatch):
         """COGVIDEO_API_KEY 优先于 ZHIPU_API_KEY。"""
-        save_runtime_settings({
-            "COGVIDEO_API_KEY": "cog_key",
-            "ZHIPU_API_KEY": "zhipu_key",
-        })
+        save_runtime_settings(
+            {
+                "COGVIDEO_API_KEY": "cog_key",
+                "ZHIPU_API_KEY": "zhipu_key",
+            }
+        )
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.providers.video_gen import get_video_gen_provider
+
         provider = get_video_gen_provider()
         assert provider is not None
         assert provider._api_key == "cog_key"
@@ -63,6 +69,7 @@ class TestVideoGenProviderIntegration:
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.providers.video_gen import get_video_gen_provider
+
         provider = get_video_gen_provider()
         assert provider is not None
         assert provider._api_key == "zhipu_key"
@@ -73,6 +80,7 @@ class TestVideoGenProviderIntegration:
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.providers.video_gen import get_video_gen_provider
+
         assert get_video_gen_provider() is None
 
     def test_runtime_cogvideo_overrides_env_zhipu(
@@ -83,6 +91,7 @@ class TestVideoGenProviderIntegration:
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "env_zhipu")
         from app.providers.video_gen import get_video_gen_provider
+
         provider = get_video_gen_provider()
         assert provider is not None
         assert provider._api_key == "rt_cog"
@@ -99,6 +108,7 @@ class TestCostServiceIntegration:
         save_runtime_settings({"DIGITAL_HUMAN_API_KEY": "dh_key"})
         monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
         from app.services.cost_service import _is_billed
+
         assert _is_billed(SceneType.DIGITAL_HUMAN) is True
 
     def test_digital_human_not_billed_without_key(
@@ -108,6 +118,7 @@ class TestCostServiceIntegration:
         save_runtime_settings({})
         monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")
         from app.services.cost_service import _is_billed
+
         assert _is_billed(SceneType.DIGITAL_HUMAN) is False
 
     def test_generative_clip_billed_with_zhipu_only(
@@ -118,6 +129,7 @@ class TestCostServiceIntegration:
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.services.cost_service import _is_billed
+
         assert _is_billed(SceneType.GENERATIVE_CLIP) is True
 
     def test_slide_always_free(self, runtime_settings_dir, monkeypatch):
@@ -125,6 +137,7 @@ class TestCostServiceIntegration:
         save_runtime_settings({"ZHIPU_API_KEY": "key"})
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "key")
         from app.services.cost_service import _is_billed
+
         assert _is_billed(SceneType.SLIDE) is False
 
     def test_generative_clip_not_billed_without_keys(
@@ -135,6 +148,7 @@ class TestCostServiceIntegration:
         monkeypatch.setattr(settings, "COGVIDEO_API_KEY", "")
         monkeypatch.setattr(settings, "ZHIPU_API_KEY", "")
         from app.services.cost_service import _is_billed
+
         assert _is_billed(SceneType.GENERATIVE_CLIP) is False
 
 
@@ -150,16 +164,19 @@ class TestEmailServiceIntegration:
         save_runtime_settings({})
         monkeypatch.setattr(settings, "RESEND_API_KEY", "")
         from app.services.email_service import EmailService
+
         # 应该直接返回，不抛异常
         await EmailService.send_verification_code("test@example.com", "123456")
 
     @pytest.mark.asyncio
     async def test_uses_runtime_email_from(self, runtime_settings_dir, monkeypatch):
         """运行时 EMAIL_FROM 生效。"""
-        save_runtime_settings({
-            "RESEND_API_KEY": "fake_resend_key",
-            "EMAIL_FROM": "custom@test.com",
-        })
+        save_runtime_settings(
+            {
+                "RESEND_API_KEY": "fake_resend_key",
+                "EMAIL_FROM": "custom@test.com",
+            }
+        )
         monkeypatch.setattr(settings, "RESEND_API_KEY", "")
         monkeypatch.setattr(settings, "EMAIL_FROM", "default@test.com")
 
@@ -185,6 +202,7 @@ class TestEmailServiceIntegration:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         import httpx
+
         monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: mock_client)
 
         await EmailService.send_verification_code("user@test.com", "654321")
@@ -219,6 +237,7 @@ class TestEmailServiceIntegration:
         mock_client.__aexit__ = AsyncMock(return_value=False)
 
         import httpx
+
         monkeypatch.setattr(httpx, "AsyncClient", lambda **kw: mock_client)
 
         await EmailService.send_verification_code("user@test.com", "654321")

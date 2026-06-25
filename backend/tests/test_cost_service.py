@@ -56,7 +56,8 @@ def _ir_with(*scene_types: SceneType, narration: str = "") -> CourseIR:
 
 
 def test_estimate_potential_but_not_chargeable_without_keys(
-    monkeypatch, runtime_settings_dir,
+    monkeypatch,
+    runtime_settings_dir,
 ) -> None:
     # 未配置付费 API Key → 潜在成本算满，实际计费为 0（降级免费课件页）
     monkeypatch.setattr(settings, "DIGITAL_HUMAN_API_KEY", "")

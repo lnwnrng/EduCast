@@ -28,7 +28,11 @@ export function useProgressWebSocket(
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const onUpdateRef = useRef(onUpdate);
-  onUpdateRef.current = onUpdate;
+  // connect 自引用会触发 react-hooks/immutability 规则，用 ref 持有最新实现以解耦。
+  const connectRef = useRef<() => void>(() => {});
+  useEffect(() => {
+    onUpdateRef.current = onUpdate;
+  }, [onUpdate]);
 
   const connect = useCallback(() => {
     if (!projectId) return;
@@ -66,7 +70,7 @@ export function useProgressWebSocket(
       wsRef.current = null;
       // 自动重连（3秒后）
       reconnectTimerRef.current = setTimeout(() => {
-        if (projectId) connect();
+        if (projectId) connectRef.current();
       }, 3000);
     };
 
@@ -74,6 +78,11 @@ export function useProgressWebSocket(
       ws.close();
     };
   }, [projectId]);
+
+  // 持有最新 connect 实现，供重连定时器回调使用（避免 connect 自引用触发 immutability 规则）。
+  useEffect(() => {
+    connectRef.current = connect;
+  }, [connect]);
 
   const disconnect = useCallback(() => {
     if (reconnectTimerRef.current) {

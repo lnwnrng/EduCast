@@ -84,7 +84,9 @@ class CogVideoXProvider(BaseProvider):
                     payload[key] = request[key]
 
         url = f"{self._base_url}/videos/generations"
-        async with httpx.AsyncClient(timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
+        ) as client:
             resp = await client.post(url, json=payload, headers=self._headers)
         if resp.status_code != 200:
             raise RuntimeError(
@@ -100,7 +102,9 @@ class CogVideoXProvider(BaseProvider):
     async def poll(self, task_id: str) -> ProviderResult:
         """查询一次任务状态。"""
         url = f"{self._base_url}/async-result/{task_id}"
-        async with httpx.AsyncClient(timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
+        ) as client:
             resp = await client.get(url, headers=self._headers)
         if resp.status_code != 200:
             raise RuntimeError(
@@ -162,7 +166,9 @@ class CogVideoXProvider(BaseProvider):
 
     async def _download(self, url: str, output_path: str) -> None:
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        async with httpx.AsyncClient(timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None) as client:
+        async with httpx.AsyncClient(
+            timeout=self._timeout, proxy=settings.HTTP_PROXY.strip() or None
+        ) as client:
             async with client.stream("GET", url) as resp:
                 resp.raise_for_status()
                 with open(output_path, "wb") as f:

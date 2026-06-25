@@ -149,6 +149,7 @@ async def get_dashboard(
 ) -> dict:
     """全局监控面板聚合。"""
     from app.services import cost_service
+
     base = await cost_service.dashboard_stats(db)
     result = base.model_dump()
 
@@ -157,14 +158,18 @@ async def get_dashboard(
         from app.models.user import User as UserModel
 
         user_count = (await db.execute(select(func.count(UserModel.id)))).scalar() or 0
-        today_reg = (await db.execute(
-            select(func.count(UserModel.id)).where(
-                func.date(UserModel.created_at) == func.current_date()
+        today_reg = (
+            await db.execute(
+                select(func.count(UserModel.id)).where(
+                    func.date(UserModel.created_at) == func.current_date()
+                )
             )
-        )).scalar() or 0
-        project_count = (await db.execute(
-            select(func.count(Project.id)).where(Project.deleted_at.is_(None))
-        )).scalar() or 0
+        ).scalar() or 0
+        project_count = (
+            await db.execute(
+                select(func.count(Project.id)).where(Project.deleted_at.is_(None))
+            )
+        ).scalar() or 0
         storage_bytes = result.get("storage_bytes", 0)
 
         result["admin_stats"] = {
@@ -184,6 +189,8 @@ async def system_health(
 ) -> list[dict]:
     """系统健康检查（仅管理员）。"""
     from app.middleware.auth import require_admin
+
     await require_admin(current_user)
     from app.services.health_service import HealthService
+
     return await HealthService.run_all(db)

@@ -54,9 +54,9 @@ async def list_users(
     user_ids = [u.id for u in users]
     if user_ids:
         pc_result = await db.execute(
-            select(Project.user_id, func.count()).where(
-                Project.user_id.in_(user_ids)
-            ).group_by(Project.user_id)
+            select(Project.user_id, func.count())
+            .where(Project.user_id.in_(user_ids))
+            .group_by(Project.user_id)
         )
         project_count_map = {row[0]: row[1] for row in pc_result.all()}
     else:
@@ -64,18 +64,20 @@ async def list_users(
 
     for u in users:
         project_count = project_count_map.get(u.id, 0)
-        items.append(UserAdminResponse(
-            id=u.id,
-            display_id=u.display_id,
-            username=u.username,
-            email=u.email,
-            role=u.role,
-            is_active=u.is_active,
-            last_login=u.last_login,
-            created_at=u.created_at,
-            updated_at=u.updated_at,
-            project_count=project_count,
-        ))
+        items.append(
+            UserAdminResponse(
+                id=u.id,
+                display_id=u.display_id,
+                username=u.username,
+                email=u.email,
+                role=u.role,
+                is_active=u.is_active,
+                last_login=u.last_login,
+                created_at=u.created_at,
+                updated_at=u.updated_at,
+                project_count=project_count,
+            )
+        )
 
     return PaginatedResponse(items=items, total=total, page=page, page_size=page_size)
 
@@ -100,7 +102,9 @@ async def change_user_role(
     await db.execute(
         update(User).where(User.id == uuid.UUID(user_id)).values(role=role)
     )
-    await AuditService.log(db, str(current_user.id), "role_change", "user", user_id, f"set role to {role}")
+    await AuditService.log(
+        db, str(current_user.id), "role_change", "user", user_id, f"set role to {role}"
+    )
     return SuccessResponse(message=f"角色已更新为 {role}")
 
 
@@ -122,7 +126,9 @@ async def toggle_user_active(
 
     user.is_active = not user.is_active
     status = "disabled" if not user.is_active else "enabled"
-    await AuditService.log(db, str(current_user.id), "toggle_active", "user", user_id, status)
+    await AuditService.log(
+        db, str(current_user.id), "toggle_active", "user", user_id, status
+    )
     return SuccessResponse(message=f"用户已{'禁用' if not user.is_active else '启用'}")
 
 
@@ -144,15 +150,25 @@ async def delete_user(
 
     # 硬删除：先撤销关联的 refresh_token，再删除用户的项目，最后删除用户
     from app.models.refresh_token import RefreshToken
+
     await db.execute(
-        update(RefreshToken).where(RefreshToken.user_id == user.id).values(is_revoked=True)
+        update(RefreshToken)
+        .where(RefreshToken.user_id == user.id)
+        .values(is_revoked=True)
     )
     # 删除用户的项目（级联删除 task/resource）
     user_projects = await db.execute(select(Project).where(Project.user_id == user.id))
     for project in user_projects.scalars().all():
         await db.delete(project)
     await db.delete(user)
-    await AuditService.log(db, str(current_user.id), "delete_user", "user", user_id, f"deleted username={user.username}")
+    await AuditService.log(
+        db,
+        str(current_user.id),
+        "delete_user",
+        "user",
+        user_id,
+        f"deleted username={user.username}",
+    )
     return SuccessResponse(message="用户已删除")
 
 
@@ -178,16 +194,19 @@ async def list_audit_logs(
         username_map = {str(row.id): row.username for row in result.all()}
 
     return PaginatedResponse(
-        items=[{
-            "id": str(log.id),
-            "user_id": str(log.user_id),
-            "username": username_map.get(str(log.user_id), "-"),
-            "action": log.action,
-            "target_type": log.target_type,
-            "target_id": log.target_id,
-            "details": log.details,
-            "created_at": log.created_at.isoformat() if log.created_at else None,
-        } for log in items],
+        items=[
+            {
+                "id": str(log.id),
+                "user_id": str(log.user_id),
+                "username": username_map.get(str(log.user_id), "-"),
+                "action": log.action,
+                "target_type": log.target_type,
+                "target_id": log.target_id,
+                "details": log.details,
+                "created_at": log.created_at.isoformat() if log.created_at else None,
+            }
+            for log in items
+        ],
         total=total,
         page=page,
         page_size=page_size,

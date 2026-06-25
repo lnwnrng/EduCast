@@ -8,7 +8,6 @@ import {
   Spin,
   Statistic,
   Tag,
-  Typography,
   message,
 } from 'antd';
 import {
@@ -22,8 +21,6 @@ import {
 import { useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
 import apiClient from '../../api/client';
-
-const { Title } = Typography;
 
 /** 项目级分析数据 */
 interface ProjectAnalyticsData {

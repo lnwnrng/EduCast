@@ -22,7 +22,9 @@ router = APIRouter(prefix="/requests", tags=["申请管理"])
 # ── Pydantic Schema ────────────────────────────────────────
 class RequestCreate(BaseModel):
     name: str = Field(..., min_length=1, max_length=100, description="申请名称")
-    type: str = Field(..., pattern="^(category|tag)$", description="申请类型: category 或 tag")
+    type: str = Field(
+        ..., pattern="^(category|tag)$", description="申请类型: category 或 tag"
+    )
     reason: str = Field("", max_length=500, description="申请理由")
 
 
@@ -78,9 +80,7 @@ async def list_requests(
     current_user: User = Depends(get_current_user_from_cookie),
 ) -> list[RequestResponse]:
     """查看申请列表。普通用户只能看自己的，管理员看全部。"""
-    query = select(CategoryTagRequest).order_by(
-        CategoryTagRequest.created_at.desc()
-    )
+    query = select(CategoryTagRequest).order_by(CategoryTagRequest.created_at.desc())
     # 非管理员只看自己的
     if current_user.role != "admin":
         query = query.where(CategoryTagRequest.user_id == current_user.id)
@@ -117,7 +117,11 @@ async def list_requests(
 
 
 # ── 管理员：审核通过 ─────────────────────────────────────
-@router.post("/{request_id}/approve", response_model=SuccessResponse, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{request_id}/approve",
+    response_model=SuccessResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def approve_request(
     request_id: UUID,
     db: AsyncSession = Depends(get_db),
@@ -143,9 +147,7 @@ async def approve_request(
             db.add(CourseCategory(name=request.name))
     else:
         # 检查是否已存在同名标签
-        existing_tag = await db.execute(
-            select(Tag).where(Tag.name == request.name)
-        )
+        existing_tag = await db.execute(select(Tag).where(Tag.name == request.name))
         if not existing_tag.scalar_one_or_none():
             db.add(Tag(name=request.name))
 
@@ -155,11 +157,20 @@ async def approve_request(
     request.reviewed_at = datetime.now(UTC)
 
     await db.flush()
-    return SuccessResponse(message=f"已批准{'分类' if request.type == 'category' else '标签'}「{request.name}」")
+    return SuccessResponse(
+        message=(
+            f"已批准{'分类' if request.type == 'category' else '标签'}"
+            f"「{request.name}」"
+        ),
+    )
 
 
 # ── 管理员：拒绝申请 ─────────────────────────────────────
-@router.post("/{request_id}/reject", response_model=SuccessResponse, dependencies=[Depends(require_admin)])
+@router.post(
+    "/{request_id}/reject",
+    response_model=SuccessResponse,
+    dependencies=[Depends(require_admin)],
+)
 async def reject_request(
     request_id: UUID,
     db: AsyncSession = Depends(get_db),

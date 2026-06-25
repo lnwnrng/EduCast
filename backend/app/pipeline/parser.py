@@ -129,9 +129,7 @@ class DocumentParser:
 
     # ── PPTX 解析 ────────────────────────────────────────
 
-    def _parse_pptx(
-        self, file_path: str, project_id: str | None = None
-    ) -> CourseIR:
+    def _parse_pptx(self, file_path: str, project_id: str | None = None) -> CourseIR:
         """解析 PPTX 文件。
 
         使用 python-pptx:
@@ -252,9 +250,7 @@ class DocumentParser:
 
     # ── PDF 解析 ─────────────────────────────────────────
 
-    def _parse_pdf(
-        self, file_path: str, project_id: str | None = None
-    ) -> CourseIR:
+    def _parse_pdf(self, file_path: str, project_id: str | None = None) -> CourseIR:
         """解析 PDF 文件。
 
         使用 pdfplumber:
@@ -371,9 +367,7 @@ class DocumentParser:
 
     # ── DOCX 解析 ────────────────────────────────────────
 
-    def _parse_docx(
-        self, file_path: str, project_id: str | None = None
-    ) -> CourseIR:
+    def _parse_docx(self, file_path: str, project_id: str | None = None) -> CourseIR:
         """解析 DOCX 文件。
 
         按标题样式（Heading 1/2/3）切分章节与知识点。
@@ -417,9 +411,7 @@ class DocumentParser:
 
     # ── 纯文本解析 ───────────────────────────────────────
 
-    def _parse_text(
-        self, file_path: str, project_id: str | None = None
-    ) -> CourseIR:
+    def _parse_text(self, file_path: str, project_id: str | None = None) -> CourseIR:
         """解析纯文本文件。
 
         按段落（双换行）切分，整体作为单章节。

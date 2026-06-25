@@ -19,7 +19,6 @@ from app.exceptions import ParseException
 from app.ir.schema import CourseIR
 from app.ir.validator import validate_ir
 from app.models.project import Project
-from app.models.task import Task
 from app.pipeline.parser import DocumentParser
 from app.utils.task_helpers import update_project_status, update_task_status
 

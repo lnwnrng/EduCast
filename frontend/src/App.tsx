@@ -20,6 +20,7 @@ import AdminAuditLog from './pages/Admin/AuditLog';
 import CategoryManagement from './pages/Admin/CategoryManagement';
 import TagManagement from './pages/Admin/TagManagement';
 import Requests from './pages/Admin/Requests';
+import LlmManagement from './pages/Admin/LlmManagement';
 import SettingsPage from './pages/Settings';
 import ProtectedRoute from './components/Auth/ProtectedRoute';
 import { useAuthStore } from './stores/authStore';
@@ -82,6 +83,7 @@ const App: React.FC = () => {
         <Route path="/admin/categories" element={<CategoryManagement />} />
         <Route path="/admin/tags" element={<TagManagement />} />
         <Route path="/admin/requests" element={<Requests />} />
+        <Route path="/admin/llm" element={<LlmManagement />} />
         <Route path="/admin/settings" element={<SettingsPage />} />
       </Route>
 

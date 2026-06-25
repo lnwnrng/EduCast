@@ -648,9 +648,7 @@ async def concat_with_transitions(
             a_out = f"[a{i + 1}]"
         else:
             a_out = "[aout]"
-        filters_a.append(
-            f"{a_src}{a_next}acrossfade=d={dur:.3f}:c1=tri:c2=tri{a_out}"
-        )
+        filters_a.append(f"{a_src}{a_next}acrossfade=d={dur:.3f}:c1=tri:c2=tri{a_out}")
 
     filter_complex = ";".join(filters_v + filters_a)
     args += [
@@ -791,8 +789,7 @@ async def generate_outro_clip(
     # 全程显示标题，最后 0.8s 淡出
     fade_out = duration - 0.8
     title_alpha = (
-        f"alpha='if(lt(t\\,{fade_out:.1f})\\,1\\,"
-        f"1-(t-{fade_out:.1f})/0.8)'"
+        f"alpha='if(lt(t\\,{fade_out:.1f})\\,1\\," f"1-(t-{fade_out:.1f})/0.8)'"
     )
     title_filter = (
         f"drawtext=text='{escaped_title}'{font_arg}"
@@ -801,8 +798,7 @@ async def generate_outro_clip(
     )
 
     summary_alpha = (
-        f"alpha='if(lt(t\\,{fade_out:.1f})\\,1\\,"
-        f"1-(t-{fade_out:.1f})/0.8)'"
+        f"alpha='if(lt(t\\,{fade_out:.1f})\\,1\\," f"1-(t-{fade_out:.1f})/0.8)'"
     )
     summary_filter = (
         f"drawtext=text='{escaped_summary}'{font_arg}"
@@ -843,4 +839,3 @@ async def generate_outro_clip(
     ]
     await _run(args)
     return output_path
-

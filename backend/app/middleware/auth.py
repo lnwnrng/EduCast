@@ -40,7 +40,8 @@ async def _verify_access_token(token: str, db: AsyncSession) -> User:
 
     try:
         payload = jwt.decode(
-            token, settings.JWT_SECRET_KEY,
+            token,
+            settings.JWT_SECRET_KEY,
             algorithms=[settings.JWT_ALGORITHM],
         )
         user_id: str | None = payload.get("sub")
@@ -52,6 +53,7 @@ async def _verify_access_token(token: str, db: AsyncSession) -> User:
         token_iat = None
         if iat_timestamp is not None:
             from datetime import UTC, datetime
+
             token_iat = datetime.fromtimestamp(int(iat_timestamp), tz=UTC)
         if is_token_revoked(user_id, token_iat):
             raise AuthenticationException("令牌已失效，请重新登录")

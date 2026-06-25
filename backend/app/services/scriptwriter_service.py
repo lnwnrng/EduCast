@@ -11,14 +11,11 @@
 """
 
 import logging
-from uuid import UUID
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.models.project import Project
-from app.models.task import Task
 from app.pipeline.scriptwriter import ScriptWriter
-from app.providers.llm import get_llm_provider
+from app.providers.llm import get_llm_providers_for_stages, make_resolver
 from app.services.parser_service import ParserService
 from app.utils.task_helpers import update_project_status, update_task_status
 
@@ -63,7 +60,9 @@ class ScriptwriterService:
             await update_project_status(db, project_id, "scripting")
 
             # 3. LLM 编排（进度 50 → 60）
-            writer = ScriptWriter(get_llm_provider())
+            #    按阶段解析 provider 列表（DB 配置优先，env ZHIPU 回退）。
+            stage_map = await get_llm_providers_for_stages()
+            writer = ScriptWriter(llm_resolver=make_resolver(stage_map))
 
             async def _progress(done: int, total: int) -> None:
                 pct = 50 + int(10 * done / total) if total else 60
@@ -123,7 +122,10 @@ class ScriptwriterService:
     ) -> None:
         """更新任务状态（委托给共享 update_task_status）。"""
         await update_task_status(
-            db, task_id, status, progress,
+            db,
+            task_id,
+            status,
+            progress,
             ir_snapshot_path=ir_snapshot_path,
             error_message=error_message,
         )

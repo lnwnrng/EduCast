@@ -39,7 +39,7 @@ _MAGIC_BYTES: dict[str, list[bytes]] = {
     ".pptx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],  # ZIP-based (OOXML)
     ".docx": [b"PK\x03\x04", b"PK\x05\x06", b"PK\x07\x08"],  # ZIP-based (OOXML)
     ".pdf": [b"%PDF"],
-    ".md": [],   # 文本文件无固定魔数，跳过校验
+    ".md": [],  # 文本文件无固定魔数，跳过校验
     ".txt": [],  # 文本文件无固定魔数，跳过校验
 }
 
@@ -73,7 +73,9 @@ async def _run_parse_in_background(
             # parse_document 内部已处理错误状态更新，解析失败则不再编排
             logger.error(
                 "后台解析异常: project=%s, task=%s",
-                project_id, task_id, exc_info=True,
+                project_id,
+                task_id,
+                exc_info=True,
             )
             return
 
@@ -87,7 +89,9 @@ async def _run_parse_in_background(
             # orchestrate 内部已处理错误状态更新
             logger.error(
                 "后台编排异常: project=%s, task=%s",
-                project_id, task_id, exc_info=True,
+                project_id,
+                task_id,
+                exc_info=True,
             )
 
         # 一键全自动：跨过人工审核直接生成（仍走成本护栏）
@@ -126,7 +130,9 @@ async def _auto_generate(project_id: str, task_id: str, db: AsyncSession) -> Non
         # compose 内部已处理错误状态更新
         logger.error(
             "后台合成异常: project=%s, task=%s",
-            project_id, task_id, exc_info=True,
+            project_id,
+            task_id,
+            exc_info=True,
         )
 
 
@@ -309,7 +315,8 @@ async def upload_batch(
                 file_entries.append((fpath, fext, fname))
             logger.info(
                 "ZIP 解压完成: %s → %d 个文件",
-                filename, len(extracted),
+                filename,
+                len(extracted),
             )
         elif ext in SUPPORTED_EXTENSIONS:
             # 普通文件：直接保存
@@ -323,7 +330,9 @@ async def upload_batch(
             logger.warning("批量上传跳过不支持的文件: %s", filename)
 
     if not file_entries:
-        raise ValidationException("未找到可处理的文件，请上传支持的格式或包含有效文件的 ZIP")
+        raise ValidationException(
+            "未找到可处理的文件，请上传支持的格式或包含有效文件的 ZIP"
+        )
 
     # 为每个文件创建 Project + Task
     results: list[dict] = []
@@ -357,12 +366,14 @@ async def upload_batch(
             task_id=str(task.id),
         )
 
-        results.append({
-            "project_id": str(project.id),
-            "task_id": str(task.id),
-            "filename": original_name,
-            "file_type": file_ext,
-        })
+        results.append(
+            {
+                "project_id": str(project.id),
+                "task_id": str(task.id),
+                "filename": original_name,
+                "file_type": file_ext,
+            }
+        )
 
     return SuccessResponse(
         message=f"批量上传成功，共创建 {len(results)} 个项目",

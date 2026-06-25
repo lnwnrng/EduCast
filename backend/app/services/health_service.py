@@ -25,13 +25,24 @@ class HealthService:
             return HealthStatus(name="FFmpeg", status=False, detail=str(e))
 
     @staticmethod
-    async def check_providers() -> HealthStatus:
+    async def check_providers(db=None) -> HealthStatus:
+        """检查 LLM provider 可用情况（基于 DB 配置，回退 env ZHIPU）。"""
         try:
-            from app.providers.llm import get_llm_provider
-            provider = get_llm_provider()
+            from app.providers.llm import get_llm_providers_for_stages
+
+            stage_map = await get_llm_providers_for_stages(db)
+            providers = stage_map.get("default") or []
+            if providers:
+                names = ", ".join(
+                    sorted({getattr(p, "provider_name", "?") for p in providers})
+                )
+                return HealthStatus(
+                    name="LLM Provider",
+                    status=True,
+                    detail=f"{len(providers)} 个可用 ({names})",
+                )
             return HealthStatus(
-                name="LLM Provider", status=True,
-                detail=f"{provider.__class__.__name__} configured",
+                name="LLM Provider", status=False, detail="未配置任何 LLM provider"
             )
         except Exception as e:
             return HealthStatus(name="LLM Provider", status=False, detail=str(e))
@@ -40,6 +51,7 @@ class HealthService:
     async def check_database(db) -> HealthStatus:
         try:
             from sqlalchemy import text
+
             await db.execute(text("SELECT 1"))
             return HealthStatus(name="Database", status=True)
         except Exception as e:
@@ -49,7 +61,9 @@ class HealthService:
     async def run_all(db) -> list[dict]:
         results = [
             HealthService.check_ffmpeg(),
-            await HealthService.check_providers(),
+            await HealthService.check_providers(db),
             await HealthService.check_database(db),
         ]
-        return [{"name": r.name, "status": r.status, "detail": r.detail} for r in results]
+        return [
+            {"name": r.name, "status": r.status, "detail": r.detail} for r in results
+        ]

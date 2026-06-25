@@ -5,6 +5,7 @@ from app.models.audit_log import AuditLog
 from app.models.base import Base, BaseMixin
 from app.models.category import CourseCategory
 from app.models.category_tag_request import CategoryTagRequest
+from app.models.llm_provider import LLMProviderConfig, LLMStageAssignment
 from app.models.project import Project
 from app.models.refresh_token import RefreshToken
 from app.models.resource import Resource
@@ -19,6 +20,8 @@ __all__ = [
     "BaseMixin",
     "CategoryTagRequest",
     "CourseCategory",
+    "LLMProviderConfig",
+    "LLMStageAssignment",
     "Project",
     "RefreshToken",
     "Resource",

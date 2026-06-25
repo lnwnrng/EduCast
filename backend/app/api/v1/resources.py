@@ -23,9 +23,7 @@ router = APIRouter(prefix="/resources", tags=["资源管理"])
 
 async def _get_user_project_ids(db: AsyncSession, user: User) -> list[UUID]:
     """获取当前用户的所有项目 ID。"""
-    result = await db.execute(
-        select(Project.id).where(Project.user_id == user.id)
-    )
+    result = await db.execute(select(Project.id).where(Project.user_id == user.id))
     return [row[0] for row in result.all()]
 
 
@@ -56,7 +54,12 @@ async def list_resources(
     if current_user.role != "admin":
         user_project_ids = await _get_user_project_ids(db, current_user)
     resources, total = await ResourceService.list_resources(
-        db, project_id, resource_type, search, page, page_size,
+        db,
+        project_id,
+        resource_type,
+        search,
+        page,
+        page_size,
         user_project_ids=user_project_ids,
     )
     return PaginatedResponse(

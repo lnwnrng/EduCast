@@ -4,7 +4,6 @@ import uuid
 from datetime import UTC, datetime
 
 import pytest
-import pytest_asyncio
 from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -111,8 +110,10 @@ async def test_project_analytics_basic(
 ) -> None:
     """项目学情分析 — 基本正常响应。"""
     pid = await _seed_analytics_project(
-        db_session, test_user.id,
-        add_resources=True, add_annotations=True,
+        db_session,
+        test_user.id,
+        add_resources=True,
+        add_annotations=True,
     )
 
     resp = await auth_client.get(f"/api/v1/projects/{pid}/analytics")
@@ -138,7 +139,8 @@ async def test_project_analytics_soft_deleted_tasks_excluded(
 ) -> None:
     """软删除任务不计入统计。"""
     pid = await _seed_analytics_project(
-        db_session, test_user.id,
+        db_session,
+        test_user.id,
         add_deleted_task=True,
     )
 

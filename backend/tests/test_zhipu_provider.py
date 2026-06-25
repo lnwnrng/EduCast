@@ -1,33 +1,29 @@
-"""ZhipuLLMProvider 测试 — 用 httpx.MockTransport 拦截请求，不打真实 API。"""
+"""ZhipuLLMProvider 测试 — 用 httpx.MockTransport 拦截请求，不打真实 API。
+
+GLM provider 的 chat 实现位于 OpenAICompatibleLLMProvider，通过共享
+httpx 客户端（app.providers.llm._httpx.get_shared_httpx_client）发请求。
+本测试 patch 该客户端工厂，注入带 MockTransport 的客户端。
+"""
 
 import json
 
 import httpx
 import pytest
 
-import app.providers.llm.zhipu as zhipu_mod
 from app.providers.llm.zhipu import ZhipuLLMProvider
 
 pytestmark = pytest.mark.asyncio
 
 
 def _patch_transport(monkeypatch, handler) -> None:
-    """把 zhipu 模块内的 httpx.AsyncClient 替换为带 MockTransport 的版本。
-
-    同时重置共享客户端，确保每个测试用新的 MockTransport。
-    """
+    """把 openai_compat 模块引用的共享 httpx 客户端工厂替换为 MockTransport 版本。"""
     transport = httpx.MockTransport(handler)
-    real_client = httpx.AsyncClient
+    client = httpx.AsyncClient(transport=transport)
 
-    def make_client(**kwargs):
-        kwargs.pop("transport", None)
-        kwargs.pop("proxy", None)
-        return real_client(transport=transport, **kwargs)
-
-    monkeypatch.setattr(zhipu_mod.httpx, "AsyncClient", make_client)
-    # 重置共享客户端，强制下一个调用用新的 MockTransport 创建
-    monkeypatch.setattr(zhipu_mod, "_shared_client", None)
-    monkeypatch.setattr(zhipu_mod, "_shared_client_loop", None)
+    monkeypatch.setattr(
+        "app.providers.llm.openai_compat.get_shared_httpx_client",
+        lambda timeout=60.0: client,
+    )
 
 
 async def test_chat_builds_payload_and_parses(monkeypatch) -> None:
@@ -59,6 +55,8 @@ async def test_chat_builds_payload_and_parses(monkeypatch) -> None:
     assert captured["body"]["model"] == "glm-4.7-flash"
     assert captured["body"]["thinking"] == {"type": "disabled"}
     assert captured["body"]["response_format"] == {"type": "json_object"}
+    # GLM 走 max_tokens（非 openai 的 max_completion_tokens）
+    assert captured["body"]["max_tokens"] == 4096
 
     assert result.content == "你好世界"
     assert result.status == "completed"

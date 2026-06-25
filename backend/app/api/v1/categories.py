@@ -73,14 +73,19 @@ async def _fill_project_counts(tree: list[dict], db: AsyncSession) -> None:
 
 
 async def _check_duplicate_sort(
-    db: AsyncSession, parent_id: str | None, sort_order: int, exclude_id: uuid.UUID | None = None,
+    db: AsyncSession,
+    parent_id: str | None,
+    sort_order: int,
+    exclude_id: uuid.UUID | None = None,
 ) -> bool:
     """检查同级分类中是否存在重复的 sort_order。"""
     if parent_id:
         condition = CourseCategory.parent_id == parent_id
     else:
         condition = CourseCategory.parent_id.is_(None)
-    query = select(CourseCategory).where(condition, CourseCategory.sort_order == sort_order)
+    query = select(CourseCategory).where(
+        condition, CourseCategory.sort_order == sort_order
+    )
     if exclude_id:
         query = query.where(CourseCategory.id != exclude_id)
     result = await db.execute(query)
@@ -110,7 +115,12 @@ async def list_categories(
     return [CategoryNode(**item) for item in tree]
 
 
-@router.post("/", response_model=CategoryNode, status_code=201, dependencies=[Depends(require_admin)])
+@router.post(
+    "/",
+    response_model=CategoryNode,
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
 async def create_category(
     data: CategoryCreate,
     db: AsyncSession = Depends(get_db),
@@ -126,14 +136,19 @@ async def create_category(
     await db.flush()
     await db.refresh(cat)
     return CategoryNode(
-        id=str(cat.id), name=cat.name,
+        id=str(cat.id),
+        name=cat.name,
         parent_id=str(cat.parent_id) if cat.parent_id else None,
-        sort_order=cat.sort_order, children=[], project_count=0,
+        sort_order=cat.sort_order,
+        children=[],
+        project_count=0,
         created_at=cat.created_at,
     )
 
 
-@router.put("/{category_id}", response_model=CategoryNode, dependencies=[Depends(require_admin)])
+@router.put(
+    "/{category_id}", response_model=CategoryNode, dependencies=[Depends(require_admin)]
+)
 async def update_category(
     category_id: str,
     data: CategoryUpdate,
@@ -154,15 +169,20 @@ async def update_category(
         cat.parent_id = data.parent_id
     if data.sort_order is not None:
         target_parent = data.parent_id if data.parent_id is not None else cat.parent_id
-        if await _check_duplicate_sort(db, target_parent, data.sort_order, exclude_id=cat_uuid):
+        if await _check_duplicate_sort(
+            db, target_parent, data.sort_order, exclude_id=cat_uuid
+        ):
             raise HTTPException(400, "同级分类中已存在相同的排序号，请更换")
         cat.sort_order = data.sort_order
     await db.flush()
     await db.refresh(cat)
     return CategoryNode(
-        id=str(cat.id), name=cat.name,
+        id=str(cat.id),
+        name=cat.name,
         parent_id=str(cat.parent_id) if cat.parent_id else None,
-        sort_order=cat.sort_order, children=[], project_count=0,
+        sort_order=cat.sort_order,
+        children=[],
+        project_count=0,
         created_at=cat.created_at,
     )
 

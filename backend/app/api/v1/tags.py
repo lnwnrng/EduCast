@@ -34,14 +34,24 @@ async def list_tags(
     )
     items = []
     for tag, pc in result.all():
-        items.append(TagResponse(
-            id=str(tag.id), name=tag.name, color=tag.color,
-            project_count=pc or 0, created_at=tag.created_at,
-        ))
+        items.append(
+            TagResponse(
+                id=str(tag.id),
+                name=tag.name,
+                color=tag.color,
+                project_count=pc or 0,
+                created_at=tag.created_at,
+            )
+        )
     return items
 
 
-@router.post("/", response_model=TagResponse, status_code=201, dependencies=[Depends(require_admin)])
+@router.post(
+    "/",
+    response_model=TagResponse,
+    status_code=201,
+    dependencies=[Depends(require_admin)],
+)
 async def create_tag(
     data: TagCreate,
     db: AsyncSession = Depends(get_db),
@@ -53,12 +63,17 @@ async def create_tag(
     await db.flush()
     await db.refresh(tag)
     return TagResponse(
-        id=str(tag.id), name=tag.name, color=tag.color,
-        project_count=0, created_at=tag.created_at,
+        id=str(tag.id),
+        name=tag.name,
+        color=tag.color,
+        project_count=0,
+        created_at=tag.created_at,
     )
 
 
-@router.put("/{tag_id}", response_model=TagResponse, dependencies=[Depends(require_admin)])
+@router.put(
+    "/{tag_id}", response_model=TagResponse, dependencies=[Depends(require_admin)]
+)
 async def update_tag(
     tag_id: str,
     data: TagUpdate,
@@ -78,8 +93,11 @@ async def update_tag(
     await db.flush()
     await db.refresh(tag)
     return TagResponse(
-        id=str(tag.id), name=tag.name, color=tag.color,
-        project_count=0, created_at=tag.created_at,
+        id=str(tag.id),
+        name=tag.name,
+        color=tag.color,
+        project_count=0,
+        created_at=tag.created_at,
     )
 
 

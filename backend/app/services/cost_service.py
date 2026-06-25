@@ -40,8 +40,7 @@ def _is_billed(scene_type: SceneType) -> bool:
     if scene_type == SceneType.GENERATIVE_CLIP:
         # CogVideoX 与 GLM 同平台：COGVIDEO_API_KEY 为空时回退用 ZHIPU_API_KEY
         return bool(
-            get_effective_key("COGVIDEO_API_KEY")
-            or get_effective_key("ZHIPU_API_KEY")
+            get_effective_key("COGVIDEO_API_KEY") or get_effective_key("ZHIPU_API_KEY")
         )
     return False
 

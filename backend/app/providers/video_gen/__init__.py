@@ -12,9 +12,8 @@ def get_video_gen_provider() -> CogVideoXProvider | None:
     同平台同 Key）。两者皆空时返回 None，合成层据此走本地 Ken-Burns 兜底。
     支持运行时通过前端设置页面配置 API Key。
     """
-    api_key = (
-        get_effective_key("COGVIDEO_API_KEY")
-        or get_effective_key("ZHIPU_API_KEY")
+    api_key = get_effective_key("COGVIDEO_API_KEY") or get_effective_key(
+        "ZHIPU_API_KEY"
     )
     if not api_key:
         return None

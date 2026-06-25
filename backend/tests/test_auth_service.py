@@ -33,7 +33,11 @@ async def test_register_success(db_session: AsyncSession):
     await db_session.flush()
 
     user, access, refresh = await AuthService.register(
-        db_session, "newuser", "Pass1234", "test@example.com", "ABC123",
+        db_session,
+        "newuser",
+        "Pass1234",
+        "test@example.com",
+        "ABC123",
     )
     assert user.username == "newuser"
     assert user.role == "user"
@@ -41,9 +45,17 @@ async def test_register_success(db_session: AsyncSession):
     assert access
     assert refresh
     # 验证码应标记为已使用
-    vc = (await db_session.execute(
-        select(VerificationCode).where(VerificationCode.email == "test@example.com")
-    )).scalars().first()
+    vc = (
+        (
+            await db_session.execute(
+                select(VerificationCode).where(
+                    VerificationCode.email == "test@example.com"
+                )
+            )
+        )
+        .scalars()
+        .first()
+    )
     assert vc.is_used is True
 
 
@@ -54,14 +66,22 @@ async def test_register_duplicate_username(db_session: AsyncSession):
     await db_session.flush()
 
     await AuthService.register(
-        db_session, "dupuser", "Pass1234", "dup@example.com", "ABC123",
+        db_session,
+        "dupuser",
+        "Pass1234",
+        "dup@example.com",
+        "ABC123",
     )
     db_session.add(_make_code("dup2@example.com"))
     await db_session.flush()
 
     with pytest.raises(ValueError, match="用户名已存在"):
         await AuthService.register(
-            db_session, "dupuser", "Pass1234", "dup2@example.com", "ABC123",
+            db_session,
+            "dupuser",
+            "Pass1234",
+            "dup2@example.com",
+            "ABC123",
         )
 
 
@@ -73,7 +93,11 @@ async def test_register_wrong_code(db_session: AsyncSession):
 
     with pytest.raises(ValueError, match="验证码错误"):
         await AuthService.register(
-            db_session, "user", "Pass1234", "wrong@example.com", "WRONG1",
+            db_session,
+            "user",
+            "Pass1234",
+            "wrong@example.com",
+            "WRONG1",
         )
 
 
@@ -171,9 +195,11 @@ async def test_refresh_success(db_session: AsyncSession):
     assert new_refresh
     # 旧 token 应被撤销
     token_hash = _hash_token(raw_refresh)
-    old = (await db_session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )).scalar_one()
+    old = (
+        await db_session.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        )
+    ).scalar_one()
     assert old.is_revoked is True
 
 
@@ -208,9 +234,11 @@ async def test_logout_revokes_token(db_session: AsyncSession):
     await AuthService.logout(db_session, raw_refresh)
 
     token_hash = _hash_token(raw_refresh)
-    record = (await db_session.execute(
-        select(RefreshToken).where(RefreshToken.token_hash == token_hash)
-    )).scalar_one()
+    record = (
+        await db_session.execute(
+            select(RefreshToken).where(RefreshToken.token_hash == token_hash)
+        )
+    ).scalar_one()
     assert record.is_revoked is True
 
 
