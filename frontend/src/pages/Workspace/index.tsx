@@ -1,14 +1,12 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react';
 import {
   Card,
-  Steps,
   Button,
   Space,
   Typography,
   Tag,
   Alert,
   Spin,
-  Progress,
   Empty,
   Select,
   Switch,
@@ -40,7 +38,10 @@ import { approveScript } from '../../api/scripts';
 import { getResourceDownloadUrl } from '../../api/resources';
 import { getProjects } from '../../api/projects';
 import VersionCompareModal from './components/VersionCompareModal';
-import { statusMeta, lifecycleStep, IN_PROGRESS } from '../../utils/status';
+import PipelineProgress from '../../components/common/PipelineProgress';
+import { useProgressWebSocket } from '../../hooks/useProgressWebSocket';
+import type { ProgressUpdate } from '../../hooks/useProgressWebSocket';
+import { statusMeta, IN_PROGRESS } from '../../utils/status';
 import type { WorkspaceData, VideoVersion } from '../../types/workspace';
 import type { Project } from '../../types/project';
 
@@ -107,6 +108,39 @@ const Workspace: React.FC = () => {
   useEffect(() => {
     load();
   }, [load]);
+
+  // WebSocket 实时进度推送（轮询作断连兜底）
+  const handleWsUpdate = useCallback(
+    (u: ProgressUpdate) => {
+      setData((prev) => {
+        if (!prev) return prev;
+        const base = prev.latest_task ?? {
+          id: u.task_id,
+          status: u.status,
+          progress: u.progress,
+          step_detail: u.step_detail ?? null,
+          error_message: u.error_message,
+        };
+        return {
+          ...prev,
+          status: u.status,
+          latest_task: {
+            ...base,
+            status: u.status,
+            progress: u.progress,
+            step_detail: u.step_detail ?? base.step_detail ?? null,
+            error_message: u.error_message,
+          },
+        };
+      });
+      // 进入待审核 / 完成时重新拉取，刷新 IR / 视频版本等聚合数据
+      if (u.status === 'reviewing' || u.status === 'completed') {
+        load();
+      }
+    },
+    [load]
+  );
+  useProgressWebSocket(projectId ?? null, handleWsUpdate);
 
   // 进行中状态轮询
   useEffect(() => {
@@ -389,14 +423,9 @@ const Workspace: React.FC = () => {
         <div style={{ textAlign: 'center', padding: '40px 0' }}>
           <Spin indicator={<LoadingOutlined style={{ fontSize: 44 }} spin />} />
           <Title level={4} style={{ marginTop: 20 }}>
-            {meta.label}...
+            {data.latest_task?.step_detail || `${meta.label}...`}
           </Title>
-          <Progress
-            percent={data.latest_task?.progress ?? 10}
-            status="active"
-            style={{ maxWidth: 420, margin: '16px auto' }}
-          />
-          <Text type="secondary">长任务进行中，本页会自动刷新进度。</Text>
+          <Text type="secondary">长任务进行中，进度实时更新（断连时自动轮询兜底）。</Text>
         </div>
       </Card>
     );
@@ -568,17 +597,15 @@ const Workspace: React.FC = () => {
         }
       />
 
-      <Steps
-        current={lifecycleStep(status)}
-        status={status === 'failed' ? 'error' : undefined}
-        style={{ marginBottom: 24, maxWidth: 880 }}
-        items={[
-          { title: '上传解析' },
-          { title: '脚本审核' },
-          { title: '生成' },
-          { title: '预览' },
-        ]}
-      />
+      <div style={{ marginBottom: 24, maxWidth: 880 }}>
+        <PipelineProgress
+          status={status}
+          progress={data.latest_task?.progress ?? (status === 'completed' ? 100 : 0)}
+          stepDetail={data.latest_task?.step_detail}
+          errorMessage={data.latest_task?.error_message}
+          variant="full"
+        />
+      </div>
 
       <Space style={{ marginBottom: 16 }}>
         <Button

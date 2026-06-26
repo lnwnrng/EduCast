@@ -31,8 +31,9 @@ async def update_task_status(
     db: AsyncSession,
     task_id: str | UUID,
     status: str,
-    progress: int,
+    progress: int | None = None,
     *,
+    step_detail: str | None = None,
     ir_snapshot_path: str | None = None,
     error_message: str | None = None,
     actual_cost: float | None = None,
@@ -40,6 +41,11 @@ async def update_task_status(
     """更新任务状态（共享实现，替代各 Service 的私有 _update_task）。
 
     同时通过 WebSocket 广播进度给前端。
+
+    Args:
+        progress: 进度百分比；``None`` 表示保留现值（失败时不清零，进度条停在
+            出错处）。
+        step_detail: 当前子步骤的人类可读文案（如「编排第 3/12 个知识点」）。
     """
     pk = to_uuid(task_id)
     if pk is None:
@@ -48,7 +54,10 @@ async def update_task_status(
     task = await db.get(Task, pk)
     if task:
         task.status = status
-        task.progress = max(progress, 0)
+        if progress is not None:
+            task.progress = max(progress, 0)
+        if step_detail is not None:
+            task.step_detail = step_detail
         if ir_snapshot_path is not None:
             task.ir_snapshot_path = ir_snapshot_path
         if error_message is not None:
@@ -68,6 +77,7 @@ async def update_task_status(
                     "project_id": str(task.project_id),
                     "status": status,
                     "progress": task.progress,
+                    "step_detail": task.step_detail,
                     "error_message": error_message,
                 },
             )

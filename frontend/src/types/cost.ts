@@ -19,6 +19,7 @@ export interface DashboardRecentTask {
   project_id: string;
   status: string;
   progress: number;
+  step_detail?: string | null;
   estimated_cost: number;
   actual_cost: number;
   created_at: string | null;

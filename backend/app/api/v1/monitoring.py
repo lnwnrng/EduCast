@@ -121,6 +121,7 @@ async def get_workspace(
             id=str(t.id),
             status=t.status,
             progress=t.progress,
+            step_detail=t.step_detail,
             error_message=t.error_message,
         )
         if t

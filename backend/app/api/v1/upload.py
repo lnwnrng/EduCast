@@ -67,7 +67,7 @@ async def _run_parse_in_background(
                 task_id=task_id,
                 db=db,
                 advance_status="scripting",
-                advance_progress=45,
+                advance_progress=15,
             )
         except Exception:
             # parse_document 内部已处理错误状态更新，解析失败则不再编排

@@ -108,7 +108,7 @@ _KP = {
         {
             "order": 1,
             "scene_type": "generative_clip",
-            "narration_text": "口语化讲稿一",
+            "narration_text": "口语化讲稿一[PAUSE:0.5]",
             "subtitle_text": "旧模型字幕一",
             "gen_prompt": "数学课堂、粉笔风格",
             "latex_steps": [],
@@ -116,7 +116,7 @@ _KP = {
         {
             "order": 2,
             "scene_type": "formula_animation",
-            "narration_text": "口语化讲稿二",
+            "narration_text": "口语化讲稿二[PAUSE:0.5]",
             "subtitle_text": "旧模型字幕二",
             "gen_prompt": "",
             "latex_steps": ["a = b", "b = c"],
@@ -154,15 +154,31 @@ async def test_enhance_merges_and_preserves_structure() -> None:
     assert s2.scene_id == orig_s2_id
     assert s1.visual_spec.slide_ref == "slide_1.png"
     assert s1.source_page == 1
-    # 文本与类型被覆盖
-    assert s1.narration_text == "口语化讲稿一"
-    assert s1.subtitle_text == "口语化讲稿一"
+    # 文本与类型被覆盖（含 SSML 标记，字幕同步）
+    assert s1.narration_text == "口语化讲稿一[PAUSE:0.5]"
+    assert s1.subtitle_text == "口语化讲稿一[PAUSE:0.5]"
     assert s1.scene_type == SceneType.GENERATIVE_CLIP
     assert s1.visual_spec.gen_prompt == "数学课堂、粉笔风格"
     assert s1.kp_tags == ["标签A", "标签B"]
     # 公式分镜
     assert s2.scene_type == SceneType.FORMULA_ANIMATION
     assert s2.visual_spec.latex_steps == ["a = b", "b = c"]
+
+
+async def test_scene_without_pause_gets_fallback() -> None:
+    """Scene Agent 输出缺 [PAUSE] 时，确定性兜底自动补一个，保证配音韵律。"""
+    draft = _make_draft()
+    kp_no_pause = {
+        "scenes": [
+            {"order": 1, "scene_type": "slide", "narration_text": "没有停顿标记的讲稿"},
+        ],
+    }
+    writer = ScriptWriter(FakeLLM(_META, kp_no_pause))
+    result = await writer.enhance_ir(draft)
+
+    s1 = result.chapters[0].knowledge_points[0].scenes[0]
+    assert "[PAUSE" in s1.narration_text
+    assert s1.narration_text.startswith("没有停顿标记的讲稿")
 
 
 async def test_does_not_mutate_input() -> None:
@@ -211,7 +227,7 @@ async def test_progress_callback_invoked() -> None:
     draft = _make_draft()
     seen: list[tuple[int, int]] = []
 
-    async def cb(done: int, total: int) -> None:
+    async def cb(done: int, total: int, detail: str | None = None) -> None:
         seen.append((done, total))
 
     writer = ScriptWriter(FakeLLM(_META, _KP))

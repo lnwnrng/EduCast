@@ -5,7 +5,6 @@ import {
   Card,
   Descriptions,
   List,
-  Progress,
   Result,
   Segmented,
   Space,
@@ -30,6 +29,9 @@ import {
 } from '@ant-design/icons';
 import { useNavigate, useParams } from 'react-router-dom';
 import PageHeader from '../../components/common/PageHeader';
+import PipelineProgress from '../../components/common/PipelineProgress';
+import { useProgressWebSocket } from '../../hooks/useProgressWebSocket';
+import type { ProgressUpdate } from '../../hooks/useProgressWebSocket';
 import { uploadDocument, uploadBatch } from '../../api/upload';
 import { getTask } from '../../api/tasks';
 import { getScript, type ScriptResponse } from '../../api/scripts';
@@ -112,6 +114,7 @@ const UploadPage: React.FC = () => {
   // 任务状态轮询
   const [taskStatus, setTaskStatus] = useState<TaskStatus>('pending');
   const [taskProgress, setTaskProgress] = useState(0);
+  const [stepDetail, setStepDetail] = useState<string | null>(null);
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const pollingRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -158,6 +161,22 @@ const UploadPage: React.FC = () => {
     await attempt();
   }, []);
 
+  // ── WebSocket 实时进度（轮询作断连兜底）────────────────
+  const handleWsUpdate = useCallback(
+    (u: ProgressUpdate) => {
+      setTaskStatus(u.status as TaskStatus);
+      setTaskProgress(u.progress);
+      setStepDetail(u.step_detail ?? null);
+      if (u.error_message) setErrorMessage(u.error_message);
+      if (u.status === 'reviewing' || u.status === 'completed') {
+        setCurrentStep(2);
+        if (projectId) void loadIR(projectId);
+      }
+    },
+    [loadIR, projectId]
+  );
+  useProgressWebSocket(projectId, handleWsUpdate);
+
   // ── 任务状态轮询 ──────────────────────────────────────
   const startPolling = useCallback(
     (tid: string, pid: string) => {
@@ -173,6 +192,7 @@ const UploadPage: React.FC = () => {
 
           setTaskStatus(task.status);
           setTaskProgress(task.progress);
+          setStepDetail(task.step_detail ?? null);
 
           if (task.error_message) {
             setErrorMessage(task.error_message);
@@ -502,13 +522,17 @@ const UploadPage: React.FC = () => {
                 }
               />
               <Title level={4} style={{ marginTop: 24 }}>
-                {statusLabel[taskStatus] || '处理中...'}
+                {stepDetail || statusLabel[taskStatus] || '处理中...'}
               </Title>
-              <Progress
-                percent={taskProgress}
-                status="active"
-                style={{ maxWidth: 400, margin: '16px auto' }}
-              />
+              <div style={{ maxWidth: 420, margin: '20px auto 0' }}>
+                <PipelineProgress
+                  status={taskStatus}
+                  progress={taskProgress}
+                  stepDetail={stepDetail}
+                  errorMessage={errorMessage}
+                  variant="compact"
+                />
+              </div>
               {uploadedFile && (
                 <div style={{ marginTop: 16 }}>
                   <Text type="secondary">

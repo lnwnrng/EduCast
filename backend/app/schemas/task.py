@@ -24,6 +24,7 @@ class TaskResponse(BaseModel):
     task_type: str
     status: str
     progress: int
+    step_detail: str | None = None
     error_message: str | None = None
     estimated_cost: float
     actual_cost: float
@@ -37,6 +38,7 @@ class TaskStatusResponse(BaseModel):
     id: UUID
     status: str
     progress: int
+    step_detail: str | None = None
     error_message: str | None = None
     estimated_cost: float
     actual_cost: float

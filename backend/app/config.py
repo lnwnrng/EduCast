@@ -36,6 +36,9 @@ class Settings(BaseSettings):
     ZHIPU_MODEL: str = "glm-4.7-flash"
     ZHIPU_BASE_URL: str = "https://open.bigmodel.cn/api/paas/v4"
     LLM_TIMEOUT: float = 60.0
+    # Scene Agent 知识点编排并发度：1=串行（默认，免费档不触发限流）；
+    # 付费档可调高（如 3~5）以加速长课程编排。
+    SCENE_CONCURRENCY: int = 1
 
     # ── 生成式片段（智谱 CogVideoX，模块五）─────────────────────
     # CogVideoX 与 GLM 同平台；COGVIDEO_API_KEY 留空时回退用 ZHIPU_API_KEY

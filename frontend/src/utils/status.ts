@@ -24,3 +24,35 @@ export const lifecycleStep = (status: string): number => {
 };
 
 export const IN_PROGRESS = ['pending', 'parsing', 'scripting', 'generating', 'composing'];
+
+/** 流水线分段图的 6 个节点（与后端 PHASE_BANDS 对齐）。 */
+export const PIPELINE_STAGES: { key: string; label: string; statuses: string[] }[] = [
+  { key: 'parsing', label: '解析', statuses: ['pending', 'parsing'] },
+  { key: 'scripting', label: '编排', statuses: ['scripting'] },
+  { key: 'reviewing', label: '审核', statuses: ['reviewing'] },
+  { key: 'generating', label: '生成', statuses: ['generating'] },
+  { key: 'composing', label: '合成', statuses: ['composing'] },
+  { key: 'completed', label: '完成', statuses: ['completed'] },
+];
+
+/** 当前 status 对应的流水线节点索引（failed 时返回最后活跃节点，由组件标红）。 */
+export const pipelineStage = (status: string): number => {
+  const idx = PIPELINE_STAGES.findIndex((s) => s.statuses.includes(status));
+  if (idx >= 0) return idx;
+  if (status === 'failed') return -1; // 由调用方结合上一已知进度定位
+  return 0;
+};
+
+/** status → 默认子步骤文案（与后端 DEFAULT_STEP_DETAIL 对齐，无 step_detail 时兜底）。 */
+const STEP_FALLBACK: Record<string, string> = {
+  pending: '排队中…',
+  parsing: '解析课件中…',
+  scripting: '编排讲稿中…',
+  reviewing: '等待教师审核',
+  generating: '生成分镜素材中…',
+  composing: '合成视频中…',
+  completed: '已完成',
+  failed: '处理失败',
+};
+
+export const stepFallback = (status: string): string => STEP_FALLBACK[status] || '';

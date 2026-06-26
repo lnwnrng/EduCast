@@ -14,6 +14,8 @@ import logging
 
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.config import settings
+from app.pipeline.progress import DEFAULT_STEP_DETAIL, band_progress
 from app.pipeline.scriptwriter import ScriptWriter
 from app.providers.llm import get_llm_providers_for_stages, make_resolver
 from app.services.parser_service import ParserService
@@ -55,18 +57,34 @@ class ScriptwriterService:
             return
 
         try:
-            # 2. 置编排中
-            await update_task_status(db, task_id, status="scripting", progress=50)
+            # 2. 置编排中（scripting 区间 15–45）
+            await update_task_status(
+                db,
+                task_id,
+                status="scripting",
+                progress=band_progress("scripting", 0, 1),
+                step_detail=DEFAULT_STEP_DETAIL["scripting"],
+            )
             await update_project_status(db, project_id, "scripting")
 
-            # 3. LLM 编排（进度 50 → 60）
+            # 3. LLM 编排（进度 15 → 45，按知识点细分）
             #    按阶段解析 provider 列表（DB 配置优先，env ZHIPU 回退）。
             stage_map = await get_llm_providers_for_stages()
-            writer = ScriptWriter(llm_resolver=make_resolver(stage_map))
+            writer = ScriptWriter(
+                llm_resolver=make_resolver(stage_map),
+                scene_concurrency=settings.SCENE_CONCURRENCY,
+            )
 
-            async def _progress(done: int, total: int) -> None:
-                pct = 50 + int(10 * done / total) if total else 60
-                await update_task_status(db, task_id, status="scripting", progress=pct)
+            async def _progress(
+                done: int, total: int, detail: str | None = None
+            ) -> None:
+                await update_task_status(
+                    db,
+                    task_id,
+                    status="scripting",
+                    progress=band_progress("scripting", done, total),
+                    step_detail=detail,
+                )
 
             enhanced = await writer.enhance_ir(current_ir, progress_cb=_progress)
 
@@ -77,12 +95,13 @@ class ScriptwriterService:
                 enhanced, project_id, version=new_version
             )
 
-            # 5. 推进到待审核
+            # 5. 推进到待审核（reviewing 检查点 = 45，放行后生成从此继续不倒退）
             await update_task_status(
                 db,
                 task_id,
                 status="reviewing",
-                progress=60,
+                progress=band_progress("reviewing", 1, 1),
+                step_detail=DEFAULT_STEP_DETAIL["reviewing"],
                 ir_snapshot_path=ir_path,
             )
             await update_project_status(db, project_id, "reviewing")
@@ -104,7 +123,8 @@ class ScriptwriterService:
                 db,
                 task_id,
                 status="failed",
-                progress=0,
+                progress=None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
                 error_message=f"脚本编排失败: {exc}",
             )
             await update_project_status(db, project_id, "failed")
@@ -116,7 +136,8 @@ class ScriptwriterService:
         db: AsyncSession,
         task_id: str,
         status: str,
-        progress: int,
+        progress: int | None = None,
+        step_detail: str | None = None,
         ir_snapshot_path: str | None = None,
         error_message: str | None = None,
     ) -> None:
@@ -126,6 +147,7 @@ class ScriptwriterService:
             task_id,
             status,
             progress,
+            step_detail=step_detail,
             ir_snapshot_path=ir_snapshot_path,
             error_message=error_message,
         )

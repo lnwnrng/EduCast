@@ -143,6 +143,26 @@ async def _migrate_add_template_column() -> None:
         logger.warning("迁移 projects.template 列失败（可忽略）: %s", e)
 
 
+async def _migrate_add_step_detail_column() -> None:
+    """为已有 tasks 表添加 step_detail 列（进度子步骤文案所需）。"""
+    import logging
+    import sqlite3
+
+    logger = logging.getLogger(__name__)
+    try:
+        db_path = _get_sqlite_path()
+        conn = sqlite3.connect(db_path)
+        cursor = conn.execute("PRAGMA table_info(tasks)")
+        columns = [row[1] for row in cursor.fetchall()]
+        if "step_detail" not in columns:
+            conn.execute("ALTER TABLE tasks ADD COLUMN step_detail VARCHAR(120)")
+            conn.commit()
+            logger.info("已为 tasks 表添加 step_detail 列")
+        conn.close()
+    except Exception as e:
+        logger.warning("迁移 tasks.step_detail 列失败（可忽略）: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
@@ -159,6 +179,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await _migrate_add_email_column()
     await _migrate_add_display_id_column()
     await _migrate_add_template_column()
+    await _migrate_add_step_detail_column()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

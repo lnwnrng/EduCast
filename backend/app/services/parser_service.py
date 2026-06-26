@@ -20,6 +20,7 @@ from app.ir.schema import CourseIR
 from app.ir.validator import validate_ir
 from app.models.project import Project
 from app.pipeline.parser import DocumentParser
+from app.pipeline.progress import DEFAULT_STEP_DETAIL, band_progress
 from app.utils.task_helpers import update_project_status, update_task_status
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ class ParserService:
         task_id: str,
         db: AsyncSession,
         advance_status: str = "reviewing",
-        advance_progress: int = 40,
+        advance_progress: int = 15,
     ) -> CourseIR:
         """执行完整的文档解析流程。
 
@@ -64,7 +65,13 @@ class ParserService:
         """
         try:
             # 6. 更新任务状态 → parsing
-            await update_task_status(db, task_id, status="parsing", progress=10)
+            await update_task_status(
+                db,
+                task_id,
+                status="parsing",
+                progress=band_progress("parsing", 1, 2),
+                step_detail=DEFAULT_STEP_DETAIL["parsing"],
+            )
 
             # 2. 调用解析器
             logger.info(
@@ -95,6 +102,7 @@ class ParserService:
                 task_id,
                 status=advance_status,
                 progress=advance_progress,
+                step_detail=DEFAULT_STEP_DETAIL.get(advance_status),
                 ir_snapshot_path=ir_path,
             )
 
@@ -113,7 +121,8 @@ class ParserService:
                 db,
                 task_id,
                 status="failed",
-                progress=0,
+                progress=None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
                 error_message="文档解析失败",
             )
             await update_project_status(db, project_id, status="failed")
@@ -130,7 +139,8 @@ class ParserService:
                 db,
                 task_id,
                 status="failed",
-                progress=0,
+                progress=None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
                 error_message=str(exc),
             )
             await update_project_status(db, project_id, status="failed")

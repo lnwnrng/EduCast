@@ -24,6 +24,7 @@ class LatestTask(BaseModel):
     id: UUID
     status: str
     progress: int
+    step_detail: str | None = None
     error_message: str | None = None
 
 

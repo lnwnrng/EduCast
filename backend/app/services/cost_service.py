@@ -147,6 +147,7 @@ async def dashboard_stats(db: AsyncSession) -> DashboardStats:
             "project_id": str(t.project_id),
             "status": t.status,
             "progress": t.progress,
+            "step_detail": t.step_detail,
             "estimated_cost": t.estimated_cost,
             "actual_cost": t.actual_cost,
             "created_at": t.created_at.isoformat() if t.created_at else None,
