@@ -33,6 +33,7 @@ export interface SceneIR {
   kp_tags: string[];
   source_page?: number;
   production_meta: ProductionMeta;
+  visual_direction?: string;
 }
 
 export interface QuizSeed {
@@ -71,4 +72,5 @@ export interface CourseIR {
   version: number;
   created_at: string;
   chapters: ChapterIR[];
+  teaching_outline?: Record<string, unknown>;
 }

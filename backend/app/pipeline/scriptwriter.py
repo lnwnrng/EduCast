@@ -58,6 +58,16 @@ _FILENAME_PREFIX_RE = re.compile(r"^[0-9a-f]{8}_")
 _VALID_SCENE_TYPES = {t.value for t in SceneType}
 
 
+def _ir_has_slides(ir: CourseIR) -> bool:
+    """IR 是否含课件页图片——slide_ref 全 None 即纯文本讲稿。"""
+    return any(
+        scene.visual_spec.slide_ref
+        for ch in ir.chapters
+        for kp in ch.knowledge_points
+        for scene in kp.scenes
+    )
+
+
 class ScriptWriter:
     """LLM 脚本编排器 — 三阶段多智能体管道。
 
@@ -381,6 +391,18 @@ class ScriptWriter:
         tpl = get_template(ir.template or "micro_lecture")
         subject = ir.subject or "通用学科"
         audience = ir.target_audience or "高校学生"
+        has_slides = _ir_has_slides(ir)
+        # 纯文本讲稿（无课件页）需在规划阶段就偏向生成式/数字人，避免后期全是文字卡
+        text_mode_note = (
+            "【纯文本讲稿模式】本课程为纯文本讲稿上传（无课件页图片），slide 类型"
+            "分镜将渲染为纯文字卡片，画面单调乏味。请为各知识点优先规划 "
+            "generative_clip（情景化概念画面）与 digital_human（教师口播出镜），"
+            "适当穿插 formula_animation（公式推导），尽量减少 slide 分镜（仅用于"
+            "纯文字要点罗列）。建议分镜类型配比：generative_clip 约 40%、"
+            "digital_human 约 30%、slide 约 20%、formula_animation 约 10%。"
+            if not has_slides
+            else "本课程含课件页图片，slide 分镜可正常展示课件，按内容判断即可。"
+        )
 
         messages = [
             {
@@ -401,7 +423,7 @@ class ScriptWriter:
                     f"课程学科：{subject}\n"
                     f"目标受众：{audience}\n"
                     f"课程模板：{tpl.display_name}（{tpl.description}）\n"
-                    f"讲解风格：{tpl.prompt_style}"
+                    f"讲解风格：{tpl.prompt_style}\n\n{text_mode_note}"
                 ),
             },
             {
@@ -422,6 +444,11 @@ class ScriptWriter:
                     '      "transition_in": "从前一知识点过渡的衔接语",\n'
                     '      "visual_hint": "slide|formula_animation|digital_human|'
                     'generative_clip",\n'
+                    '      "visual_justification": '
+                    '"一句话说明为何选此画面类型（基于该知识点内容）",\n'
+                    '      "gen_prompt_seed": "当 visual_hint=generative_clip '
+                    "时给出 2~3 句画面构思（主体+动作+场景），供后续细化；"
+                    '否则留空",\n'
                     '      "pause_points": "需要停顿让学生思考的地方描述"\n'
                     "    }\n"
                     "  ]\n"
@@ -471,6 +498,7 @@ class ScriptWriter:
         subject = ir.subject or "通用学科"
         audience = ir.target_audience or "高校学生"
         tpl = get_template(ir.template or "micro_lecture")
+        has_slides = _ir_has_slides(ir)
 
         scene_lines: list[str] = []
         for scene in kp.scenes:
@@ -493,9 +521,19 @@ class ScriptWriter:
         pacing = context.get("pacing", "normal")
         pause_points = context.get("pause_points", "")
         visual_hint = context.get("visual_hint", "")
+        visual_justification = context.get("visual_justification", "")
+        gen_prompt_seed = context.get("gen_prompt_seed", "")
+
+        extra_strategy_lines = ""
+        if visual_justification:
+            extra_strategy_lines += f"画面类型理由：{visual_justification}\n"
+        if gen_prompt_seed:
+            extra_strategy_lines += (
+                f"画面构思种子（generative_clip 时供细化）：{gen_prompt_seed}\n"
+            )
 
         strategy_block = ""
-        if strategy or transition_in or visual_hint:
+        if strategy or transition_in or visual_hint or extra_strategy_lines:
             strategy_block = (
                 "\n\n【教学设计师为本知识点规划的策略】\n"
                 f"教学法：{strategy}\n"
@@ -504,8 +542,20 @@ class ScriptWriter:
                 f"后续知识点：{next_kp_title or '（最后一个知识点）'}\n"
                 f"建议画面类型（scene_type 应优先参考）："
                 f"{visual_hint or '（无特别建议，按内容判断）'}\n"
+                f"{extra_strategy_lines}"
                 f"建议停顿点：{pause_points or '（无特别指定）'}"
             )
+
+        # 纯文本模式覆盖模板的 slide 偏好，强制画面多样化
+        text_mode_rule = (
+            "【纯文本讲稿模式】本课程无课件页图片，slide 分镜仅渲染为纯文字卡片"
+            "（画面单调）。除非该分镜确为纯要点罗列，否则优先选 generative_clip / "
+            "digital_human / formula_animation 增加画面变化；模板偏好在此模式下以"
+            "画面多样化为优先被覆盖：generative_clip 与 digital_human 合计占比应"
+            "不低于 60%。\n"
+            if not has_slides
+            else ""
+        )
 
         system = (
             "你是资深的高校教学视频编导与讲稿撰写专家。你的任务是把课件解析出的"
@@ -519,13 +569,30 @@ class ScriptWriter:
             "2. 字幕将由系统从 narration_text 自动切句生成，不要另写摘要字幕。\n"
             "3. scene_type：从 slide(课件页) / formula_animation(公式推导动画) / "
             "digital_human(数字人讲解) / generative_clip(生成式概念片段) 中选择最"
-            "合适的；纯公式推导选 formula_animation，引入/小结类选 digital_human，"
-            "需要情景画面的选 generative_clip，其余默认 slide。\n"
+            "合适的，并遵循以下优先级：\n"
+            "   - 纯公式/数学推导 → formula_animation（必须给出 latex_steps）\n"
+            "   - 引入、过渡、总结、设问、知识点小结 → digital_human\n"
+            "   - 需要情景化/可视化/具象演示的概念（实验过程、自然现象、历史场景、"
+            "数据流、物理过程等）→ generative_clip（必须给出 gen_prompt）\n"
+            "   - 纯文字要点罗列且无更优画面 → slide\n"
             f"本模板偏好：{tpl.scene_type_hint}。\n"
+            f"{text_mode_rule}"
             "4. 当 scene_type=formula_animation，在 latex_steps 给出逐步推导的 "
-            "LaTeX 字符串数组；当 scene_type=generative_clip，在 gen_prompt 给出 "
-            "2~3 句中文画面提示词（主体 + 场景 + 风格，呼应本模板的视觉风格）。"
-            "其它情况这两个字段留空。\n"
+            "LaTeX 字符串数组；当 scene_type=generative_clip，在 gen_prompt 给出"
+            "画面提示词。gen_prompt 将被用于文生视频扩散模型（CogVideoX/Kling）"
+            "生成约 5 秒视频片段，请按以下结构撰写：主体(what)+动作/变化(action)+"
+            "场景/环境(setting)+光线/氛围(lighting/mood)+镜头运动(camera: 推近/"
+            "平移/俯视/特写)。\n"
+            "   示例（好）：「一位教师在明亮的现代教室黑板前书写数学公式，粉笔字迹"
+            "清晰，镜头缓慢推近公式，柔和自然光，学术严谨风格。」\n"
+            "   示例（好）：「彩色三维粒子在深色背景中聚合成分子结构模型，粒子缓慢"
+            "旋转聚合，镜头环绕特写，冷色调蓝紫光，科技感。」\n"
+            "   示例（差，勿这样写）：「数学课堂」「概念演示」（过于笼统，模型无法"
+            "生成具体画面）。\n"
+            "   避免事项：不要在 gen_prompt 中要求屏幕文字、水印、字幕、Logo（视频"
+            "模型不擅长生成文字）；不要写「呼应视觉风格」之类抽象指令，要给出具体"
+            "画面元素。其它情况（slide/digital_human）gen_prompt 与 latex_steps "
+            "留空。\n"
             "5. 必须严格输出 JSON，且 scenes 的 order 与输入一一对应、不增不减。\n"
             "6. **纯文本讲稿**：narration_text 必须是可直接朗读的自然口语化文本，"
             "**不要**加入任何方括号标记或控制符（如 [PAUSE]/[SLOW]/[EMPHASIS]）、"
@@ -533,8 +600,11 @@ class ScriptWriter:
             "7. **教学策略感知**：你已获得教学设计师为本知识点规划的教学策略，"
             "请在讲稿中自然融入。注意衔接语要自然不生硬。\n"
             "8. **视觉配合**：当 scene_type=slide 时，讲稿中要有对画面的引导词"
-            "（如「请看屏幕上的…」「如图所示…」「我们来看这个公式…」），"
-            "让观众知道看哪里。\n"
+            "（如「请看屏幕上的…」「如图所示…」），同时在 visual_direction 字段给出"
+            "运镜/高亮指令（如「缓慢推近标题」「高亮第3个要点」「平移至右侧图表」）。"
+            "当 scene_type=digital_human 时，visual_direction 给出教师姿态/表情提示"
+            "（如「正面讲解，手势强调」「微笑设问」）。当 scene_type=generative_clip "
+            "时，镜头运动已含在 gen_prompt 中，visual_direction 留空。\n"
             "9. **过渡句**：除首个分镜外，必须包含与上一个分镜的自然衔接。"
         )
 
@@ -554,7 +624,7 @@ class ScriptWriter:
             '  "scenes": [\n'
             '    {"order": 1, "scene_type": "slide", '
             '"narration_text": "自然口语化、可直接朗读的纯文本讲稿（无任何标记）", '
-            '"gen_prompt": "", "latex_steps": []}\n'
+            '"gen_prompt": "", "latex_steps": [], "visual_direction": ""}\n'
             "  ]\n"
             "}"
         )
@@ -761,6 +831,10 @@ def _apply_scene(
         if latex_steps:
             scene.visual_spec.latex_steps = latex_steps
 
+    visual_direction = str(data.get("visual_direction") or "").strip()
+    if visual_direction:
+        scene.visual_direction = visual_direction
+
     if kp_tags:
         scene.kp_tags = list(kp_tags)
 
@@ -874,6 +948,8 @@ def _build_kp_context(
         "transition_in": strategy_entry.get("transition_in", ""),
         "pause_points": strategy_entry.get("pause_points", ""),
         "visual_hint": strategy_entry.get("visual_hint", ""),
+        "visual_justification": strategy_entry.get("visual_justification", ""),
+        "gen_prompt_seed": strategy_entry.get("gen_prompt_seed", ""),
         "next_kp_title": next_kp_title,
         "opening_hook": outline.get("opening_hook", ""),
         "closing_summary": outline.get("closing_summary", ""),

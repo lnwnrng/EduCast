@@ -113,6 +113,13 @@ class Settings(BaseSettings):
     # 生成式片段默认时长（秒）与中文 TTS 估时长用的字/秒
     GEN_CLIP_SECONDS: float = 5.0
     TTS_CHARS_PER_SEC: float = 4.0
+    # 纯文本讲稿（无课件页图片）自动启用 CogVideoX 生成式片段（flash 免费）
+    TEXT_ONLY_AUTO_GENERATIVE: bool = True
+    # 纯文本段落再切分阈值：超过上限按句号边界再切，低于下限与下一段合并
+    TEXT_SCENE_MAX_CHARS: int = 300
+    TEXT_SCENE_MIN_CHARS: int = 40
+    # 单任务生成式片段数量上限（成本护栏，避免长课程无限生成）
+    MAX_GENERATIVE_CLIPS: int = 8
 
     # ── CORS ────────────────────────────────────────────────
     CORS_ORIGINS: list[str] = ["http://localhost:5173"]
