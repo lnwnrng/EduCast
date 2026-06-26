@@ -244,6 +244,8 @@ async def test_generative_kenburns_fallback_when_disabled(
     db_session, tmp_path, monkeypatch, rec_ffmpeg
 ):
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    # 关闭纯文本自动启用，以测试显式 use_generative=False 的 Ken-Burns 兜底
+    monkeypatch.setattr(settings, "TEXT_ONLY_AUTO_GENERATIVE", False)
     scene = SceneIR(
         order=1,
         scene_type=SceneType.GENERATIVE_CLIP,
@@ -279,7 +281,9 @@ async def test_generative_uses_provider_when_enabled(
         pid, tid, db_session
     )
 
-    assert fvg.calls == ["抽象概念 情景镜头"]  # 调用了真生成
+    assert len(fvg.calls) == 1  # 调用了真生成
+    assert fvg.calls[0].startswith("抽象概念 情景镜头")  # 主体提示词保留
+    assert "no watermark" in fvg.calls[0]  # 确定性增强后缀
     assert rec_ffmpeg["video_audio"] == 1
     assert rec_ffmpeg["kenburns"] == 0
     subs = await _subtasks(db_session, tid)
@@ -291,9 +295,13 @@ async def test_generative_cache_hit_skips_generate(
     db_session, tmp_path, monkeypatch, rec_ffmpeg
 ):
     monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    from app.pipeline.templates import get_template
+    from app.services.composition_service import _enrich_gen_prompt
+
     prompt = "已缓存的提示词"
-    # 预置缓存命中文件
-    key = compute_input_hash(f"{settings.COGVIDEO_MODEL}|{prompt}")
+    # 预置缓存命中文件（缓存键基于增强后提示词，须与 _generate_or_cache 一致）
+    enriched = _enrich_gen_prompt(prompt, get_template("micro_lecture"))
+    key = compute_input_hash(f"{settings.COGVIDEO_MODEL}|{enriched}")
     cache_dir = tmp_path / "_cache" / "video_gen"
     cache_dir.mkdir(parents=True)
     (cache_dir / f"{key}.mp4").write_bytes(b"cached")

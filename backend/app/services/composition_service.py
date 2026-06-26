@@ -77,6 +77,21 @@ def _card_text(value: object, max_len: int) -> str:
     return text if len(text) <= max_len else text[:max_len].rstrip() + "…"
 
 
+def _enrich_gen_prompt(prompt: str, tpl) -> str:
+    """把裸 gen_prompt 确定性地扩展为电影级文生视频提示词（缓存友好）。
+
+    IR 里存的是人可编辑的「主体提示词」；此处拼接模板视觉风格 + 技术后缀
+    （避免屏幕文字/水印/字幕），生成送入 CogVideoX/Kling 的最终提示词。
+    确定性 → 缓存键稳定、免费、无额外 LLM 延迟；须在算缓存键之前调用。
+    """
+    prompt = (prompt or "").strip()
+    if not prompt:
+        return prompt
+    style = getattr(tpl, "visual_style", "") or ""
+    suffix = "cinematic, no text on screen, no watermark, no subtitle, no logo."
+    return f"{prompt} {style}, {suffix}".strip()
+
+
 @dataclass
 class _FlatScene:
     """展平后的分镜（携带所属知识点与章节信息）。"""
@@ -147,6 +162,11 @@ class CompositionService:
             else digital_human_provider
         )
         self._dh_local = digital_human_local or LocalDigitalHumanProvider()
+        # compose 期填充：供 gen_prompt 增强器与纯文本检测读取（每次 compose 重置）
+        self._ir: CourseIR | None = None
+        self._tpl = None
+        self._text_only = False
+        self._gen_clip_count = 0
 
     # ── 入口 ──────────────────────────────────────────────────
 
@@ -172,6 +192,10 @@ class CompositionService:
             return
 
         flat = _flatten(ir)
+        self._ir = ir
+        # 纯文本讲稿：所有分镜 slide_ref 均为 None（无课件页图片）
+        self._text_only = not any(fs.scene.visual_spec.slide_ref for fs in flat)
+        self._gen_clip_count = 0
 
         # 根据 IR 模板配置创建渲染器（覆盖默认配色）
         self._renderer = SlideRenderer(template_name=ir.template or "micro_lecture")
@@ -203,6 +227,14 @@ class CompositionService:
             cfg = self._task_config(await db.get(Task, _to_uuid(task_id)))
             voice = str(cfg["tts_voice"]) if cfg.get("tts_voice") else None
             use_generative = bool(cfg.get("use_generative", False))
+            # 纯文本讲稿无课件页可展示，自动启用生成式片段（CogVideoX-Flash 免费）
+            if (
+                not use_generative
+                and self._text_only
+                and settings.TEXT_ONLY_AUTO_GENERATIVE
+            ):
+                use_generative = True
+                logger.info("纯文本课程：自动启用生成式片段")
             use_digital_human = bool(cfg.get("use_digital_human", True))
             use_watermark = bool(cfg.get("use_watermark", True))
             use_ai_full_gen = bool(cfg.get("use_ai_full_gen", False))
@@ -223,6 +255,7 @@ class CompositionService:
             use_intro_outro = bool(settings.VIDEO_INTRO_OUTRO)
             td = settings.TRANSITION_DURATION if use_transitions else 0.0
             tpl = get_template(ir.template or "micro_lecture")
+            self._tpl = tpl
             cover_bg = tpl.colors.cover_bg
 
             # 片头/片尾文案复用 Outline 产出（opening_hook / closing_summary），
@@ -529,6 +562,7 @@ class CompositionService:
                     watermark,
                     clip_path,
                     use_generative=use_generative,
+                    ai_auto_prompt=self._text_only,
                 )
             else:
                 # slide 主路径（与 TTS 并行渲染）
@@ -828,20 +862,35 @@ class CompositionService:
         """
         scene = fs.scene
         prompt = (scene.visual_spec.gen_prompt or "").strip()
-        # AI 全生成模式下，若 gen_prompt 为空，自动从旁白生成提示词
+        # AI 全生成 / 纯文本模式下，若 gen_prompt 为空，自动从知识点标题+要点生成提示词
         if not prompt and ai_auto_prompt:
-            narration = (scene.narration_text or "").strip()
             kp_title = fs.kp.title or ""
-            prompt = (
-                f"教学场景：{kp_title}。{narration[:80]}"
-                if narration
-                else f"教学场景：{kp_title}"
-            )
+            first_point = fs.kp.key_points[0] if fs.kp.key_points else ""
+            narration = (scene.narration_text or "").strip()
+            if first_point:
+                prompt = f"{kp_title}：{first_point}"
+            elif narration:
+                prompt = f"{kp_title}。{narration[:80]}"
+            else:
+                prompt = f"教学场景：{kp_title}"
         if not prompt:
             return None
         try:
-            if use_generative and self._video_gen is not None:
+            # 生成式片段数量上限（成本/时长护栏，超出降级概念底图）
+            can_generate = (
+                use_generative
+                and self._video_gen is not None
+                and self._gen_clip_count < settings.MAX_GENERATIVE_CLIPS
+            )
+            if use_generative and self._video_gen is not None and not can_generate:
+                logger.info(
+                    "分镜 %d 生成式片段已达上限 %d，降级概念底图",
+                    index,
+                    settings.MAX_GENERATIVE_CLIPS,
+                )
+            if can_generate:
                 generated = await self._generate_or_cache(prompt)
+                self._gen_clip_count += 1
                 return _Visual(
                     mux="video_audio",
                     video=generated,
@@ -878,15 +927,17 @@ class CompositionService:
             return None
 
     async def _generate_or_cache(self, prompt: str) -> str:
-        """生成式片段缓存：相同 (模型, 提示词) 命中复用，避免重复付费。"""
-        key = compute_input_hash(f"{settings.COGVIDEO_MODEL}|{prompt}")
+        """生成式片段缓存：相同 (模型, 增强后提示词) 命中复用，避免重复付费。"""
+        # 确定性增强（模板视觉风格 + 技术后缀）——必须在算缓存键之前，保证键稳定
+        enriched = _enrich_gen_prompt(prompt, getattr(self, "_tpl", None))
+        key = compute_input_hash(f"{settings.COGVIDEO_MODEL}|{enriched}")
         cache_dir = os.path.join(settings.STORAGE_ROOT, "_cache", "video_gen")
         cached = os.path.join(cache_dir, f"{key}.mp4")
         if os.path.exists(cached):
             logger.info("生成式片段命中缓存: %s", cached)
             return cached
         os.makedirs(cache_dir, exist_ok=True)
-        await self._video_gen.generate(prompt, cached)
+        await self._video_gen.generate(enriched, cached)
         return cached
 
     # ── 入库 ──────────────────────────────────────────────────

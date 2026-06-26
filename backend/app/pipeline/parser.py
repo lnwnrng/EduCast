@@ -34,6 +34,59 @@ logger = logging.getLogger(__name__)
 # 支持的文件类型
 SUPPORTED_EXTENSIONS = {".pptx", ".pdf", ".docx", ".md", ".txt"}
 
+
+def _split_text_paragraphs(content: str) -> list[str]:
+    """按段落切分纯文本，并对过密段落再切、过短段落合并，提升分镜粒度。
+
+    - 先按双换行分段；
+    - 单段超过 ``TEXT_SCENE_MAX_CHARS`` 时按句号边界贪心再切成多段；
+    - 相邻过短段落（< ``TEXT_SCENE_MIN_CHARS``）合并，避免碎片分镜。
+
+    纯文本讲稿默认一段一镜（scene 数 = 段落数），密集长段会塌缩成一张大文字
+    卡；再切分让 scriptwriter 有更多分镜可做画面类型多样化。
+    """
+    max_chars = settings.TEXT_SCENE_MAX_CHARS
+    min_chars = settings.TEXT_SCENE_MIN_CHARS
+
+    raw = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+    if not raw:
+        return []
+
+    # 句末标号（保留标号）：成句 + 可能的尾部无标号残句
+    sentence_re = re.compile(r"[^。！？!?]*[。！？!?]|[^。！？!?]+$")
+    chunks: list[str] = []
+    for para in raw:
+        if len(para) <= max_chars:
+            chunks.append(para)
+            continue
+        sentences = [s for s in sentence_re.findall(para) if s.strip()]
+        if len(sentences) <= 1:
+            chunks.append(para)
+            continue
+        # 贪心打包：累计到接近 max_chars 为一段
+        buf = ""
+        for sent in sentences:
+            if buf and len(buf) + len(sent) > max_chars:
+                chunks.append(buf)
+                buf = sent
+            else:
+                buf += sent
+        if buf:
+            chunks.append(buf)
+
+    # 过短段落合并到下一段
+    merged: list[str] = []
+    for chunk in chunks:
+        if merged and len(merged[-1]) < min_chars:
+            merged[-1] = merged[-1] + chunk
+        else:
+            merged.append(chunk)
+    if len(merged) >= 2 and len(merged[-1]) < min_chars:
+        merged[-2] = merged[-2] + merged[-1]
+        merged.pop()
+    return merged
+
+
 # ── 无效页过滤（封面/目录/致谢/参考文献/图片来源等结构性页面）─────────────
 # 标题精确命中即判无效（归一化后比较：去空白/标点、转小写）
 _EXACT_LOW_VALUE_TITLES = {
@@ -804,8 +857,8 @@ class DocumentParser:
         project_id: str | None = None,
     ) -> CourseIR:
         """从纯文本构建 IR — 按段落切分。"""
-        # 按双换行分段
-        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", content) if p.strip()]
+        # 按双换行分段，并对过密/过短段落再切合并（提升分镜粒度）
+        paragraphs = _split_text_paragraphs(content)
 
         if not paragraphs:
             raise ParseException("文本内容为空")
@@ -836,8 +889,8 @@ class DocumentParser:
 
     def _text_to_knowledge_point(self, title: str, body: str) -> KnowledgePointIR:
         """将标题+正文转为知识点。"""
-        # 按段落拆分为多个场景
-        paragraphs = [p.strip() for p in re.split(r"\n\s*\n", body) if p.strip()]
+        # 按段落拆分为多个场景（过密/过短段落再切合并）
+        paragraphs = _split_text_paragraphs(body)
 
         if not paragraphs:
             paragraphs = [body.strip()] if body.strip() else [""]

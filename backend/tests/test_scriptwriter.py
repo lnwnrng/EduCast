@@ -393,3 +393,103 @@ async def test_outline_failure_degrades_gracefully() -> None:
         .scenes[0]
         .narration_text.startswith("第1段讲解")
     )
+
+
+# ── 纯文本讲稿模式 + visual_direction 复活 ───────────────────────
+
+
+class RecordingMultiStageLLM(MultiStageFakeLLM):
+    """额外记录 KP 阶段的 system 消息，用于断言提示词注入。"""
+
+    def __init__(self, *args, **kwargs) -> None:
+        super().__init__(*args, **kwargs)
+        self.kp_system: str = ""
+
+    async def chat(self, messages, **kw) -> ProviderResult:
+        user = messages[-1]["content"]
+        # KP 阶段：非元信息/大纲/审校（按 user 关键字区分）
+        is_kp = (
+            "target_audience" not in user
+            and "narrative_arc" not in user
+            and "corrections" not in user
+        )
+        if is_kp and messages:
+            self.kp_system = messages[0]["content"]
+        return await super().chat(messages, **kw)
+
+
+def _make_textonly_draft() -> CourseIR:
+    """纯文本讲稿草稿——所有分镜 slide_ref=None（无课件页图片）。"""
+    scenes = [
+        SceneIR(
+            order=i,
+            scene_type=SceneType.SLIDE,
+            narration_text=f"纯文本讲稿第{i}段内容，描述一个教学概念。",
+            visual_spec=VisualSpec(),  # slide_ref 默认 None
+        )
+        for i in (1, 2, 3)
+    ]
+    kp = KnowledgePointIR(title="知识点甲", key_points=["要点1"], scenes=scenes)
+    chapter = ChapterIR(title="第一章", order=1, knowledge_points=[kp])
+    return CourseIR(title="纯文本课程", chapters=[chapter])
+
+
+_KP_VD = {
+    "tags": ["标签"],
+    "quiz_seeds": [],
+    "scenes": [
+        {
+            "order": 1,
+            "scene_type": "slide",
+            "narration_text": "带运镜指令的讲稿一",
+            "gen_prompt": "",
+            "latex_steps": [],
+            "visual_direction": "缓慢推近标题",
+        },
+        {
+            "order": 2,
+            "scene_type": "digital_human",
+            "narration_text": "数字人讲解讲稿二",
+            "gen_prompt": "",
+            "latex_steps": [],
+            "visual_direction": "正面讲解，手势强调",
+        },
+    ],
+}
+
+
+async def test_text_only_draft_injects_text_mode_bias() -> None:
+    """纯文本讲稿（无 slide_ref）→ Scene Agent 提示词注入「纯文本讲稿模式」偏向。"""
+    draft = _make_textonly_draft()
+    llm = RecordingMultiStageLLM(_META, _OUTLINE, _KP_SSML, _REVIEW)
+    writer = ScriptWriter(llm)
+    await writer.enhance_ir(draft)
+
+    assert llm.kp_system, "未捕获到 KP 阶段 system 消息"
+    assert "纯文本讲稿模式" in llm.kp_system
+    # 偏向生成式/数字人，覆盖模板的 slide 偏好
+    assert "generative_clip" in llm.kp_system
+    assert "digital_human" in llm.kp_system
+
+
+async def test_slides_draft_does_not_inject_text_mode_bias() -> None:
+    """含课件页（slide_ref 非空）→ 不注入纯文本模式偏向（对照组）。"""
+    draft = _make_3scene_draft()  # slide_ref 均非空
+    llm = RecordingMultiStageLLM(_META, _OUTLINE, _KP_SSML, _REVIEW)
+    writer = ScriptWriter(llm)
+    await writer.enhance_ir(draft)
+
+    assert "纯文本讲稿模式" not in llm.kp_system
+
+
+async def test_visual_direction_merged_from_llm() -> None:
+    """LLM 返回的 visual_direction 被合并到 scene.visual_direction（复活死字段）。"""
+    draft = _make_draft()  # 2 分镜，slide_ref 非空
+    writer = ScriptWriter(FakeLLM(_META, _KP_VD))
+    result = await writer.enhance_ir(draft)
+
+    s1, s2 = result.chapters[0].knowledge_points[0].scenes
+    assert s1.visual_direction == "缓慢推近标题"
+    assert s2.visual_direction == "正面讲解，手势强调"
+    # scene_type 仍被覆盖
+    assert s2.scene_type == SceneType.DIGITAL_HUMAN

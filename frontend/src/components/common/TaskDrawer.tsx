@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { Drawer, Tag } from 'antd';
-import { Loader2, CheckCircle2, AlertCircle, Clock, Video } from 'lucide-react';
+import { Loader2, CheckCircle2, AlertCircle, Clock, Video, FileSearch } from 'lucide-react';
 import { getDashboard } from '../../api/monitoring';
 import type { DashboardRecentTask } from '../../types/cost';
 import { statusMeta } from '../../utils/status';
@@ -48,6 +48,9 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ visible, onClose }) => {
     }
     if (['failed', 'error'].includes(status)) {
       return <div className={`${styles.taskIcon} ${styles.iconError}`}><AlertCircle size={18} strokeWidth={2} /></div>;
+    }
+    if (['reviewing'].includes(status)) {
+      return <div className={`${styles.taskIcon} ${styles.iconReviewing}`}><FileSearch size={18} strokeWidth={2} /></div>;
     }
     return <div className={`${styles.taskIcon} ${styles.iconRunning}`}><Loader2 size={18} strokeWidth={2} className={styles.spin} /></div>;
   };

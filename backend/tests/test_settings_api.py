@@ -12,11 +12,11 @@ class TestGetApiKeys:
 
     @pytest.mark.asyncio
     async def test_admin_gets_all_definitions(self, auth_client, runtime_settings_dir):
-        """admin 获取全部 4 项定义（LLM/GLM Key 已迁移至 LLM 管理页）。"""
+        """admin 获取全部 3 项定义（GLM/视频生成 Key 已迁至各自管理页）。"""
         resp = await auth_client.get("/api/v1/settings/api-keys")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data["items"]) == 4
+        assert len(data["items"]) == 3
         for item in data["items"]:
             assert "key" in item
             assert "label" in item
@@ -46,11 +46,13 @@ class TestGetApiKeys:
     @pytest.mark.asyncio
     async def test_masking_long_secret(self, auth_client, runtime_settings_dir):
         """密钥 >10 字符：前6+****+后4。"""
-        save_runtime_settings({"COGVIDEO_API_KEY": "abcdefghijklmnop1234"})  # 20 chars
+        save_runtime_settings(
+            {"DIGITAL_HUMAN_API_KEY": "abcdefghijklmnop1234"}
+        )  # 20 chars
         resp = await auth_client.get("/api/v1/settings/api-keys")
         items = {i["key"]: i for i in resp.json()["items"]}
-        assert items["COGVIDEO_API_KEY"]["masked_value"] == "abcdef****1234"
-        assert items["COGVIDEO_API_KEY"]["is_configured"] is True
+        assert items["DIGITAL_HUMAN_API_KEY"]["masked_value"] == "abcdef****1234"
+        assert items["DIGITAL_HUMAN_API_KEY"]["is_configured"] is True
 
     @pytest.mark.asyncio
     async def test_masking_short_secret(self, auth_client, runtime_settings_dir):
@@ -75,10 +77,10 @@ class TestGetApiKeys:
         runtime_settings_dir,
     ):
         """is_configured 正确反映运行时配置状态。"""
-        save_runtime_settings({"COGVIDEO_API_KEY": "some_key"})
+        save_runtime_settings({"DIGITAL_HUMAN_API_KEY": "some_key"})
         resp = await auth_client.get("/api/v1/settings/api-keys")
         items = {i["key"]: i for i in resp.json()["items"]}
-        assert items["COGVIDEO_API_KEY"]["is_configured"] is True
+        assert items["DIGITAL_HUMAN_API_KEY"]["is_configured"] is True
         assert items["RESEND_API_KEY"]["is_configured"] is False
         assert items["EMAIL_FROM"]["is_configured"] is False
 
@@ -108,11 +110,11 @@ class TestGetApiKeyValues:
     @pytest.mark.asyncio
     async def test_admin_gets_raw_values(self, auth_client, runtime_settings_dir):
         """admin 获取未脱敏的原始值。"""
-        save_runtime_settings({"COGVIDEO_API_KEY": "my_secret_key_123"})
+        save_runtime_settings({"DIGITAL_HUMAN_API_KEY": "my_secret_key_123"})
         resp = await auth_client.get("/api/v1/settings/api-keys/values")
         assert resp.status_code == 200
         data = resp.json()
-        assert data["settings"]["COGVIDEO_API_KEY"] == "my_secret_key_123"
+        assert data["settings"]["DIGITAL_HUMAN_API_KEY"] == "my_secret_key_123"
 
     @pytest.mark.asyncio
     async def test_empty_for_unset_keys(self, auth_client, runtime_settings_dir):
@@ -120,7 +122,6 @@ class TestGetApiKeyValues:
         resp = await auth_client.get("/api/v1/settings/api-keys/values")
         data = resp.json()
         for key in [
-            "COGVIDEO_API_KEY",
             "RESEND_API_KEY",
             "EMAIL_FROM",
             "DIGITAL_HUMAN_API_KEY",
@@ -143,14 +144,14 @@ class TestGetApiKeyValues:
         """运行时文件中额外的非法 key 不出现在返回值中。"""
         save_runtime_settings(
             {
-                "COGVIDEO_API_KEY": "good",
+                "DIGITAL_HUMAN_API_KEY": "good",
                 "HACK_KEY": "evil",
             }
         )
         resp = await auth_client.get("/api/v1/settings/api-keys/values")
         data = resp.json()
         assert "HACK_KEY" not in data["settings"]
-        assert data["settings"]["COGVIDEO_API_KEY"] == "good"
+        assert data["settings"]["DIGITAL_HUMAN_API_KEY"] == "good"
 
 
 # ── PUT /api/v1/settings/api-keys ──────────────────────────────────────
@@ -164,7 +165,7 @@ class TestUpdateApiKeys:
         """admin 正常保存。"""
         resp = await auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"COGVIDEO_API_KEY": "new_key_123"}},
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "new_key_123"}},
         )
         assert resp.status_code == 200
         assert "已保存" in resp.json()["message"]
@@ -178,14 +179,14 @@ class TestUpdateApiKeys:
         """白名单过滤非法 key，合法 key 正常写入。"""
         await auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"HACK_KEY": "evil", "COGVIDEO_API_KEY": "good"}},
+            json={"settings": {"HACK_KEY": "evil", "DIGITAL_HUMAN_API_KEY": "good"}},
         )
         # 读取文件验证
         from app.services.settings_service import load_runtime_settings
 
         data = load_runtime_settings()
         assert "HACK_KEY" not in data
-        assert data["COGVIDEO_API_KEY"] == "good"
+        assert data["DIGITAL_HUMAN_API_KEY"] == "good"
 
     @pytest.mark.asyncio
     async def test_non_admin_rejected(
@@ -196,7 +197,7 @@ class TestUpdateApiKeys:
         """非 admin 拒绝修改。"""
         resp = await non_admin_auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"COGVIDEO_API_KEY": "should_not_save"}},
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "should_not_save"}},
         )
         assert resp.status_code == 200
         assert "仅管理员" in resp.json()["message"]
@@ -204,13 +205,14 @@ class TestUpdateApiKeys:
         from app.services.settings_service import load_runtime_settings
 
         data = load_runtime_settings()
-        assert data.get("COGVIDEO_API_KEY", "") == ""
+        assert data.get("DIGITAL_HUMAN_API_KEY", "") == ""
 
     @pytest.mark.asyncio
     async def test_unauthenticated_rejected(self, client, runtime_settings_dir):
         """未认证返回 401。"""
         resp = await client.put(
-            "/api/v1/settings/api-keys", json={"settings": {"COGVIDEO_API_KEY": "nope"}}
+            "/api/v1/settings/api-keys",
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "nope"}},
         )
         assert resp.status_code == 401
 
@@ -219,12 +221,12 @@ class TestUpdateApiKeys:
         """值自动 strip 前后空格。"""
         await auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"COGVIDEO_API_KEY": "  key_with_spaces  "}},
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "  key_with_spaces  "}},
         )
         from app.services.settings_service import load_runtime_settings
 
         data = load_runtime_settings()
-        assert data["COGVIDEO_API_KEY"] == "key_with_spaces"
+        assert data["DIGITAL_HUMAN_API_KEY"] == "key_with_spaces"
 
     @pytest.mark.asyncio
     async def test_save_preserves_existing_keys(
@@ -236,13 +238,13 @@ class TestUpdateApiKeys:
         save_runtime_settings({"RESEND_API_KEY": "existing_key"})
         await auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"COGVIDEO_API_KEY": "new_key"}},
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "new_key"}},
         )
         from app.services.settings_service import load_runtime_settings
 
         data = load_runtime_settings()
         assert data["RESEND_API_KEY"] == "existing_key"
-        assert data["COGVIDEO_API_KEY"] == "new_key"
+        assert data["DIGITAL_HUMAN_API_KEY"] == "new_key"
 
     @pytest.mark.asyncio
     async def test_save_message_lists_configured(
@@ -255,13 +257,13 @@ class TestUpdateApiKeys:
             "/api/v1/settings/api-keys",
             json={
                 "settings": {
-                    "COGVIDEO_API_KEY": "key1",
+                    "DIGITAL_HUMAN_API_KEY": "key1",
                     "RESEND_API_KEY": "key2",
                 }
             },
         )
         msg = resp.json()["message"]
-        assert "COGVIDEO_API_KEY" in msg
+        assert "DIGITAL_HUMAN_API_KEY" in msg
         assert "RESEND_API_KEY" in msg
 
 
@@ -278,7 +280,7 @@ class TestEndToEnd:
             "/api/v1/settings/api-keys",
             json={
                 "settings": {
-                    "COGVIDEO_API_KEY": "zhipu_secret_12345",
+                    "DIGITAL_HUMAN_API_KEY": "zhipu_secret_12345",
                     "EMAIL_FROM": "test@example.com",
                     "RESEND_API_KEY": "re_key",
                 }
@@ -288,9 +290,9 @@ class TestEndToEnd:
         # GET api-keys 验证状态和脱敏
         resp = await auth_client.get("/api/v1/settings/api-keys")
         items = {i["key"]: i for i in resp.json()["items"]}
-        assert items["COGVIDEO_API_KEY"]["is_configured"] is True
+        assert items["DIGITAL_HUMAN_API_KEY"]["is_configured"] is True
         assert (
-            items["COGVIDEO_API_KEY"]["masked_value"] == "zhipu_****2345"
+            items["DIGITAL_HUMAN_API_KEY"]["masked_value"] == "zhipu_****2345"
         )  # >10 chars
         assert items["EMAIL_FROM"]["masked_value"] == "test@example.com"  # non-secret
         assert items["RESEND_API_KEY"]["masked_value"] == "****"  # <=10 chars
@@ -298,7 +300,7 @@ class TestEndToEnd:
         # GET values 验证原始值
         resp = await auth_client.get("/api/v1/settings/api-keys/values")
         vals = resp.json()["settings"]
-        assert vals["COGVIDEO_API_KEY"] == "zhipu_secret_12345"
+        assert vals["DIGITAL_HUMAN_API_KEY"] == "zhipu_secret_12345"
         assert vals["EMAIL_FROM"] == "test@example.com"
         assert vals["RESEND_API_KEY"] == "re_key"
 
@@ -306,27 +308,30 @@ class TestEndToEnd:
     async def test_overwrite_then_read(self, auth_client, runtime_settings_dir):
         """覆盖写入生效。"""
         await auth_client.put(
-            "/api/v1/settings/api-keys", json={"settings": {"COGVIDEO_API_KEY": "v1"}}
+            "/api/v1/settings/api-keys",
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "v1"}},
         )
         await auth_client.put(
-            "/api/v1/settings/api-keys", json={"settings": {"COGVIDEO_API_KEY": "v2"}}
+            "/api/v1/settings/api-keys",
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "v2"}},
         )
         resp = await auth_client.get("/api/v1/settings/api-keys/values")
-        assert resp.json()["settings"]["COGVIDEO_API_KEY"] == "v2"
+        assert resp.json()["settings"]["DIGITAL_HUMAN_API_KEY"] == "v2"
 
     @pytest.mark.asyncio
     async def test_clear_key_by_sending_empty(self, auth_client, runtime_settings_dir):
         """发送空字符串清空 key。"""
         await auth_client.put(
             "/api/v1/settings/api-keys",
-            json={"settings": {"COGVIDEO_API_KEY": "some_value"}},
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": "some_value"}},
         )
         await auth_client.put(
-            "/api/v1/settings/api-keys", json={"settings": {"COGVIDEO_API_KEY": ""}}
+            "/api/v1/settings/api-keys",
+            json={"settings": {"DIGITAL_HUMAN_API_KEY": ""}},
         )
         resp = await auth_client.get("/api/v1/settings/api-keys")
         items = {i["key"]: i for i in resp.json()["items"]}
-        assert items["COGVIDEO_API_KEY"]["is_configured"] is False
+        assert items["DIGITAL_HUMAN_API_KEY"]["is_configured"] is False
 
 
 # ── POST /api/v1/settings/api-keys/test ───────────────────────────────

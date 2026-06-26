@@ -129,14 +129,16 @@ def sample_markdown_no_headings(tmp_path: Path) -> str:
 @pytest.fixture
 def sample_text(tmp_path: Path) -> str:
     """创建一个测试纯文本文件。"""
-    content = """Python 编程基础
-
-Python 是一种高级编程语言，以简洁易读著称。
-
-变量和数据类型是编程的基础。Python 支持整数、浮点数、字符串等基本数据类型。
-
-函数是组织代码的基本单元。使用 def 关键字定义函数。
-"""
+    content = (
+        "Python 是一种广泛使用的高级编程语言，以简洁易读的语法著称，"
+        "适合脚本自动化、Web 开发与数据科学等多种应用场景。\n\n"
+        "变量与数据类型是编程的基础，Python 支持整数、浮点数、字符串、"
+        "布尔值等基本类型，并根据赋值动态推断变量的类型。\n\n"
+        "函数是组织代码的基本单元，使用 def 关键字定义函数，"
+        "通过参数接收输入，用 return 语句返回计算结果。\n\n"
+        "模块与包让代码可复用，通过 import 语句导入标准库或第三方库，"
+        "避免重复造轮子，显著提升开发效率。"
+    )
     file_path = str(tmp_path / "python_basics.txt")
     with open(file_path, "w", encoding="utf-8") as f:
         f.write(content)
@@ -402,6 +404,39 @@ class TestTextParser:
             for kp in ch.knowledge_points:
                 for idx, scene in enumerate(kp.scenes):
                     assert scene.order == idx + 1
+
+    @pytest.mark.asyncio
+    async def test_parse_text_dense_paragraph_splits(
+        self, parser: DocumentParser, tmp_path: Path
+    ) -> None:
+        """密集长段（>TEXT_SCENE_MAX_CHARS）按句号边界再切为多个分镜。"""
+        sentence = "这是一个关于编程语言特点的较长讲解句子。"  # 约 20 字
+        content = sentence * 30  # 单段约 600 字，超过再切上限
+        file_path = str(tmp_path / "dense.txt")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        ir = await parser.parse(file_path, ".txt")
+
+        total_scenes = sum(
+            len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points
+        )
+        assert total_scenes >= 2  # 密集长段被再切，不再塌缩为一张大文字卡
+
+    @pytest.mark.asyncio
+    async def test_parse_text_tiny_paragraphs_merge(
+        self, parser: DocumentParser, tmp_path: Path
+    ) -> None:
+        """过短连续段落（<TEXT_SCENE_MIN_CHARS）合并为一个分镜，避免碎片。"""
+        content = "短句一。\n\n短句二。\n\n短句三。"  # 三个远低于下限的段落
+        file_path = str(tmp_path / "tiny.txt")
+        with open(file_path, "w", encoding="utf-8") as f:
+            f.write(content)
+        ir = await parser.parse(file_path, ".txt")
+
+        total_scenes = sum(
+            len(kp.scenes) for ch in ir.chapters for kp in ch.knowledge_points
+        )
+        assert total_scenes == 1  # 全部合并为一个分镜
 
 
 # ── PDF 解析测试 ─────────────────────────────────────────

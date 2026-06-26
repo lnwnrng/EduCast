@@ -51,6 +51,7 @@
 .iconRunning { background: rgba(144, 105, 232, 0.1); color: var(--color-primary); }
 .iconSuccess { background: rgba(59, 167, 118, 0.1); color: var(--color-success); }
 .iconError { background: rgba(229, 83, 75, 0.1); color: var(--color-error); }
+.iconReviewing { background: rgba(245, 158, 11, 0.12); color: var(--color-warning); }
 
 .spin {
   animation: spin 2s linear infinite;

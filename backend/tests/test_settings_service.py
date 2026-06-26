@@ -147,9 +147,10 @@ class TestGetEffectiveValue:
 class TestApiKeyDefinitions:
     """API_KEY_DEFINITIONS 静态结构完整性。"""
 
-    def test_has_five_items(self):
-        # ZHIPU_API_KEY 已迁移至「LLM 管理」页面，系统设置剩 4 项
-        assert len(API_KEY_DEFINITIONS) == 4
+    def test_definition_count(self):
+        # ZHIPU_API_KEY 迁至「LLM 管理」、COGVIDEO_API_KEY 迁至「视频生成模型」页，
+        # 系统设置仅剩无专属管理页的 3 项（邮件 + 数字人）
+        assert len(API_KEY_DEFINITIONS) == 3
 
     def test_each_has_required_fields(self):
         required = {"key", "label", "description", "url", "features", "is_secret"}
@@ -173,7 +174,6 @@ class TestApiKeyDefinitions:
     def test_expected_keys_present(self):
         keys = {d["key"] for d in API_KEY_DEFINITIONS}
         expected = {
-            "COGVIDEO_API_KEY",
             "RESEND_API_KEY",
             "EMAIL_FROM",
             "DIGITAL_HUMAN_API_KEY",

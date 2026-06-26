@@ -8,7 +8,6 @@ import {
   List,
   Row,
   Spin,
-  Statistic,
   Tag,
   Typography,
 } from 'antd';
@@ -20,6 +19,11 @@ import {
 } from '@ant-design/icons';
 import { useParams, useNavigate } from 'react-router-dom';
 import ReactECharts from 'echarts-for-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
+import remarkMath from 'remark-math';
+import rehypeKatex from 'rehype-katex';
+import 'katex/dist/katex.min.css';
 import PageHeader from '../../components/common/PageHeader';
 import { getKnowledgeGraph, type KnowledgeGraphData } from '../../api/projects';
 
@@ -46,6 +50,26 @@ const hexToRgba = (hex: string, alpha: number) => {
   const b = parseInt(hex.slice(5, 7), 16);
   return `rgba(${r},${g},${b},${alpha})`;
 };
+
+/** 调节 hex 颜色明度：percent>0 变亮、<0 变暗，结果 clamp 到 0..255 */
+const shadeColor = (hex: string, percent: number) => {
+  const num = parseInt(hex.slice(1), 16);
+  const amt = Math.round(2.55 * percent);
+  const clamp = (v: number) => Math.max(0, Math.min(255, v));
+  const r = clamp((num >> 16) + amt);
+  const g = clamp(((num >> 8) & 0x00ff) + amt);
+  const b = clamp((num & 0x0000ff) + amt);
+  return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+};
+
+/** 转义 HTML 特殊字符，防止 tooltip 注入与布局破坏 */
+const escapeHtml = (s: string) =>
+  s
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 
 const KnowledgeGraph: React.FC = () => {
   const { id: projectId } = useParams<{ id: string }>();
@@ -95,6 +119,12 @@ const KnowledgeGraph: React.FC = () => {
       edgeCountMap.set(e.target, (edgeCountMap.get(e.target) || 0) + 1);
     });
 
+    // 节点重要度归一化基准（degree + key_points），用于按明度区分节点
+    const maxImportance = Math.max(
+      1,
+      ...data.nodes.map((n) => (edgeCountMap.get(n.id) || 0) + n.key_points.length)
+    );
+
     return {
       backgroundColor: '#fafbfc',
       tooltip: {
@@ -107,9 +137,9 @@ const KnowledgeGraph: React.FC = () => {
         formatter: (params: { dataType: string; data: Record<string, unknown> }) => {
           if (params.dataType === 'node') {
             const d = params.data as { name: string; chapter: string; tagCount: number };
-            return `<div style="max-width:240px">
-              <div style="font-weight:600;font-size:14px;margin-bottom:4px">${d.name}</div>
-              <div style="color:#888;font-size:12px">章节：${d.chapter}</div>
+            return `<div style="max-width:300px; word-break: break-word; overflow-wrap: anywhere;">
+              <div style="font-weight:600;font-size:14px;margin-bottom:4px">${escapeHtml(d.name)}</div>
+              <div style="color:#888;font-size:12px">章节：${escapeHtml(d.chapter)}</div>
               <div style="color:#888;font-size:12px">${d.tagCount || 0} 个标签 · ${(edgeCountMap.get((d as unknown as { id: string }).id) || 0)} 条关联</div>
             </div>`;
           }
@@ -176,6 +206,7 @@ const KnowledgeGraph: React.FC = () => {
             const catIdx = chapterSet.get(n.chapter) ?? 0;
             const color = CHAPTER_COLORS[catIdx % CHAPTER_COLORS.length];
             const edges = edgeCountMap.get(n.id) || 0;
+            const importance = (edges + n.key_points.length) / maxImportance; // 0..1
             return {
               id: n.id,
               name: n.title,
@@ -194,8 +225,9 @@ const KnowledgeGraph: React.FC = () => {
                   y: 0.3,
                   r: 0.8,
                   colorStops: [
-                    { offset: 0, color: hexToRgba(color, 0.9) },
-                    { offset: 1, color },
+                    // 中心明度随重要度递增：次要节点柔和、核心节点更亮
+                    { offset: 0, color: shadeColor(color, 18 + importance * 22) },
+                    { offset: 1, color: shadeColor(color, -12) },
                   ],
                 },
               },
@@ -247,45 +279,57 @@ const KnowledgeGraph: React.FC = () => {
         onBack={() => navigate(`/projects/${projectId}`)}
       />
 
-      {/* 统计卡片 */}
+      {/* 统计卡片（仪表盘风格） */}
       {data && data.nodes.length > 0 && (
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title="知识点总数"
-                value={data.nodes.length}
-                prefix={<NodeIndexOutlined style={{ color: '#4E79A7' }} />}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title="关联边数"
-                value={data.edges.length}
-                prefix={<LinkOutlined style={{ color: '#F28E2B' }} />}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title="章节数"
-                value={chapterSet.size}
-                prefix={<ApartmentOutlined style={{ color: '#59A14F' }} />}
-              />
-            </Card>
-          </Col>
-          <Col span={6}>
-            <Card size="small">
-              <Statistic
-                title="标签总数"
-                value={uniqueTags}
-                prefix={<TagsOutlined style={{ color: '#B07AA1' }} />}
-              />
-            </Card>
-          </Col>
+          {([
+            { title: '知识点总数', value: data.nodes.length, icon: <NodeIndexOutlined />, color: '#4E79A7' },
+            { title: '关联边数', value: data.edges.length, icon: <LinkOutlined />, color: '#F28E2B' },
+            { title: '章节数', value: chapterSet.size, icon: <ApartmentOutlined />, color: '#59A14F' },
+            { title: '标签总数', value: uniqueTags, icon: <TagsOutlined />, color: '#B07AA1' },
+          ] as const).map((stat) => (
+            <Col span={6} key={stat.title}>
+              <Card
+                size="small"
+                style={{
+                  borderRadius: 12,
+                  border: `1px solid ${hexToRgba(stat.color, 0.25)}`,
+                  // 半透明章节色块：明显的色彩感但保持透明质感
+                  background: `linear-gradient(135deg, ${hexToRgba(stat.color, 0.22)} 0%, ${hexToRgba(stat.color, 0.10)} 100%)`,
+                  boxShadow: `0 4px 14px ${hexToRgba(stat.color, 0.12)}`,
+                }}
+                styles={{ body: { padding: 18 } }}
+              >
+                <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                  <div
+                    style={{
+                      width: 44,
+                      height: 44,
+                      borderRadius: 12,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#fff',
+                      fontSize: 20,
+                      // 图标徽章用稍浓的半透明色 + 白色图标
+                      background: `linear-gradient(135deg, ${hexToRgba(stat.color, 0.92)}, ${hexToRgba(shadeColor(stat.color, -22), 0.92)})`,
+                      boxShadow: `0 4px 10px ${hexToRgba(stat.color, 0.35)}`,
+                    }}
+                  >
+                    {stat.icon}
+                  </div>
+                  <div style={{ minWidth: 0 }}>
+                    <div style={{ fontSize: 12, color: shadeColor(stat.color, -45), letterSpacing: 0.5, fontWeight: 500 }}>
+                      {stat.title}
+                    </div>
+                    <div style={{ fontSize: 26, fontWeight: 700, color: '#1f1f1f', lineHeight: 1.2 }}>
+                      {stat.value}
+                    </div>
+                  </div>
+                </div>
+              </Card>
+            </Col>
+          ))}
         </Row>
       )}
 
@@ -385,7 +429,28 @@ const KnowledgeGraph: React.FC = () => {
                         >
                           {i + 1}
                         </div>
-                        <Text style={{ lineHeight: 1.6 }}>{p}</Text>
+                        <div
+                          style={{
+                            flex: 1,
+                            minWidth: 0,
+                            lineHeight: 1.6,
+                            fontSize: 14,
+                            overflowX: 'auto',
+                          }}
+                        >
+                          <ReactMarkdown
+                            remarkPlugins={[remarkGfm, remarkMath]}
+                            rehypePlugins={[rehypeKatex]}
+                            components={{
+                              // 去掉 <p> 默认上 margin，使正文首行与序号圆圈顶部对齐
+                              p: ({ node: _node, ...props }) => (
+                                <p {...props} style={{ margin: '0 0 8px' }} />
+                              ),
+                            }}
+                          >
+                            {p}
+                          </ReactMarkdown>
+                        </div>
                       </div>
                     </List.Item>
                   )}

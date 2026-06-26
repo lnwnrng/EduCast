@@ -27,6 +27,7 @@ class TemplateConfig:
     colors: TemplateColors = field(default_factory=TemplateColors)
     prompt_style: str = "严谨而亲切"
     scene_type_hint: str = ""
+    visual_style: str = ""
     default_duration_range: tuple[int, int] = (600, 900)
 
 
@@ -48,6 +49,10 @@ MICRO_LECTURE = TemplateConfig(
     ),
     prompt_style="严谨而亲切，语言精炼，注重核心概念的清晰传达",
     scene_type_hint="以 slide 为主，适当穿插 formula_animation，少量 digital_human",
+    visual_style=(
+        "clean minimalist composition, soft natural lighting, "
+        "slow camera push-in, muted blue-white academic palette, 16:9"
+    ),
     default_duration_range=(600, 900),
 )
 
@@ -71,6 +76,10 @@ MOOC = TemplateConfig(
         "每个章节末尾添加一个 digital_human 做总结回顾，"
         "复杂概念用 generative_clip 辅助可视化"
     ),
+    visual_style=(
+        "polished academic cinematography, even studio lighting, "
+        "deliberate camera movement, deep blue scholarly palette, 16:9"
+    ),
     default_duration_range=(1800, 2700),
 )
 
@@ -93,6 +102,10 @@ LAB_EXPERIMENT = TemplateConfig(
         "以 slide 展示实验步骤为主，"
         "多用 generative_clip 模拟实验过程，"
         "减少 formula_animation，适当使用 digital_human 做操作讲解"
+    ),
+    visual_style=(
+        "bright clinical environment, crisp daylight, "
+        "steady handheld camera, green-white clean palette, 16:9"
     ),
     default_duration_range=(1200, 1800),
 )
