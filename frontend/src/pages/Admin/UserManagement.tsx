@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Tag, Button, Input, Select, Space, Popconfirm, message, Typography } from 'antd';
+import { Card, Table, Tag, Button, Input, Select, Space, Popconfirm, message } from 'antd';
 import { SearchOutlined, ReloadOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/common/PageHeader';
 import * as adminApi from '../../api/admin';
 import type { UserAdmin } from '../../types/user';
-
-const { Title } = Typography;
 
 const UserManagement: React.FC = () => {
   const [users, setUsers] = useState<UserAdmin[]>([]);
@@ -162,45 +161,47 @@ const UserManagement: React.FC = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>用户管理</Title>
-      <Space style={{ marginBottom: 16 }}>
-        <Input
-          placeholder="搜索用户名或邮箱..."
-          prefix={<SearchOutlined />}
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          onPressEnter={handleSearch}
-          style={{ width: 240 }}
+      <PageHeader title="用户管理" subtitle="管理系统用户、角色与启用状态" />
+      <Card>
+        <Space style={{ marginBottom: 16 }}>
+          <Input
+            placeholder="搜索用户名或邮箱..."
+            prefix={<SearchOutlined />}
+            value={search}
+            onChange={(e) => setSearch(e.target.value)}
+            onPressEnter={handleSearch}
+            style={{ width: 240 }}
+          />
+          <Select
+            placeholder="角色筛选"
+            allowClear
+            style={{ width: 120 }}
+            value={roleFilter}
+            onChange={(val) => setRoleFilter(val)}
+            options={[
+              { label: '管理员', value: 'admin' },
+              { label: '用户', value: 'user' },
+            ]}
+          />
+          <Button icon={<ReloadOutlined />} onClick={fetchUsers}>
+            刷新
+          </Button>
+        </Space>
+        <Table
+          dataSource={users}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize: 20,
+            total,
+            onChange: (p) => setPage(p),
+            showTotal: (t) => `共 ${t} 个用户`,
+          }}
+          style={{ background: '#fff' }}
         />
-        <Select
-          placeholder="角色筛选"
-          allowClear
-          style={{ width: 120 }}
-          value={roleFilter}
-          onChange={(val) => setRoleFilter(val)}
-          options={[
-            { label: '管理员', value: 'admin' },
-            { label: '用户', value: 'user' },
-          ]}
-        />
-        <Button icon={<ReloadOutlined />} onClick={fetchUsers}>
-          刷新
-        </Button>
-      </Space>
-      <Table
-        dataSource={users}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          current: page,
-          pageSize: 20,
-          total,
-          onChange: (p) => setPage(p),
-          showTotal: (t) => `共 ${t} 个用户`,
-        }}
-        style={{ background: '#fff' }}
-      />
+      </Card>
     </div>
   );
 };

@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { Table, Select, Button, Space, Tag, Typography } from 'antd';
+import { Card, Table, Select, Button, Space, Tag } from 'antd';
 import { ReloadOutlined } from '@ant-design/icons';
+import PageHeader from '../../components/common/PageHeader';
 import * as adminApi from '../../api/admin';
 import type { AuditLogEntry } from '../../api/admin';
-
-const { Title } = Typography;
 
 const actionLabels: Record<string, { label: string; color: string }> = {
   login: { label: '登录', color: 'green' },
@@ -97,48 +96,49 @@ const AuditLog: React.FC = () => {
 
   return (
     <div>
-      <Title level={4} style={{ marginBottom: 16 }}>审计日志</Title>
-      <Space style={{ marginBottom: 16 }}>
-        <Select
-          placeholder="操作类型"
-          allowClear
-          style={{ width: 140 }}
-          value={actionFilter}
-          onChange={(val) => setActionFilter(val)}
-          options={Object.entries(actionLabels).map(([value, info]) => ({
-            label: info.label,
-            value,
-          }))}
+      <PageHeader title="审计日志" subtitle="查询用户操作与系统事件记录" />
+      <Card>
+        <Space style={{ marginBottom: 16 }}>
+          <Select
+            placeholder="操作类型"
+            allowClear
+            style={{ width: 140 }}
+            value={actionFilter}
+            onChange={(val) => setActionFilter(val)}
+            options={Object.entries(actionLabels).map(([value, info]) => ({
+              label: info.label,
+              value,
+            }))}
+          />
+          <Select
+            placeholder="时间范围"
+            style={{ width: 120 }}
+            value={days}
+            onChange={(val) => setDays(val)}
+            options={[
+              { label: '最近7天', value: 7 },
+              { label: '最近30天', value: 30 },
+              { label: '全部', value: undefined },
+            ]}
+          />
+          <Button icon={<ReloadOutlined />} onClick={handleQuery}>
+            查询
+          </Button>
+        </Space>
+        <Table
+          dataSource={logs}
+          columns={columns}
+          rowKey="id"
+          loading={loading}
+          pagination={{
+            current: page,
+            pageSize: 20,
+            total,
+            onChange: (p) => setPage(p),
+            showTotal: (t) => `共 ${t} 条记录`,
+          }}
         />
-        <Select
-          placeholder="时间范围"
-          style={{ width: 120 }}
-          value={days}
-          onChange={(val) => setDays(val)}
-          options={[
-            { label: '最近7天', value: 7 },
-            { label: '最近30天', value: 30 },
-            { label: '全部', value: undefined },
-          ]}
-        />
-        <Button icon={<ReloadOutlined />} onClick={handleQuery}>
-          查询
-        </Button>
-      </Space>
-      <Table
-        dataSource={logs}
-        columns={columns}
-        rowKey="id"
-        loading={loading}
-        pagination={{
-          current: page,
-          pageSize: 20,
-          total,
-          onChange: (p) => setPage(p),
-          showTotal: (t) => `共 ${t} 条记录`,
-        }}
-        style={{ background: '#fff' }}
-      />
+      </Card>
     </div>
   );
 };
