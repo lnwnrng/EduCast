@@ -74,9 +74,6 @@ const AppLayout: React.FC = () => {
           children: [
             { key: '/admin/users', label: '用户管理' },
             { key: '/admin/logs', label: '审计日志' },
-            { key: '/admin/categories', label: '分类管理' },
-            { key: '/admin/tags', label: '标签管理' },
-            { key: '/admin/requests', label: '申请管理' },
             { key: '/admin/llm', label: 'LLM 管理' },
             { key: '/admin/video-gen', label: '视频生成' },
             { key: '/admin/settings', label: '系统设置' },
@@ -92,9 +89,6 @@ const AppLayout: React.FC = () => {
     if (pathname.includes('/resources')) return '/resources';
     if (pathname.includes('/monitoring')) return '/monitoring';
     if (pathname.includes('/analytics')) return '/analytics';
-    if (pathname.includes('/admin/categories')) return '/admin/categories';
-    if (pathname.includes('/admin/tags')) return '/admin/tags';
-    if (pathname.includes('/admin/requests')) return '/admin/requests';
     if (pathname.includes('/admin/llm')) return '/admin/llm';
     if (pathname.includes('/admin/video-gen')) return '/admin/video-gen';
     if (pathname.includes('/admin/settings')) return '/admin/settings';

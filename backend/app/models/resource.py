@@ -33,6 +33,8 @@ class Resource(BaseMixin, Base):
     parent_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("resources.id"), nullable=True
     )
+    is_folder: Mapped[bool] = mapped_column(Boolean, default=False, server_default="0")
+    name: Mapped[str] = mapped_column(String(255), default="", server_default="")
     metadata_json: Mapped[str | None] = mapped_column(Text, nullable=True)
     watermark_applied: Mapped[bool] = mapped_column(Boolean, default=False)
 

@@ -109,8 +109,8 @@ const KnowledgeGraph: React.FC = () => {
             const d = params.data as { name: string; chapter: string; tagCount: number };
             return `<div style="max-width:240px">
               <div style="font-weight:600;font-size:14px;margin-bottom:4px">${d.name}</div>
-              <div style="color:#888;font-size:12px">📖 ${d.chapter}</div>
-              <div style="color:#888;font-size:12px">🏷 ${d.tagCount || 0} 个标签 · ${(edgeCountMap.get((d as unknown as { id: string }).id) || 0)} 条关联</div>
+              <div style="color:#888;font-size:12px">章节：${d.chapter}</div>
+              <div style="color:#888;font-size:12px">${d.tagCount || 0} 个标签 · ${(edgeCountMap.get((d as unknown as { id: string }).id) || 0)} 条关联</div>
             </div>`;
           }
           const d = params.data as { tag: string };
@@ -139,11 +139,14 @@ const KnowledgeGraph: React.FC = () => {
           focusNodeAdjacency: true,
           label: {
             show: true,
+            position: 'bottom' as const,
+            distance: 6,
             fontSize: 11,
             fontFamily: 'system-ui, -apple-system, sans-serif',
             color: '#333',
-            formatter: (p: { name: string }) =>
-              p.name.length > 8 ? p.name.slice(0, 7) + '…' : p.name,
+            width: 110,
+            overflow: 'truncate' as const,
+            ellipsis: '…',
           },
           edgeLabel: { show: false },
           itemStyle: {
@@ -159,9 +162,9 @@ const KnowledgeGraph: React.FC = () => {
             label: { fontSize: 13, fontWeight: 'bold' as const },
           },
           force: {
-            repulsion: 420,
-            edgeLength: [100, 240],
-            gravity: 0.08,
+            repulsion: 340,
+            edgeLength: [140, 320],
+            gravity: 0.05,
             friction: 0.6,
             layoutAnimation: true,
           },
@@ -179,7 +182,10 @@ const KnowledgeGraph: React.FC = () => {
               chapter: n.chapter,
               tagCount: n.tags.length,
               category: catIdx,
-              symbolSize: Math.max(36, 20 + edges * 6 + n.key_points.length * 3),
+              symbolSize: Math.min(
+                58,
+                Math.max(34, 20 + edges * 5 + n.key_points.length * 2)
+              ),
               value: n.key_points.length,
               itemStyle: {
                 color: {
@@ -201,9 +207,9 @@ const KnowledgeGraph: React.FC = () => {
             tag: e.tag,
             lineStyle: {
               color: '#c8d0da',
-              width: 1.5,
-              curveness: 0.15,
-              opacity: 0.6,
+              width: Math.min(4, 1.2 + (e.weight || 1) * 0.7),
+              curveness: 0.12,
+              opacity: 0.55,
             },
           })),
         },
@@ -306,7 +312,7 @@ const KnowledgeGraph: React.FC = () => {
         ) : (
           <ReactECharts
             option={chartOption}
-            style={{ height: 560 }}
+            style={{ height: 'calc(100vh - 320px)', minHeight: 520 }}
             onEvents={onChartEvents}
           />
         )}

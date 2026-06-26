@@ -17,7 +17,7 @@ import pytest
 
 from app.exceptions import ParseException
 from app.ir.schema import CourseIR, SceneType
-from app.pipeline.parser import DocumentParser, ParsedSlide
+from app.pipeline.parser import DocumentParser, ParsedSlide, _is_low_value_slide
 
 # ── 测试 fixtures ────────────────────────────────────────
 
@@ -473,6 +473,71 @@ class TestParsedSlide:
         """空 slide 无内容。"""
         slide = ParsedSlide(page_number=1)
         assert slide.has_content is False
+
+
+# ── 无效页过滤测试 ───────────────────────────────────────
+
+
+class TestLowValueSlideFilter:
+    """封面/目录/致谢/参考文献/图片来源等无效页过滤。"""
+
+    def test_detects_junk_titles(self) -> None:
+        for title in ["目录", "谢谢大家", "谢谢观看", "参考文献", "图片来源", "致谢"]:
+            assert _is_low_value_slide(ParsedSlide(page_number=1, title=title)), title
+
+    def test_references_with_body_still_dropped(self) -> None:
+        """参考文献页即便有正文（引用列表）也判为无效。"""
+        slide = ParsedSlide(
+            page_number=1, title="参考文献", body_text="[1] Rudin. 数学分析原理"
+        )
+        assert _is_low_value_slide(slide) is True
+
+    def test_keeps_content_slide(self) -> None:
+        slide = ParsedSlide(
+            page_number=1, title="导数的定义", body_text="导数是函数的瞬时变化率"
+        )
+        assert _is_low_value_slide(slide) is False
+
+    def test_long_title_containing_keyword_kept(self) -> None:
+        """含「来源」但为实质内容的长标题不应误删。"""
+        slide = ParsedSlide(
+            page_number=1,
+            title="数据来源与采集方法的对比分析",
+            body_text="本节讨论不同数据来源的可靠性",
+        )
+        assert _is_low_value_slide(slide) is False
+
+    @pytest.mark.asyncio
+    async def test_build_ir_filters_junk_slides(self, parser: DocumentParser) -> None:
+        slides = [
+            ParsedSlide(page_number=1, title="目录"),
+            ParsedSlide(
+                page_number=2, title="导数的定义", body_text="导数是瞬时变化率"
+            ),
+            ParsedSlide(page_number=3, title="参考文献", body_text="[1] Rudin"),
+            ParsedSlide(page_number=4, title="谢谢大家"),
+        ]
+        ir = parser._build_ir_from_slides(slides, "测试课程")
+        scenes = [
+            s for ch in ir.chapters for kp in ch.knowledge_points for s in kp.scenes
+        ]
+        assert len(scenes) == 1
+        assert scenes[0].source_page == 2
+
+    @pytest.mark.asyncio
+    async def test_all_junk_falls_back_to_original(
+        self, parser: DocumentParser
+    ) -> None:
+        """全部判为无效时兜底保留原始页，绝不产出空 IR。"""
+        slides = [
+            ParsedSlide(page_number=1, title="封面"),
+            ParsedSlide(page_number=2, title="目录"),
+        ]
+        ir = parser._build_ir_from_slides(slides, "测试课程")
+        scenes = [
+            s for ch in ir.chapters for kp in ch.knowledge_points for s in kp.scenes
+        ]
+        assert len(scenes) == 2
 
 
 # ── IR 构建逻辑测试 ─────────────────────────────────────

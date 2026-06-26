@@ -9,7 +9,7 @@
 
 三阶段多智能体管道:
 - **Stage 1 — Outline Agent**: 全课程教学大纲 + 叙事弧线 + 各知识点教学策略
-- **Stage 2 — Scene Agent**: 逐知识点精写讲稿（继承大纲上下文 + SSML 标注）
+- **Stage 2 — Scene Agent**: 逐知识点精写讲稿（继承大纲上下文，输出纯文本讲稿）
 - **Stage 3 — Review Agent**: 全课程质量审校 + 衔接优化
 
 设计原则:
@@ -33,6 +33,7 @@ from app.ir.schema import (
     SceneIR,
     SceneType,
 )
+from app.pipeline.ssml_converter import strip_markers
 from app.providers.base import ProviderResult
 from app.providers.llm.base_llm import LLMProviderBase
 from app.utils.json_parse import extract_json
@@ -526,13 +527,9 @@ class ScriptWriter:
             "2~3 句中文画面提示词（主体 + 场景 + 风格，呼应本模板的视觉风格）。"
             "其它情况这两个字段留空。\n"
             "5. 必须严格输出 JSON，且 scenes 的 order 与输入一一对应、不增不减。\n"
-            "6. **SSML 语音标注**：在讲稿中插入语音控制标记以提升配音韵律——\n"
-            "   - 在需要学生思考或段落转换处插入 [PAUSE:秒数]，停顿时长随语境"
-            "变化：概念收束/难点之后停得更久（0.6~0.8），过渡/承接处停得较短"
-            "（0.3~0.4）\n"
-            "   - 在重要概念/术语首次出现时用 [EMPHASIS]重要内容[/EMPHASIS] 包裹\n"
-            "   - 在复杂公式解释等需要放慢的地方用 [SLOW]缓讲内容[/SLOW] 包裹\n"
-            "   每个分镜至少包含 1 个 [PAUSE]。\n"
+            "6. **纯文本讲稿**：narration_text 必须是可直接朗读的自然口语化文本，"
+            "**不要**加入任何方括号标记或控制符（如 [PAUSE]/[SLOW]/[EMPHASIS]）、"
+            "也不要写舞台提示。停顿与韵律由标点的自然语气承担。\n"
             "7. **教学策略感知**：你已获得教学设计师为本知识点规划的教学策略，"
             "请在讲稿中自然融入。注意衔接语要自然不生硬。\n"
             "8. **视觉配合**：当 scene_type=slide 时，讲稿中要有对画面的引导词"
@@ -556,7 +553,7 @@ class ScriptWriter:
             "  ],\n"
             '  "scenes": [\n'
             '    {"order": 1, "scene_type": "slide", '
-            '"narration_text": "含[PAUSE][EMPHASIS]等标记的口语化讲稿", '
+            '"narration_text": "自然口语化、可直接朗读的纯文本讲稿（无任何标记）", '
             '"gen_prompt": "", "latex_steps": []}\n'
             "  ]\n"
             "}"
@@ -659,8 +656,8 @@ class ScriptWriter:
                     "3. **口语化不足**：仍然像 PPT 要点罗列而非教师口播\n"
                     "4. **深度不够**：重要概念一笔带过、没有展开解释\n"
                     "5. **节奏单调**：连续多个分镜都是同一节奏\n"
-                    "6. **SSML 标注不足**：确保每个分镜至少有 1 个 [PAUSE]，"
-                    "关键术语有 [EMPHASIS]\n\n"
+                    "6. **残留标记**：讲稿须为纯文本，若发现 [PAUSE]/[SLOW]/"
+                    "[EMPHASIS] 等方括号标记请一并清除\n\n"
                     "只输出需要修改的分镜。不需要修改的不要输出。"
                 ),
             },
@@ -677,7 +674,7 @@ class ScriptWriter:
                     '      "chapter_index": 0,\n'
                     '      "kp_index": 0,\n'
                     '      "scene_order": 1,\n'
-                    '      "narration_text": "修正后的完整讲稿（含SSML标记）",\n'
+                    '      "narration_text": "修正后的完整讲稿（纯文本，无标记）",\n'
                     '      "reason": "修改原因简述"\n'
                     "    }\n"
                     "  ]\n"
@@ -713,7 +710,7 @@ class ScriptWriter:
             ci = c.get("chapter_index")
             ki = c.get("kp_index")
             order = c.get("scene_order")
-            new_text = (c.get("narration_text") or "").strip()
+            new_text = strip_markers(c.get("narration_text") or "")
             if ci is None or ki is None or order is None or not new_text:
                 continue
             try:
@@ -745,9 +742,8 @@ def _apply_scene(
     kp_tags: list[str],
 ) -> None:
     """把单条 LLM 分镜结果应用到 SceneIR（保留结构性字段）。"""
-    narration = str(data.get("narration_text") or "").strip()
+    narration = strip_markers(str(data.get("narration_text") or ""))
     if narration:
-        narration = _ensure_pause(narration)
         scene.narration_text = narration
         scene.subtitle_text = narration
 
@@ -824,16 +820,6 @@ def _build_outline_range(ir: CourseIR, start: int, end: int) -> str:
 def _norm_title(title: str) -> str:
     """标题标准化（去空白、小写），用于策略软匹配。"""
     return re.sub(r"\s+", "", (title or "")).lower()
-
-
-_PAUSE_MARKER_RE = re.compile(r"\[PAUSE", re.IGNORECASE)
-
-
-def _ensure_pause(text: str) -> str:
-    """确定性兜底：讲稿无 [PAUSE] 时在末尾补一个，保证配音韵律。"""
-    if not text or _PAUSE_MARKER_RE.search(text):
-        return text
-    return text.rstrip() + " [PAUSE:0.4]"
 
 
 def _build_kp_context(

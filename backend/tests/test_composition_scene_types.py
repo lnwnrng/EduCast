@@ -312,3 +312,51 @@ async def test_generative_cache_hit_skips_generate(
 
     assert fvg.calls == []  # 命中缓存，未重复付费
     assert rec_ffmpeg["video_audio"] == 1
+
+
+# ── 课件页运镜：真实页静止 vs 合成页运镜 ──────────────────
+
+
+async def test_real_slide_routes_to_static(
+    db_session, tmp_path, monkeypatch, rec_ffmpeg
+):
+    """真实课件页图（slide_ref 指向存在文件）→ 静止展示，不运镜。"""
+    from PIL import Image
+
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    bg = tmp_path / "real_page.png"
+    Image.new("RGB", (1920, 1080), (255, 255, 255)).save(bg)
+    scene = SceneIR(
+        order=1,
+        scene_type=SceneType.SLIDE,
+        narration_text="讲解这一页",
+        visual_spec=VisualSpec(slide_ref=str(bg)),
+    )
+    pid, tid = await _seed(db_session, scene)
+    await CompositionService(tts_provider=FakeTTS()).compose(pid, tid, db_session)
+
+    assert rec_ffmpeg["image_audio"] == 1  # 静止展示
+    assert rec_ffmpeg["kenburns"] == 0
+
+
+async def test_real_slide_kenburns_when_enabled(
+    db_session, tmp_path, monkeypatch, rec_ffmpeg
+):
+    """KEN_BURNS_REAL_SLIDES=True 时真实页也运镜（恢复旧行为）。"""
+    from PIL import Image
+
+    monkeypatch.setattr(settings, "STORAGE_ROOT", str(tmp_path))
+    monkeypatch.setattr(settings, "KEN_BURNS_REAL_SLIDES", True)
+    bg = tmp_path / "real_page2.png"
+    Image.new("RGB", (1920, 1080), (255, 255, 255)).save(bg)
+    scene = SceneIR(
+        order=1,
+        scene_type=SceneType.SLIDE,
+        narration_text="讲解这一页",
+        visual_spec=VisualSpec(slide_ref=str(bg)),
+    )
+    pid, tid = await _seed(db_session, scene)
+    await CompositionService(tts_provider=FakeTTS()).compose(pid, tid, db_session)
+
+    assert rec_ffmpeg["kenburns"] == 1
+    assert rec_ffmpeg["image_audio"] == 0

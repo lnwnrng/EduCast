@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.api.deps import get_db, get_settings
 from app.config import Settings
 from app.exceptions import ResourceNotFoundException, ValidationException
+from app.ir.schema import CourseIR
 from app.middleware.auth import get_current_user_from_cookie
 from app.models.project import Project
 from app.models.user import User
@@ -46,7 +47,6 @@ async def create_project(
 async def list_projects(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    category_id: str | None = Query(None, description="分类ID"),
     tag_ids: str | None = Query(None, description="标签ID列表，逗号分隔"),
     db: AsyncSession = Depends(get_db),
     current_user: User = Depends(get_current_user_from_cookie),
@@ -62,7 +62,6 @@ async def list_projects(
         page_size,
         user_id=current_user.id,
         is_admin=is_admin,
-        category_id=category_id,
         tag_ids=tag_id_list,
     )
     return PaginatedResponse(
@@ -214,11 +213,22 @@ async def get_knowledge_graph(
     ir = await ParserService().load_ir(str(project_id))
     if ir is None:
         return {"nodes": [], "edges": []}
+    return build_knowledge_graph(ir)
 
+
+def build_knowledge_graph(ir: CourseIR) -> dict:
+    """从 IR 构建知识图谱的节点与连边（纯函数，便于单测）。
+
+    连边避免「同标签两两全连通」的 O(n²) 蛛网：章节相邻知识点顺承连边，
+    具体标签把共享它的知识点串成链（跳过关联过多的泛标签），共享越多边权越高，
+    去重并限制总边数。
+    """
     nodes = []
     tag_to_kps: dict[str, list[str]] = defaultdict(list)
+    chapter_kp_ids: list[list[str]] = []
 
     for chapter in ir.chapters:
+        kp_ids: list[str] = []
         for kp in chapter.knowledge_points:
             nodes.append(
                 {
@@ -230,24 +240,50 @@ async def get_knowledge_graph(
                     "key_points": kp.key_points or [],
                 }
             )
+            kp_ids.append(kp.kp_id)
             for tag in kp.tags or []:
                 tag_to_kps[tag].append(kp.kp_id)
+        chapter_kp_ids.append(kp_ids)
 
-    edges = []
-    seen = set()
+    # 连边策略（避免「同标签两两全连通」的 O(n²) 蛛网）：
+    #   1. 结构骨架：同章节相邻知识点顺承连边；
+    #   2. 语义连边：仅对「具体标签」把共享它的知识点串成链（m-1 条而非 m(m-1)/2）；
+    #      跳过关联过多知识点的泛标签（如学科名），它们只会把图连成一团；
+    #   3. 共享越多边权越高，去重并限制总边数。
+    edge_map: dict[tuple[str, str], dict] = {}
+
+    def _add_edge(a: str, b: str, tag: str) -> None:
+        if a == b:
+            return
+        key = (a, b) if a < b else (b, a)
+        existing = edge_map.get(key)
+        if existing:
+            existing["weight"] += 1
+        else:
+            edge_map[key] = {
+                "source": key[0],
+                "target": key[1],
+                "tag": tag,
+                "weight": 1,
+            }
+
+    for kp_ids in chapter_kp_ids:
+        for a, b in zip(kp_ids, kp_ids[1:]):
+            _add_edge(a, b, "章节顺承")
+
+    tag_cap = max(6, int(len(nodes) * 0.4))  # 关联超过此数的泛标签不连
     for tag, kp_ids in tag_to_kps.items():
-        for i in range(len(kp_ids)):
-            for j in range(i + 1, len(kp_ids)):
-                pair = tuple(sorted([kp_ids[i], kp_ids[j]]))
-                if pair not in seen:
-                    seen.add(pair)
-                    edges.append(
-                        {
-                            "source": pair[0],
-                            "target": pair[1],
-                            "tag": tag,
-                        }
-                    )
+        uniq = list(dict.fromkeys(kp_ids))  # 去重保序
+        if len(uniq) < 2 or len(uniq) > tag_cap:
+            continue
+        for a, b in zip(uniq, uniq[1:]):
+            _add_edge(a, b, tag)
+
+    edges = list(edge_map.values())
+    max_edges = 120
+    if len(edges) > max_edges:
+        edges.sort(key=lambda e: e["weight"], reverse=True)
+        edges = edges[:max_edges]
 
     return {"nodes": nodes, "edges": edges}
 

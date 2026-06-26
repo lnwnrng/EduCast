@@ -163,6 +163,62 @@ async def _migrate_add_step_detail_column() -> None:
         logger.warning("迁移 tasks.step_detail 列失败（可忽略）: %s", e)
 
 
+async def _migrate_drop_category_tables_and_columns() -> None:
+    """移除分类体系：删除 projects.category_id 列与 course_categories /
+    category_tag_requests 表（标签自助化后不再需要分类与审核流）。"""
+    import logging
+    import sqlite3
+
+    logger = logging.getLogger(__name__)
+    try:
+        db_path = _get_sqlite_path()
+        conn = sqlite3.connect(db_path)
+        # 1. 删除 projects.category_id 列（若存在；SQLite 3.35+ 支持 DROP COLUMN）
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(projects)").fetchall()]
+        if "category_id" in cols:
+            try:
+                conn.execute("ALTER TABLE projects DROP COLUMN category_id")
+            except Exception as e:
+                logger.warning(
+                    "删除 projects.category_id 列失败（保留孤儿列，无害）: %s",
+                    e,
+                )
+        # 2. 删除分类与申请表
+        conn.execute("DROP TABLE IF EXISTS category_tag_requests")
+        conn.execute("DROP TABLE IF EXISTS course_categories")
+        conn.commit()
+        conn.close()
+        logger.info("已移除分类体系表与 projects.category_id 列")
+    except Exception as e:
+        logger.warning("移除分类体系失败（可忽略）: %s", e)
+
+
+async def _migrate_add_resource_folder_fields() -> None:
+    """为 resources 表加 is_folder / name 列（资源网盘化所需）。
+
+    parent_id 列早已存在（模型已定义），无需迁移。
+    """
+    import logging
+    import sqlite3
+
+    logger = logging.getLogger(__name__)
+    try:
+        db_path = _get_sqlite_path()
+        conn = sqlite3.connect(db_path)
+        cols = [r[1] for r in conn.execute("PRAGMA table_info(resources)").fetchall()]
+        if "is_folder" not in cols:
+            conn.execute("ALTER TABLE resources ADD COLUMN is_folder BOOLEAN DEFAULT 0")
+        if "name" not in cols:
+            conn.execute(
+                "ALTER TABLE resources ADD COLUMN name VARCHAR(255) DEFAULT ''"
+            )
+        conn.commit()
+        conn.close()
+        logger.info("已为 resources 表补充 is_folder / name 列")
+    except Exception as e:
+        logger.warning("迁移 resources 网盘列失败（可忽略）: %s", e)
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """应用生命周期管理。"""
@@ -180,6 +236,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     await _migrate_add_display_id_column()
     await _migrate_add_template_column()
     await _migrate_add_step_detail_column()
+    await _migrate_drop_category_tables_and_columns()
+    await _migrate_add_resource_folder_fields()
     await _seed_default_admin()
     os.makedirs(settings.STORAGE_ROOT, exist_ok=True)
     yield

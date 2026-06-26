@@ -17,9 +17,6 @@ import AssessmentPage from './pages/Assessment';
 import AnalyticsPage from './pages/Analytics';
 import AdminUserManagement from './pages/Admin/UserManagement';
 import AdminAuditLog from './pages/Admin/AuditLog';
-import CategoryManagement from './pages/Admin/CategoryManagement';
-import TagManagement from './pages/Admin/TagManagement';
-import Requests from './pages/Admin/Requests';
 import LlmManagement from './pages/Admin/LlmManagement';
 import VideoGenManagement from './pages/Admin/VideoGenManagement';
 import SettingsPage from './pages/Settings';
@@ -64,6 +61,7 @@ const App: React.FC = () => {
         <Route path="/preview" element={<Preview />} />
         <Route path="/projects/:id/preview" element={<Preview />} />
         <Route path="/resources" element={<Resources />} />
+        <Route path="/projects/:id/resources" element={<Resources />} />
         <Route path="/monitoring" element={<Monitoring />} />
         <Route path="/analytics" element={<AnalyticsPage />} />
         <Route path="/projects/:id/analytics" element={<AnalyticsPage />} />
@@ -81,9 +79,6 @@ const App: React.FC = () => {
       >
         <Route path="/admin/users" element={<AdminUserManagement />} />
         <Route path="/admin/logs" element={<AdminAuditLog />} />
-        <Route path="/admin/categories" element={<CategoryManagement />} />
-        <Route path="/admin/tags" element={<TagManagement />} />
-        <Route path="/admin/requests" element={<Requests />} />
         <Route path="/admin/llm" element={<LlmManagement />} />
         <Route path="/admin/video-gen" element={<VideoGenManagement />} />
         <Route path="/admin/settings" element={<SettingsPage />} />

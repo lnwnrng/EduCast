@@ -15,6 +15,7 @@ import re
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from app.config import settings
 from app.exceptions import ParseException
 from app.ir.schema import (
     ChapterIR,
@@ -32,6 +33,96 @@ logger = logging.getLogger(__name__)
 
 # 支持的文件类型
 SUPPORTED_EXTENSIONS = {".pptx", ".pdf", ".docx", ".md", ".txt"}
+
+# ── 无效页过滤（封面/目录/致谢/参考文献/图片来源等结构性页面）─────────────
+# 标题精确命中即判无效（归一化后比较：去空白/标点、转小写）
+_EXACT_LOW_VALUE_TITLES = {
+    "目录",
+    "提纲",
+    "大纲",
+    "agenda",
+    "contents",
+    "tableofcontents",
+    "outline",
+    "封面",
+    "cover",
+    "谢谢",
+    "谢谢大家",
+    "谢谢观看",
+    "感谢",
+    "感谢观看",
+    "感谢聆听",
+    "thanks",
+    "thankyou",
+    "thanksforwatching",
+    "qa",
+    "q&a",
+    "问答",
+    "theend",
+    "end",
+    "fin",
+    "完",
+    "全文完",
+    "结束",
+    "本节完",
+}
+# 短标题中包含即判无效（限制标题长度，避免误伤含该词的长标题内容页）
+_CONTAINS_LOW_VALUE = (
+    "参考文献",
+    "引用文献",
+    "references",
+    "bibliography",
+    "致谢",
+    "鸣谢",
+    "图片来源",
+    "图源",
+    "图片出处",
+    "imagesource",
+    "credits",
+    "版权",
+    "copyright",
+    "免责声明",
+    "disclaimer",
+)
+# 触发「短标题包含」判定的归一化标题长度上限
+_LOW_VALUE_TITLE_MAXLEN = 10
+
+
+def _norm_text(s: str) -> str:
+    """归一化文本：去空白/标点/下划线、转小写（保留 CJK 与字母数字）。"""
+    return re.sub(r"[\s\W_]+", "", s or "", flags=re.UNICODE).lower()
+
+
+def _is_low_value_slide(slide: "ParsedSlide") -> bool:
+    """判断是否为无需做成分镜的无效页（封面/目录/致谢/参考文献/图片来源等）。
+
+    保守策略：仅在标题强命中无效模式、或整页几乎无内容时判为无效；
+    含实质正文的页（哪怕标题是「总结」）一律保留。
+    """
+    if not slide.has_content:
+        return True
+    title_n = _norm_text(slide.title)
+    if title_n in _EXACT_LOW_VALUE_TITLES:
+        return True
+    if (
+        title_n
+        and len(title_n) <= _LOW_VALUE_TITLE_MAXLEN
+        and any(k in title_n for k in _CONTAINS_LOW_VALUE)
+    ):
+        return True
+    # 无标题但正文极短且为致谢/结束类（如「谢谢大家！」）
+    if not title_n:
+        body_n = _norm_text(slide.body_text)
+        if (
+            body_n
+            and len(body_n) <= 12
+            and (
+                body_n in _EXACT_LOW_VALUE_TITLES
+                or any(k in body_n for k in _CONTAINS_LOW_VALUE)
+            )
+        ):
+            return True
+    return False
 
 
 # ── 解析结果中间结构 ─────────────────────────────────────
@@ -437,10 +528,24 @@ class DocumentParser:
         """从解析的幻灯片列表构建 IR。
 
         切分策略:
-        1. is_chapter_break=True 的幻灯片开启新章节
-        2. 每张幻灯片对应一个 Scene
-        3. 连续的非章节分界幻灯片归入同一知识点
+        1. 启发式剔除无效页（封面/目录/致谢/参考文献/图片来源等）
+        2. is_chapter_break=True 的幻灯片开启新章节
+        3. 每张幻灯片对应一个 Scene
+        4. 连续的非章节分界幻灯片归入同一知识点
         """
+        if settings.FILTER_LOW_VALUE_SLIDES:
+            kept = [s for s in slides if not _is_low_value_slide(s)]
+            dropped = len(slides) - len(kept)
+            # 兜底：全部被判无效时保留原始页，绝不产出空 IR
+            if kept:
+                if dropped:
+                    logger.info(
+                        "无效页过滤：剔除 %d 页，保留 %d 页", dropped, len(kept)
+                    )
+                slides = kept
+            elif slides:
+                logger.warning("无效页过滤命中全部页面，回退保留原始页")
+
         chapters: list[ChapterIR] = []
         current_chapter_slides: list[ParsedSlide] = []
         chapter_title = ""

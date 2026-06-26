@@ -13,16 +13,18 @@ class _FakeCommunicate:
     """模拟 edge_tts.Communicate：save 写入假音频字节。"""
 
     last_args: tuple[str, str] = ("", "")
+    last_rate: str = ""
 
-    def __init__(self, text: str, voice: str) -> None:
+    def __init__(self, text: str, voice: str, *, rate: str = "+0%") -> None:
         _FakeCommunicate.last_args = (text, voice)
+        _FakeCommunicate.last_rate = rate
 
     async def save(self, path: str) -> None:
         Path(path).write_bytes(b"ID3\x03\x00fake-audio")
 
 
 class _FailingCommunicate:
-    def __init__(self, text: str, voice: str) -> None:
+    def __init__(self, text: str, voice: str, *, rate: str = "+0%") -> None:
         pass
 
     async def save(self, path: str) -> None:
@@ -68,25 +70,26 @@ async def test_get_result_unknown_task() -> None:
     assert result.status == "failed"
 
 
-async def test_synthesize_converts_markers_to_ssml(tmp_path: Path, monkeypatch) -> None:
-    """含 SSML 标记的讲稿 → 转换为 SSML 文档后传给 Edge-TTS。"""
+async def test_synthesize_strips_markers_to_plain_text(
+    tmp_path: Path, monkeypatch
+) -> None:
+    """含历史标记的讲稿 → 剥离为纯文本后传给 Edge-TTS（edge-tts 不支持 SSML）。"""
     monkeypatch.setattr(edge_tts, "Communicate", _FakeCommunicate)
-    out = str(tmp_path / "ssml.mp3")
+    out = str(tmp_path / "marked.mp3")
     provider = EdgeTTSProvider(voice="zh-CN-XiaoxiaoNeural")
 
     await provider.synthesize("请看[PAUSE:0.5]这里是[EMPHASIS]重点[/EMPHASIS]", out)
 
     text_passed, voice_passed = _FakeCommunicate.last_args
-    # 标记被转换为 SSML（<speak> 包裹 + <break> + <prosody>）
-    assert text_passed.startswith("<speak")
-    assert '<break time="500ms"/>' in text_passed
-    assert "<prosody" in text_passed
+    # 纯文本：无 SSML 标签、无方括号标记
+    assert "<" not in text_passed
     assert "[PAUSE" not in text_passed and "[EMPHASIS]" not in text_passed
+    assert text_passed == "请看这里是重点"
     assert voice_passed == "zh-CN-XiaoxiaoNeural"
 
 
 async def test_synthesize_plain_text_unchanged(tmp_path: Path, monkeypatch) -> None:
-    """无标记文本走纯文本路径，不包裹 SSML。"""
+    """无标记文本原样朗读，并带上全局语速参数。"""
     monkeypatch.setattr(edge_tts, "Communicate", _FakeCommunicate)
     out = str(tmp_path / "plain.mp3")
     provider = EdgeTTSProvider()
@@ -95,6 +98,8 @@ async def test_synthesize_plain_text_unchanged(tmp_path: Path, monkeypatch) -> N
 
     text_passed, _ = _FakeCommunicate.last_args
     assert text_passed == "普通讲稿无标记"
+    # 语速参数透传（默认来自 settings.EDGE_TTS_RATE）
+    assert _FakeCommunicate.last_rate.endswith("%")
 
 
 def test_metadata_and_factory() -> None:

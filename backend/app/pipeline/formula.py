@@ -24,13 +24,17 @@ from app.utils import ffmpeg
 
 logger = logging.getLogger(__name__)
 
-# 深色板书风配色
-_BG = "#0f1a2e"
-_FG = "#e6ebf5"
-_HL = "#4d9bff"
-
 # 单步默认时长（无旁白驱动时）
 _DEFAULT_STEP_SECONDS = 2.5
+
+# 图片显影渲染清晰度（dpi）；提高以获得锐利公式字形
+_RENDER_DPI = 200
+
+
+def _rgb_hex(rgb: tuple[int, int, int]) -> str:
+    """RGB 元组 → matplotlib 可用的十六进制颜色串。"""
+    r, g, b = rgb
+    return f"#{r:02x}{g:02x}{b:02x}"
 
 
 class FormulaRenderer:
@@ -43,6 +47,7 @@ class FormulaRenderer:
         height: int | None = None,
         fps: int | None = None,
         engine: str | None = None,
+        template_name: str = "micro_lecture",
     ) -> None:
         self._w = width or settings.VIDEO_WIDTH
         self._h = height or settings.VIDEO_HEIGHT
@@ -50,8 +55,15 @@ class FormulaRenderer:
         self._engine = (engine or settings.FORMULA_ENGINE or "auto").lower()
         # 复用课件渲染器的 CJK 字体探测，供图片显影中的中文（标题/纯文本步骤）显示
         from app.pipeline.renderer import SlideRenderer
+        from app.pipeline.templates import get_template
 
         self._cjk_font_path = SlideRenderer._resolve_font("")
+        # 公式画面与课件页统一为浅色主题，避免深底突兀、风格割裂
+        colors = get_template(template_name).colors
+        self._bg = _rgb_hex(colors.bg)
+        self._fg = _rgb_hex(colors.body)
+        self._hl = _rgb_hex(colors.accent)
+        self._header = _rgb_hex(colors.header)
 
     async def render(
         self,
@@ -146,40 +158,54 @@ class FormulaRenderer:
 
         cjk = FontProperties(fname=self._cjk_font_path) if self._cjk_font_path else None
 
-        fig = plt.figure(figsize=(self._w / 100, self._h / 100), dpi=100)
-        fig.patch.set_facecolor(_BG)
+        fig = plt.figure(
+            figsize=(self._w / _RENDER_DPI, self._h / _RENDER_DPI), dpi=_RENDER_DPI
+        )
+        fig.patch.set_facecolor(self._bg)
         ax = fig.add_axes((0, 0, 1, 1))
         ax.axis("off")
-        ax.set_facecolor(_BG)
+        ax.set_facecolor(self._bg)
+        ax.set_xlim(0, 1)
+        ax.set_ylim(0, 1)
 
+        # 顶部克制小标题，不抢公式版面
         ax.text(
-            0.1,
-            0.9,
+            0.5,
+            0.93,
             "公式推导",
-            color=_HL,
-            fontsize=34,
-            va="top",
-            ha="left",
+            color=self._hl,
+            fontsize=22,
+            va="center",
+            ha="center",
             fontproperties=cjk,
         )
 
+        # 居中竖排步骤；字号按行数与最长行宽自适应，杜绝重叠/溢出
         n = len(shown)
-        top, bottom = 0.76, 0.12
-        gap = (top - bottom) / max(n, 1)
+        band_top, band_bottom = 0.82, 0.16
+        fig_h_in = self._h / _RENDER_DPI
+        fig_w_in = self._w / _RENDER_DPI
+        row_h_in = (band_top - band_bottom) * fig_h_in / max(n, 1)
+        font_v = row_h_in * 72 * 0.6
+        longest = max((len(s) for s in shown), default=1)
+        font_h = (0.92 * fig_w_in * 72) / max(longest * 0.55, 1.0)
+        base_size = max(15.0, min(font_v, font_h, 46.0))
+
         for i, step in enumerate(shown):
-            y = top - i * gap - gap * 0.3
+            frac = (i + 0.5) / n
+            y = band_top - frac * (band_top - band_bottom)
             is_hl = i == highlight_index
-            color = _HL if is_hl else _FG
-            size = 42 if is_hl else 34
+            color = self._hl if is_hl else self._fg
+            size = base_size * (1.08 if is_hl else 1.0)
             text = f"${step}$" if mathtext else step
             # 纯文本步骤用 CJK 字体；mathtext（$...$）由数学引擎渲染，多为 ASCII
             kw = {} if mathtext else {"fontproperties": cjk}
             ax.text(
-                0.13, y, text, color=color, fontsize=size, va="top", ha="left", **kw
+                0.5, y, text, color=color, fontsize=size, va="center", ha="center", **kw
             )
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
-        fig.savefig(output_path, facecolor=_BG, dpi=100)
+        fig.savefig(output_path, facecolor=self._bg, dpi=_RENDER_DPI)
         plt.close(fig)
 
     # ── manim 路径（可选，效果最佳）──────────────────────────
@@ -253,20 +279,26 @@ RUN_TIME = {run_time}
 
 class FormulaScene(Scene):
     def construct(self):
-        self.camera.background_color = "#0f1a2e"
-        prev = None
+        # 浅色主题，与课件页统一
+        self.camera.background_color = "#f8f9fb"
+        eqs = VGroup()
         for step in STEPS:
             try:
-                eq = MathTex(step, color=WHITE)
+                eq = MathTex(step, color="#2d3440")
             except Exception:
-                eq = Text(step, color=WHITE, font_size=36)
-            eq.scale(1.0)
-            if prev is None:
-                eq.to_edge(UP).shift(DOWN * 1.2)
-            else:
-                eq.next_to(prev, DOWN, buff=0.45)
+                eq = Text(step, color="#2d3440", font_size=36)
+            eqs.add(eq)
+        eqs.arrange(DOWN, buff=0.45)
+        # 整组缩放以适配画面，避免步骤多时溢出底部
+        max_h = config.frame_height - 1.2
+        max_w = config.frame_width - 1.2
+        if eqs.height > max_h:
+            eqs.scale(max_h / eqs.height)
+        if eqs.width > max_w:
+            eqs.scale(max_w / eqs.width)
+        eqs.move_to(ORIGIN)
+        for eq in eqs:
             self.play(Write(eq), run_time=max(RUN_TIME * 0.6, 0.6))
-            self.play(Indicate(eq, color="#4d9bff"), run_time=max(RUN_TIME * 0.4, 0.4))
-            prev = eq
+            self.play(Indicate(eq, color="#2563eb"), run_time=max(RUN_TIME * 0.4, 0.4))
         self.wait(0.5)
 """

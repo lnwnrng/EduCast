@@ -11,13 +11,12 @@ interface PaginatedResponse<T> {
 export const getProjects = (
   page = 1,
   pageSize = 20,
-  params?: { category_id?: string; tag_ids?: string[] }
+  params?: { tag_ids?: string[] }
 ) =>
   apiClient.get<PaginatedResponse<Project>>('/projects/', {
     params: {
       page,
       page_size: pageSize,
-      ...(params?.category_id && { category_id: params.category_id }),
       ...(params?.tag_ids?.length && { tag_ids: params.tag_ids.join(',') }),
     },
   });
@@ -47,6 +46,7 @@ export interface KnowledgeGraphData {
     source: string;
     target: string;
     tag: string;
+    weight?: number;
   }>;
 }
 
