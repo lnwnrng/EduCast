@@ -68,9 +68,9 @@ async def get_workspace(
     latest_ir_version = ir.version if ir else None
     cost_estimate = cost_service.estimate_ir_cost(ir) if ir else None
 
-    # 按生成版本聚合资源（video + 同版本的 vtt / archive）
+    # 按生成版本聚合资源（video + 同版本的 vtt / archive；排除文件夹行）
     resources, _ = await ResourceService.list_resources(
-        db, project_id=project_id, page=1, page_size=500
+        db, project_id=project_id, page=1, page_size=500, is_folder=False
     )
     by_version: dict[int, dict] = {}
     for r in resources:

@@ -10,7 +10,7 @@ import os
 import uuid
 
 from app.config import settings
-from app.pipeline.ssml_converter import has_markers, narration_to_ssml
+from app.pipeline.ssml_converter import strip_markers
 from app.providers.base import BaseProvider, ProviderResult
 
 logger = logging.getLogger(__name__)
@@ -41,21 +41,19 @@ class EdgeTTSProvider(BaseProvider):
 
         惰性导入 ``edge_tts``，便于测试 monkeypatch 与避免无网络环境导入开销。
 
-        若讲稿含 SSML 语音标记（``[PAUSE:N]`` / ``[EMPHASIS]`` / ``[SLOW]``，
-        由 ScriptWriter 多智能体管道插入），先经 ``narration_to_ssml`` 转换为
-        Edge-TTS 兼容 SSML 再合成，使配音具备停顿/重音/缓讲韵律。无标记时
-        走纯文本路径，行为与原先一致。
+        edge-tts **不支持 SSML 输入**（会对整段做 XML 转义、把标签当文字念出来），
+        因此始终发送纯文本：先 ``strip_markers`` 防御性剥离历史残留的内联标记，
+        再交给 Edge-TTS 朗读，保证配音与字幕一致。韵律交给标点的自然停顿，配合
+        ``EDGE_TTS_RATE`` 做整体语速微调（讲课节奏）。
         """
         import edge_tts
 
         os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
         effective_voice = voice or self._voice
-        if has_markers(text):
-            payload = narration_to_ssml(text, effective_voice)
-            # SSML 文档自带 <voice> 标签，传 voice 仅作占位（被 SSML 覆盖）
-            communicate = edge_tts.Communicate(payload, effective_voice)
-        else:
-            communicate = edge_tts.Communicate(text, effective_voice)
+        spoken = strip_markers(text)
+        communicate = edge_tts.Communicate(
+            spoken, effective_voice, rate=settings.EDGE_TTS_RATE
+        )
         await communicate.save(output_path)
         logger.info("Edge-TTS 合成完成: %s", output_path)
         return output_path

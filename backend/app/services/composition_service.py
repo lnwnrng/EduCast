@@ -98,8 +98,8 @@ class _Visual:
     ``_build_scene_clip`` 在 ``_mux_visual`` 成功后补记（与原串行实现语义一致）。
     """
 
-    mux: str  # "kenburns" | "video_audio" | "overlay_pip"
-    image: str | None = None  # kenburns / overlay_pip 的底图
+    mux: str  # "static" | "kenburns" | "video_audio" | "overlay_pip"
+    image: str | None = None  # static / kenburns / overlay_pip 的底图
     video: str | None = None  # video_audio 的源视频
     fg: str | None = None  # overlay_pip 的前景
     fg_is_video: bool = False
@@ -577,7 +577,18 @@ class CompositionService:
         clip_path: str,
     ) -> bool:
         """按画面类型把资产与旁白合成为单镜片段。"""
-        if visual.mux == "kenburns":
+        if visual.mux == "static":
+            # 真实课件页静止展示（像正常投影），不做运镜
+            await ffmpeg.image_audio_to_clip(
+                visual.image,
+                audio_path,
+                clip_path,
+                width=settings.VIDEO_WIDTH,
+                height=settings.VIDEO_HEIGHT,
+                fps=settings.VIDEO_FPS,
+                duration=duration,
+            )
+        elif visual.mux == "kenburns":
             await ffmpeg.image_to_kenburns_clip(
                 visual.image,
                 audio_path,
@@ -663,9 +674,11 @@ class CompositionService:
         workspace: str,
         watermark: str,
     ) -> _Visual | None:
-        """渲染课件页静图（Ken-Burns 运镜的底图）。成功记 render subtask。
+        """渲染课件页静图。成功记 render subtask。
 
-        所有课件页分镜默认启用 Ken-Burns 推近运镜，避免「配音 PPT」的呆板感。
+        真实课件页（已栅格化的 PPT/PDF 页图）默认**静止展示**——它们本就是排好版
+        的成品，平移推近只会让文字游移、显得「无意义运镜」。仅对文本合成页 / 纯图片
+        画面保留轻微 Ken-Burns 运镜，避免呆板。可用 ``KEN_BURNS_REAL_SLIDES`` 覆盖。
         """
         scene = fs.scene
         image_path = os.path.join(workspace, f"scene_{index}.png")
@@ -690,7 +703,10 @@ class CompositionService:
                 db, task_uuid, "render", scene.scene_id, "failed", error=str(exc)
             )
             return None
-        return _Visual(mux="kenburns", image=image_path)
+        # 真实课件页静止；合成/图片画面保留轻微运镜
+        is_real_slide = _real_slide(scene) is not None
+        static = is_real_slide and not settings.KEN_BURNS_REAL_SLIDES
+        return _Visual(mux="static" if static else "kenburns", image=image_path)
 
     async def _render_formula_asset(
         self,
@@ -1023,6 +1039,7 @@ class CompositionService:
         stmt = select(func.count(Resource.id)).where(
             Resource.project_id == pid,
             Resource.resource_type == "video",
+            Resource.is_folder.is_(False),
             Resource.deleted_at.is_(None),
         )
         return int((await db.execute(stmt)).scalar() or 0) + 1
@@ -1101,7 +1118,7 @@ def _body_lines(scene: SceneIR, kp: KnowledgePointIR) -> list[str]:
         return [f"画面：{spec.gen_prompt}"]
     if kp.key_points:
         return kp.key_points[:6]
-    text = scene.narration_text or scene.subtitle_text
+    text = strip_markers(scene.narration_text or scene.subtitle_text)
     return [s.strip() for s in _SENTENCE_SPLIT.split(text) if s.strip()][:6]
 
 

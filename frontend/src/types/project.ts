@@ -6,8 +6,6 @@ export interface Project {
   description: string | null;
   template: string;
   status: string;
-  category_id: string | null;
-  category: { id: string; name: string } | null;
   tags: Array<{ id: string; name: string; color: string }>;
   created_at: string;
   updated_at: string | null;
@@ -19,7 +17,6 @@ export interface ProjectCreate {
   grade?: string;
   description?: string;
   template?: string;
-  category_id?: string;
   tag_ids?: string[];
 }
 
@@ -30,6 +27,5 @@ export interface ProjectUpdate {
   description?: string;
   template?: string;
   status?: string;
-  category_id?: string | null;
   tag_ids?: string[];
 }

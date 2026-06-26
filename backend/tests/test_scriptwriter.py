@@ -154,9 +154,9 @@ async def test_enhance_merges_and_preserves_structure() -> None:
     assert s2.scene_id == orig_s2_id
     assert s1.visual_spec.slide_ref == "slide_1.png"
     assert s1.source_page == 1
-    # 文本与类型被覆盖（含 SSML 标记，字幕同步）
-    assert s1.narration_text == "口语化讲稿一[PAUSE:0.5]"
-    assert s1.subtitle_text == "口语化讲稿一[PAUSE:0.5]"
+    # 文本与类型被覆盖；历史残留标记被防御性剥离，字幕同步纯文本
+    assert s1.narration_text == "口语化讲稿一"
+    assert s1.subtitle_text == "口语化讲稿一"
     assert s1.scene_type == SceneType.GENERATIVE_CLIP
     assert s1.visual_spec.gen_prompt == "数学课堂、粉笔风格"
     assert s1.kp_tags == ["标签A", "标签B"]
@@ -165,20 +165,25 @@ async def test_enhance_merges_and_preserves_structure() -> None:
     assert s2.visual_spec.latex_steps == ["a = b", "b = c"]
 
 
-async def test_scene_without_pause_gets_fallback() -> None:
-    """Scene Agent 输出缺 [PAUSE] 时，确定性兜底自动补一个，保证配音韵律。"""
+async def test_scene_markers_are_stripped() -> None:
+    """模型若仍输出历史语音标记，合并时防御性剥离，保证讲稿为纯文本。"""
     draft = _make_draft()
-    kp_no_pause = {
+    kp_with_markers = {
         "scenes": [
-            {"order": 1, "scene_type": "slide", "narration_text": "没有停顿标记的讲稿"},
+            {
+                "order": 1,
+                "scene_type": "slide",
+                "narration_text": "前言[PAUSE:0.5]看这个[EMPHASIS]概念[/EMPHASIS]",
+            },
         ],
     }
-    writer = ScriptWriter(FakeLLM(_META, kp_no_pause))
+    writer = ScriptWriter(FakeLLM(_META, kp_with_markers))
     result = await writer.enhance_ir(draft)
 
     s1 = result.chapters[0].knowledge_points[0].scenes[0]
-    assert "[PAUSE" in s1.narration_text
-    assert s1.narration_text.startswith("没有停顿标记的讲稿")
+    assert "[PAUSE" not in s1.narration_text
+    assert "[EMPHASIS]" not in s1.narration_text
+    assert s1.narration_text == "前言看这个概念"
 
 
 async def test_does_not_mutate_input() -> None:
@@ -349,14 +354,15 @@ async def test_three_stage_pipeline_stores_outline_and_applies_review() -> None:
     )
     assert result.teaching_outline.get("kp_strategies")
 
-    # Stage 2：讲稿含 SSML 标记
+    # Stage 2：讲稿为纯文本，历史标记被剥离
     s1 = result.chapters[0].knowledge_points[0].scenes[0]
-    assert "[PAUSE:0.5]" in s1.narration_text
-    assert "[EMPHASIS]" in s1.narration_text
+    assert "[PAUSE" not in s1.narration_text
+    assert "[EMPHASIS]" not in s1.narration_text
+    assert s1.narration_text == "第1段讲解这里是重点1"
 
-    # Stage 3：审校修正覆盖第二镜
+    # Stage 3：审校修正覆盖第二镜（同样剥离标记）
     s2 = result.chapters[0].knowledge_points[0].scenes[1]
-    assert s2.narration_text == "审校修正后的第二镜讲稿[PAUSE:0.8]"
+    assert s2.narration_text == "审校修正后的第二镜讲稿"
 
     # 四个阶段都被调用（meta/outline/kp/review）
     llm: MultiStageFakeLLM = writer._llm  # type: ignore[assignment]

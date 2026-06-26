@@ -57,6 +57,9 @@ class Settings(BaseSettings):
 
     # ── TTS ─────────────────────────────────────────────────
     EDGE_TTS_VOICE: str = "zh-CN-XiaoxiaoNeural"
+    # 全局语速微调（Edge-TTS rate，如 "-4%" 取更稳的讲课语速；"+0%" 为常速）。
+    # 讲稿为纯文本，停顿交给标点的自然韵律，不再使用内联 SSML 标记。
+    EDGE_TTS_RATE: str = "-4%"
 
     # ── 视频合成（模块三）─────────────────────────────────────
     FFMPEG_BIN: str = "ffmpeg"
@@ -73,6 +76,9 @@ class Settings(BaseSettings):
     WATERMARK_OPACITY: float = 0.3
     # 分镜无旁白音频时的兜底时长（秒）
     SILENT_SCENE_DURATION: float = 4.0
+    # True 时真实课件页也施加 Ken-Burns 推近运镜；默认 False=真实 PPT 页静止
+    # 展示（像正常投影），仅合成文本页 / 生成式 / 纯图片画面保留轻微运镜。
+    KEN_BURNS_REAL_SLIDES: bool = False
 
     # ── 视觉增强（转场 / 片头片尾）─────────────────────────
     # True 时分镜间用 FFmpeg xfade 转场替代无损拼接（重编码，时长略增）。
@@ -92,6 +98,9 @@ class Settings(BaseSettings):
     # ── 流水线 ──────────────────────────────────────────────
     # True 时上传后跨过人工审核，自动生成成片（演示用；默认保持人在环）
     SKIP_REVIEW: bool = False
+    # True 时解析阶段启发式剔除无效页（目录/封面/致谢/谢谢/参考文献/图片来源等），
+    # 避免它们被配音、运镜、做成知识点。全无效兜底保留原始页。
+    FILTER_LOW_VALUE_SLIDES: bool = True
     # True 时所有分镜画面由 AI（CogVideoX）生成，跳过 Pillow 模板渲染
     AI_FULL_GEN_DEFAULT: bool = False
 

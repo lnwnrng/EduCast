@@ -47,6 +47,29 @@ import type { Project } from '../../types/project';
 const { TextArea } = Input;
 const { Text, Title } = Typography;
 
+/** 历史语音标记正则（[PAUSE:N] / [EMPHASIS] / [SLOW]）；新编排已不再生成 */
+const LEGACY_MARKERS = /\[PAUSE:[\d.]+\]|\[\/?EMPHASIS\]|\[\/?SLOW\]/g;
+
+/** 防御性剥离历史项目残留的语音标记，保持编辑器讲稿干净一致 */
+const stripLegacyMarkers = (text?: string) =>
+  (text || '').replace(LEGACY_MARKERS, '').trim();
+
+/** 加载脚本时规整 IR：剥离讲稿/字幕中的历史标记 */
+const normalizeIr = (ir: CourseIR): CourseIR => ({
+  ...ir,
+  chapters: ir.chapters.map((ch) => ({
+    ...ch,
+    knowledge_points: ch.knowledge_points.map((kp) => ({
+      ...kp,
+      scenes: kp.scenes.map((s) => ({
+        ...s,
+        narration_text: stripLegacyMarkers(s.narration_text),
+        subtitle_text: stripLegacyMarkers(s.subtitle_text),
+      })),
+    })),
+  })),
+});
+
 /** 分镜类型选项 */
 const SCENE_TYPE_OPTIONS = [
   { value: 'slide', label: '课件页' },
@@ -127,7 +150,7 @@ const ScriptEditor: React.FC = () => {
       setLoading(true);
       try {
         const resp = await getScript(projectId);
-        setIR(resp.data.ir);
+        setIR(normalizeIr(resp.data.ir));
         // 默认选中第一个分镜
         if (resp.data.ir.chapters.length > 0) {
           const ch = resp.data.ir.chapters[0];
@@ -235,7 +258,7 @@ const ScriptEditor: React.FC = () => {
     if (!projectId) return;
     try {
       const resp = await getScript(projectId);
-      setIR(resp.data.ir);
+      setIR(normalizeIr(resp.data.ir));
     } catch {
       message.error('重新加载脚本失败');
     }

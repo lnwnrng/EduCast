@@ -33,6 +33,7 @@ const typeLabels: Record<ResourceType, string> = {
   subtitle: '字幕',
   ir_snapshot: 'IR 快照',
   archive: '归档包',
+  folder: '文件夹',
 };
 
 const Preview: React.FC = () => {

@@ -5,7 +5,6 @@ from uuid import UUID
 
 from pydantic import BaseModel, Field
 
-from app.schemas.category import CategoryBrief
 from app.schemas.tag import TagResponse
 
 
@@ -17,7 +16,6 @@ class ProjectCreate(BaseModel):
     grade: str = Field(default="", max_length=50, description="年级")
     description: str | None = Field(default=None, description="描述")
     template: str = Field(default="micro_lecture", description="视频模板")
-    category_id: UUID | None = Field(default=None, description="分类ID")
     tag_ids: list[str] = Field(default_factory=list, description="标签ID列表")
 
 
@@ -30,7 +28,6 @@ class ProjectUpdate(BaseModel):
     description: str | None = None
     template: str | None = Field(default=None, max_length=50)
     status: str | None = Field(default=None, max_length=20)
-    category_id: UUID | None = None
     tag_ids: list[str] | None = None
 
 
@@ -46,8 +43,6 @@ class ProjectResponse(BaseModel):
     description: str | None = None
     template: str
     status: str
-    category_id: UUID | None = None
-    category: CategoryBrief | None = None
     tags: list[TagResponse] = []
     created_at: datetime
     updated_at: datetime | None = None

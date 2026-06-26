@@ -10,7 +10,6 @@ from app.models.base import Base, BaseMixin
 
 if TYPE_CHECKING:
     from app.models.annotation import Annotation
-    from app.models.category import CourseCategory
     from app.models.resource import Resource
     from app.models.tag import Tag
     from app.models.task import Task
@@ -29,9 +28,6 @@ class Project(BaseMixin, Base):
     user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id"), nullable=False)
     template: Mapped[str] = mapped_column(String(50), default="micro_lecture")
     status: Mapped[str] = mapped_column(String(20), default="draft")
-    category_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("course_categories.id"), nullable=True, default=None
-    )
 
     # ── 关系 ─────────────────────────────────────────────
     owner: Mapped["User"] = relationship(back_populates="projects")
@@ -43,7 +39,6 @@ class Project(BaseMixin, Base):
         back_populates="project",
         cascade="all, delete-orphan",
     )
-    category: Mapped["CourseCategory | None"] = relationship(back_populates="projects")
     tags: Mapped[list["Tag"]] = relationship(secondary="project_tags")
     annotations: Mapped[list["Annotation"]] = relationship(
         back_populates="project",

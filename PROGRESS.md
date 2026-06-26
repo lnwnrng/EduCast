@@ -200,3 +200,22 @@
 - [x] **模板 API**：`api/v1/templates.py` 提供浏览/创建/更新/删除/使用统计，系统模板不可删除。
 - [x] **前端页面**：`TemplateMarket/index.tsx` 卡片网格展示，支持分类筛选和名称搜索。
 - [x] **路由导航**：侧边栏新增「模板市场」菜单项。
+
+---
+
+## ✅ 已完成 (P7 标签自助化 + 资源网盘化阶段)
+
+### 功能 1：标签自助化（取消分类与审核流）✅
+- [x] **合并为单一标签体系**：取消独立的「分类(category, 单选树)」概念，项目只用用户自建标签（多选、扁平、全局共享、按 name 去重）来分类。删除 `CourseCategory` / `CategoryTagRequest` 模型、`/categories` 与 `/requests` 路由、`projects.category_id` 列；`main.py` 新增迁移函数 `_migrate_drop_category_tables_and_columns` 丢弃旧表/列。
+- [x] **标签用户自助**：`POST/PUT/DELETE /tags/` 去掉 `require_admin`，所有登录用户可自建/改/删；创建按 `name` 唯一去重（同名返回已存在的标签）；删除时先清 `project_tags` M2M 关联再硬删（Tag 用硬删以避开 unique name 重建冲突）。
+- [x] **前端**：删除管理员「分类管理 / 标签管理 / 申请管理」三页 + `api/categories.ts` + `api/requests.ts`；项目设置弹窗标签 Select 旁加「+ 新建标签」Modal（名称 + ColorPicker → `createTag` 去重返回 → 自动选中），原「申请新建分类/标签」弹窗移除。
+- 测试：新增 `tests/test_tags_self_service.py`（普通用户创建/去重/改/删），后端 365 tests 全绿，ruff/black 干净，前端 tsc/eslint/build 全绿。
+
+### 功能 2：资源网盘化（文件夹 + 拖拽）✅
+- [x] **逻辑文件夹**：`Resource` 复用已有 `parent_id` 自引用，新增 `is_folder` / `name` 列（`main.py` 迁移函数 `_migrate_add_resource_folder_fields`）；项目根为虚拟根（`parent_id IS NULL`）；逻辑文件夹只存 DB，物理文件不动（move = 改 `parent_id`，download 仍用 `file_path`）。
+- [x] **后端 API**：新增 `GET /resources/children`（单层子项）、`POST /resources/folders`（建子文件夹）、`PATCH /resources/{id}`（rename/move 合并，`parent_id` 显式 null = 移回根）；`DELETE` 文件夹级联软删子孙；`download` 拒绝文件夹；`list_resources` 加 `is_folder` 过滤参数。
+- [x] **服务层**：`ResourceService` 加 `list_children` / `create_folder` / `rename_resource` / `move_resource`（环检测：不能移入自身或子孙；不能跨项目）/ `_collect_descendants`（BFS）/ `delete_resource`（文件夹级联软删）。`_register_resources` 入库天然落根（`parent_id=None`）；`_next_gen_version` 与 workspace 聚合均排除 `is_folder` 行。
+- [x] **前端网盘**：引入 `@dnd-kit/core`，重写 `Resources` 页为两级视图——根视图（项目文件夹卡片网格，复用 `getProjects`）+ 文件夹内视图（面包屑 + 子文件夹/资源卡片网格 + 拖拽资源进文件夹 + 面包屑可放置移到上级 + 新建/重命名/删除/预览/下载）；新增深链 `/projects/:id/resources`。图标一律 `@ant-design/icons`。
+- 测试：新增 `tests/test_resource_folder.py`（建夹/移动/环检测 422/重命名/级联删/越权 403），后端 365 tests 全绿，前端 tsc/eslint/build 全绿。
+
+> 上线后，P5「分类/标签管理」管理页与原扁平 Table 资源管理已被本阶段取代。
