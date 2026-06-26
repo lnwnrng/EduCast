@@ -81,24 +81,14 @@ def set_runtime_setting(key: str, value: str | None) -> None:
 
 
 # ── 可配置的 API Key 定义（供前端展示）──
-# 注意：LLM（智谱 GLM）的 Key 已迁移至「LLM 管理」页面（DB 管理），
-# 此处不再列出 ZHIPU_API_KEY。LLM 管理保存 GLM 配置时会镜像写入运行时
-# ZHIPU_API_KEY，供 CogVideoX / 成本护栏复用。
+# 注意：API/供应商配置按域拆分到各自的管理页，系统设置不再重复承载：
+# - LLM（智谱 GLM）的 Key 在「LLM 管理」页面（DB 管理）；保存 GLM 配置时镜像
+#   写入运行时 ZHIPU_API_KEY，供 CogVideoX / 成本护栏复用。
+# - 视频生成（CogVideoX / Kling / MiniMax）的 provider 与 Key 在「视频生成模型」
+#   页面（DB 管理）；保存/激活时镜像到运行时 VIDEO_GEN_*，供合成层取用。
+# 故此处不再列出 ZHIPU_API_KEY / COGVIDEO_API_KEY，仅保留无专属管理页的 Key。
 
 API_KEY_DEFINITIONS = [
-    {
-        "key": "COGVIDEO_API_KEY",
-        "label": "CogVideoX 视频生成 Key",
-        "description": (
-            "智谱 CogVideoX 视频生成 Key（与 GLM 同平台同 Key）。"
-            "LLM 脚本编排的 GLM Key 请到「LLM 管理」页面配置。"
-            "此处仅为视频生成使用不同账号而设；留空时自动复用"
-            "「LLM 管理」中配置的 GLM Key（或回退 .env 的 ZHIPU_API_KEY）。"
-        ),
-        "url": "https://open.bigmodel.cn",
-        "features": ["AI 视频生成（CogVideoX）"],
-        "is_secret": True,
-    },
     {
         "key": "RESEND_API_KEY",
         "label": "Resend 邮件 API Key",
