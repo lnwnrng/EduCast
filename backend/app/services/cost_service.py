@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import settings
 from app.exceptions import CostLimitException
 from app.ir.schema import CourseIR, SceneType
+from app.models.project import Project
 from app.models.resource import Resource
 from app.models.task import Task
 from app.providers.digital_human.placeholder import PlaceholderDigitalHumanProvider
@@ -139,7 +140,13 @@ async def dashboard_stats(db: AsyncSession) -> DashboardStats:
     status_counts, est_total, act_total, count = await _task_aggregates(db)
     storage = await _storage_bytes(db, None)
 
-    recent_stmt = select(Task).order_by(Task.created_at.desc()).limit(10)
+    recent_stmt = (
+        select(Task)
+        .join(Project, Task.project_id == Project.id)
+        .where(Project.deleted_at.is_(None))
+        .order_by(Task.created_at.desc())
+        .limit(10)
+    )
     recent = (await db.execute(recent_stmt)).scalars().all()
     recent_tasks = [
         {
