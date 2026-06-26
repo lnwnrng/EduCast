@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Layout, Menu, Typography, Dropdown, Avatar } from 'antd';
+import { Layout, Menu, Dropdown, Avatar } from 'antd';
 import {
   LayoutGrid,
   Folders,
@@ -7,8 +7,6 @@ import {
   CloudUpload,
   ScrollText,
   Database,
-  Activity,
-  LineChart,
   ShieldCheck,
   LogOut,
   ChevronLeft,
@@ -22,7 +20,6 @@ import { TaskDrawer } from '../common/TaskDrawer';
 import styles from './AppLayout.module.css';
 
 const { Sider, Header, Content, Footer } = Layout;
-const { Title } = Typography;
 
 const AppLayout: React.FC = () => {
   const navigate = useNavigate();

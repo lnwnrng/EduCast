@@ -19,6 +19,7 @@
 - **降级**: 单个知识点失败保留原文继续；无 LLM Provider 时做本地轻量规整。
 """
 
+import asyncio
 import logging
 import re
 from collections.abc import Awaitable, Callable
@@ -38,13 +39,19 @@ from app.utils.json_parse import extract_json
 
 logger = logging.getLogger(__name__)
 
-ProgressCallback = Callable[[int, int], Awaitable[None]]
+#: 进度回调：(已完成知识点数, 总知识点数, 子步骤文案 | None) → Awaitable。
+ProgressCallback = Callable[[int, int, str | None], Awaitable[None]]
 
 #: LLM provider 解析器 — 给定阶段 key，返回有序 provider 列表（逐级降级用）。
 LLMResolver = Callable[[str], list[LLMProviderBase]]
 
 # 单个分镜原始文字截断长度，避免超长输入
 _MAX_SCENE_CHARS = 1500
+# Outline Agent 单次处理的知识点上限；超过则分块生成大纲（保证尾部 KP 有策略）
+_OUTLINE_CHUNK_KPS = 40
+# Review Agent 分窗参数（重叠分窗，保证全片覆盖）
+_REVIEW_WINDOW = 30
+_REVIEW_OVERLAP = 5
 # 文件名前缀（解析阶段用 8 位 hex 防冲突），清理课程标题时去除
 _FILENAME_PREFIX_RE = re.compile(r"^[0-9a-f]{8}_")
 _VALID_SCENE_TYPES = {t.value for t in SceneType}
@@ -65,9 +72,12 @@ class ScriptWriter:
         llm_provider: LLMProviderBase | None = None,
         *,
         llm_resolver: LLMResolver | None = None,
+        scene_concurrency: int = 1,
     ) -> None:
         # 保留 self._llm 供既有测试访问；新代码应使用 _call_llm。
         self._llm = llm_provider
+        # Scene Agent 并发度：默认 1=串行（免费档不触发限流）；>1 时有界并发提速。
+        self._scene_concurrency = max(1, scene_concurrency)
         if llm_resolver is not None:
             self._resolver: LLMResolver = llm_resolver
         elif llm_provider is not None:
@@ -110,6 +120,35 @@ class ScriptWriter:
         logger.warning("阶段 %s 无可用 LLM provider 或全部失败", stage_key)
         return None
 
+    async def _call_llm_json(
+        self,
+        stage_key: str,
+        messages: list[dict[str, str]],
+        *,
+        temperature: float = 0.6,
+        max_tokens: int = 4096,
+    ) -> dict:
+        """调用 LLM 并解析 JSON；解析失败重试一次，仍失败返回 {}。
+
+        无可用 provider 直接返回 {}（交由调用方降级）。
+        """
+        for attempt in range(2):
+            result = await self._call_llm(
+                stage_key,
+                messages,
+                temperature=temperature,
+                max_tokens=max_tokens,
+                response_format={"type": "json_object"},
+            )
+            if result is None:
+                return {}
+            data = extract_json(result.content)
+            if data:
+                return data
+            if attempt == 0:
+                logger.warning("阶段 %s JSON 解析失败，重试一次", stage_key)
+        return {}
+
     async def enhance_ir(
         self,
         draft_ir: CourseIR,
@@ -144,7 +183,7 @@ class ScriptWriter:
             )
             _local_normalize(ir)
             if progress_cb:
-                await progress_cb(total_kps, total_kps)
+                await progress_cb(total_kps, total_kps, None)
             return ir
 
         logger.info(
@@ -155,31 +194,84 @@ class ScriptWriter:
         )
 
         # Stage 0: 课程元信息推断
+        if progress_cb:
+            await progress_cb(0, total_kps, "推断课程信息…")
         await self._infer_course_metadata(ir)
 
         # Stage 1: Outline Agent — 教学大纲 + 叙事弧线
+        if progress_cb:
+            await progress_cb(0, total_kps, "规划教学大纲 (Outline Agent)…")
         outline = await self._generate_teaching_outline(ir)
         ir.teaching_outline = outline
 
-        # Stage 2: Scene Agent — 逐知识点增强（注入大纲上下文）
-        done = 0
-        for ci, chapter in enumerate(ir.chapters):
-            for ki, kp in enumerate(chapter.knowledge_points):
-                try:
-                    # 构造上下文：大纲策略 + 前后知识点
-                    ctx = _build_kp_context(ir, outline, ci, ki)
-                    await self._enhance_kp(ir, chapter, kp, ctx)
-                except Exception as exc:  # noqa: BLE001 — 单点失败不阻断整体
-                    logger.warning("知识点 '%s' 编排失败，保留原文: %s", kp.title, exc)
-                done += 1
-                if progress_cb:
-                    await progress_cb(done, total_kps)
+        # Stage 2: Scene Agent — 逐知识点增强（按全局序号对齐大纲策略）
+        await self._enhance_all_kps(ir, outline, total_kps, progress_cb)
 
         # Stage 3: Review Agent — 全课程质量审校
+        if progress_cb:
+            await progress_cb(total_kps, total_kps, "全片审校 (Review Agent)…")
         await self._review_full_script(ir)
 
         logger.info("LLM 脚本编排完成（三阶段管道）: %s", ir.title)
         return ir
+
+    async def _enhance_all_kps(
+        self,
+        ir: CourseIR,
+        outline: dict,
+        total_kps: int,
+        progress_cb: ProgressCallback | None,
+    ) -> None:
+        """Stage 2 调度：默认串行；``scene_concurrency`` > 1 时有界并发。
+
+        进度按**完成计数**上报（并发下完成顺序不定，但计数单调递增）。
+        各 worker 只改写各自的知识点对象，互不共享可变状态。
+        """
+        flat: list[tuple[int, int, ChapterIR, KnowledgePointIR, int]] = []
+        gidx = 0
+        for ci, chapter in enumerate(ir.chapters):
+            for ki, kp in enumerate(chapter.knowledge_points):
+                flat.append((ci, ki, chapter, kp, gidx))
+                gidx += 1
+
+        done = 0
+
+        async def run_one(
+            ci: int, ki: int, chapter: ChapterIR, kp: KnowledgePointIR, g: int
+        ) -> None:
+            try:
+                ctx = _build_kp_context(ir, outline, ci, ki, global_index=g)
+                await self._enhance_kp(ir, chapter, kp, ctx)
+            except Exception as exc:  # noqa: BLE001 — 单点失败不阻断整体
+                logger.warning("知识点 '%s' 编排失败，保留原文: %s", kp.title, exc)
+
+        if self._scene_concurrency <= 1:
+            for item in flat:
+                await run_one(*item)
+                done += 1
+                if progress_cb:
+                    await progress_cb(
+                        done, total_kps, f"编排讲稿 第 {done}/{total_kps} 个知识点…"
+                    )
+            return
+
+        sem = asyncio.Semaphore(self._scene_concurrency)
+        counter_lock = asyncio.Lock()
+
+        async def worker(
+            item: tuple[int, int, ChapterIR, KnowledgePointIR, int],
+        ) -> None:
+            nonlocal done
+            async with sem:
+                await run_one(*item)
+            async with counter_lock:
+                done += 1
+                if progress_cb:
+                    await progress_cb(
+                        done, total_kps, f"编排讲稿 第 {done}/{total_kps} 个知识点…"
+                    )
+
+        await asyncio.gather(*(worker(item) for item in flat))
 
     # ── Stage 0: 课程元信息 ──────────────────────────────────
 
@@ -241,10 +333,50 @@ class ScriptWriter:
     # ── Stage 1: Outline Agent — 教学大纲 ──────────────────
 
     async def _generate_teaching_outline(self, ir: CourseIR) -> dict:
-        """生成全课程教学大纲：叙事弧线、各知识点策略、知识点间衔接。"""
+        """生成全课程教学大纲：叙事弧线、各知识点策略、知识点间衔接。
+
+        长课程（知识点数 > ``_OUTLINE_CHUNK_KPS``）分块生成并按全局顺序合并
+        ``kp_strategies``，保证尾部知识点也有教学策略（与 Scene Agent 的全局
+        序号对齐）。
+        """
+        total = sum(len(ch.knowledge_points) for ch in ir.chapters)
+        if total <= _OUTLINE_CHUNK_KPS:
+            data = await self._request_outline(
+                ir, _build_outline(ir, max_kps=_OUTLINE_CHUNK_KPS)
+            )
+            logger.info(
+                "Outline Agent 完成: 叙事弧线 + %d 条知识点策略",
+                len(data.get("kp_strategies", []) or []),
+            )
+            return data
+
+        merged: dict = {}
+        all_strategies: list = []
+        start = 0
+        chunk_no = 0
+        while start < total:
+            end = min(start + _OUTLINE_CHUNK_KPS, total)
+            data = await self._request_outline(ir, _build_outline_range(ir, start, end))
+            if chunk_no == 0:
+                for key in ("narrative_arc", "opening_hook", "closing_summary"):
+                    merged[key] = data.get(key, "")
+            all_strategies.extend(
+                s for s in (data.get("kp_strategies") or []) if isinstance(s, dict)
+            )
+            start = end
+            chunk_no += 1
+        merged["kp_strategies"] = all_strategies
+        logger.info(
+            "Outline Agent 完成（分 %d 块）: %d 条知识点策略",
+            chunk_no,
+            len(all_strategies),
+        )
+        return merged
+
+    async def _request_outline(self, ir: CourseIR, outline_text: str) -> dict:
+        """单次教学大纲请求（对一个知识点区间的提纲文本）。失败返回 {}。"""
         from app.pipeline.templates import get_template
 
-        outline_text = _build_outline(ir)
         tpl = get_template(ir.template or "micro_lecture")
         subject = ir.subject or "通用学科"
         audience = ir.target_audience or "高校学生"
@@ -296,30 +428,11 @@ class ScriptWriter:
                 ),
             },
         ]
-        try:
-            result = await self._call_llm(
-                "outline",
-                messages,
-                temperature=0.4,
-                max_tokens=4096,
-                response_format={"type": "json_object"},
-            )
-            if result is None:
-                logger.warning("教学大纲生成无可用 provider，继续无大纲模式")
-                return {}
-            data = extract_json(result.content)
-        except Exception as exc:  # noqa: BLE001
-            logger.warning("教学大纲生成失败，继续无大纲模式: %s", exc)
-            return {}
-
-        if not data:
-            logger.warning("教学大纲 JSON 解析失败")
-            return {}
-
-        logger.info(
-            "Outline Agent 完成: 叙事弧线 + %d 条知识点策略",
-            len(data.get("kp_strategies", [])),
+        data = await self._call_llm_json(
+            "outline", messages, temperature=0.4, max_tokens=4096
         )
+        if not data:
+            logger.warning("教学大纲生成失败/无 provider，该区间按无大纲处理")
         return data
 
     # ── Stage 2: Scene Agent — 知识点增强 ──────────────────
@@ -336,18 +449,11 @@ class ScriptWriter:
             return
 
         messages = self._build_kp_messages(ir, chapter, kp, context)
-        result = await self._call_llm(
-            "scene",
-            messages,
-            temperature=0.6,
-            max_tokens=4096,
-            response_format={"type": "json_object"},
+        data = await self._call_llm_json(
+            "scene", messages, temperature=0.6, max_tokens=4096
         )
-        if result is None:
-            raise ValueError("无可用 LLM Provider")
-        data = extract_json(result.content)
         if not data:
-            raise ValueError("知识点 JSON 解析失败")
+            raise ValueError("无可用 LLM Provider 或知识点 JSON 解析失败")
 
         self._merge_kp(kp, data)
 
@@ -385,15 +491,18 @@ class ScriptWriter:
         next_kp_title = context.get("next_kp_title", "")
         pacing = context.get("pacing", "normal")
         pause_points = context.get("pause_points", "")
+        visual_hint = context.get("visual_hint", "")
 
         strategy_block = ""
-        if strategy or transition_in:
+        if strategy or transition_in or visual_hint:
             strategy_block = (
                 "\n\n【教学设计师为本知识点规划的策略】\n"
                 f"教学法：{strategy}\n"
                 f"节奏：{pacing}\n"
                 f"与前一知识点的衔接：{transition_in or '（首个知识点，无需衔接）'}\n"
                 f"后续知识点：{next_kp_title or '（最后一个知识点）'}\n"
+                f"建议画面类型（scene_type 应优先参考）："
+                f"{visual_hint or '（无特别建议，按内容判断）'}\n"
                 f"建议停顿点：{pause_points or '（无特别指定）'}"
             )
 
@@ -413,11 +522,14 @@ class ScriptWriter:
             "需要情景画面的选 generative_clip，其余默认 slide。\n"
             f"本模板偏好：{tpl.scene_type_hint}。\n"
             "4. 当 scene_type=formula_animation，在 latex_steps 给出逐步推导的 "
-            "LaTeX 字符串数组；当 scene_type=generative_clip，在 gen_prompt 给出一句"
-            "中文画面提示词。其它情况这两个字段留空。\n"
+            "LaTeX 字符串数组；当 scene_type=generative_clip，在 gen_prompt 给出 "
+            "2~3 句中文画面提示词（主体 + 场景 + 风格，呼应本模板的视觉风格）。"
+            "其它情况这两个字段留空。\n"
             "5. 必须严格输出 JSON，且 scenes 的 order 与输入一一对应、不增不减。\n"
             "6. **SSML 语音标注**：在讲稿中插入语音控制标记以提升配音韵律——\n"
-            "   - 在需要学生思考或段落转换处插入 [PAUSE:0.5]（数字为秒数）\n"
+            "   - 在需要学生思考或段落转换处插入 [PAUSE:秒数]，停顿时长随语境"
+            "变化：概念收束/难点之后停得更久（0.6~0.8），过渡/承接处停得较短"
+            "（0.3~0.4）\n"
             "   - 在重要概念/术语首次出现时用 [EMPHASIS]重要内容[/EMPHASIS] 包裹\n"
             "   - 在复杂公式解释等需要放慢的地方用 [SLOW]缓讲内容[/SLOW] 包裹\n"
             "   每个分镜至少包含 1 个 [PAUSE]。\n"
@@ -494,7 +606,11 @@ class ScriptWriter:
     # ── Stage 3: Review Agent — 全课程审校 ─────────────────
 
     async def _review_full_script(self, ir: CourseIR) -> None:
-        """全课程质量审校：检查衔接、重复、口语化、深度、节奏。"""
+        """全课程质量审校：检查衔接、重复、口语化、深度、节奏。
+
+        对长课程采用**重叠分窗**逐窗审校，保证全片覆盖（含尾部分镜），
+        而非只审前若干个分镜。
+        """
         # 收集全部分镜讲稿（按顺序）
         all_scenes: list[tuple[int, int, int, SceneIR]] = []
         for ci, ch in enumerate(ir.chapters):
@@ -506,10 +622,26 @@ class ScriptWriter:
             # 太短的课程不需要全局审校
             return
 
-        # 构造审校输入（限制长度，取前 40 个分镜）
-        review_scenes = all_scenes[:40]
+        step = max(_REVIEW_WINDOW - _REVIEW_OVERLAP, 1)
+        total_applied = 0
+        start = 0
+        while start < len(all_scenes):
+            window = all_scenes[start : start + _REVIEW_WINDOW]
+            total_applied += await self._review_window(ir, window)
+            if start + _REVIEW_WINDOW >= len(all_scenes):
+                break
+            start += step
+
+        logger.info("Review Agent 完成: 修正了 %d 个分镜", total_applied)
+
+    async def _review_window(
+        self,
+        ir: CourseIR,
+        window: list[tuple[int, int, int, SceneIR]],
+    ) -> int:
+        """审校单个分镜窗口，回填修正，返回应用的修正数。"""
         scene_summaries: list[str] = []
-        for ci, ki, order, scene in review_scenes:
+        for ci, ki, order, scene in window:
             text = (scene.narration_text or "").strip()
             if len(text) > 200:
                 text = text[:200] + "…"
@@ -537,7 +669,7 @@ class ScriptWriter:
                 "content": (
                     f"课程标题：{ir.title}\n"
                     f"学科：{ir.subject or '通用'}\n\n"
-                    f"完整讲稿（按分镜顺序）：\n{script_block}\n\n"
+                    f"讲稿片段（按分镜顺序）：\n{script_block}\n\n"
                     "请严格输出如下 JSON（不要输出多余文字）：\n"
                     "{\n"
                     '  "corrections": [\n'
@@ -563,15 +695,14 @@ class ScriptWriter:
             )
             if result is None:
                 logger.warning("Review Agent 无可用 provider，保留原稿")
-                return
+                return 0
             data = extract_json(result.content)
         except Exception as exc:  # noqa: BLE001
             logger.warning("Review Agent 审校失败，保留原稿: %s", exc)
-            return
+            return 0
 
         if not data or not data.get("corrections"):
-            logger.info("Review Agent: 无需修正")
-            return
+            return 0
 
         # 应用修正
         corrections = data.get("corrections", [])
@@ -601,7 +732,7 @@ class ScriptWriter:
             except (IndexError, AttributeError):
                 continue
 
-        logger.info("Review Agent 完成: 修正了 %d 个分镜", applied)
+        return applied
 
 
 # ── 合并与本地降级辅助函数 ───────────────────────────────────
@@ -616,9 +747,8 @@ def _apply_scene(
     """把单条 LLM 分镜结果应用到 SceneIR（保留结构性字段）。"""
     narration = str(data.get("narration_text") or "").strip()
     if narration:
+        narration = _ensure_pause(narration)
         scene.narration_text = narration
-
-    if narration:
         scene.subtitle_text = narration
 
     scene_type = data.get("scene_type")
@@ -670,23 +800,78 @@ def _build_outline(ir: CourseIR, max_kps: int = 30) -> str:
     return "\n".join(lines)
 
 
+def _build_outline_range(ir: CourseIR, start: int, end: int) -> str:
+    """构造指定**全局知识点区间** [start, end) 的提纲文本（含所属章节标题）。
+
+    展平顺序与 ``enhance_ir`` 双层循环一致，故区间对齐 Scene Agent 的全局序号。
+    """
+    lines: list[str] = []
+    idx = 0
+    last_chapter: str | None = None
+    for ch in ir.chapters:
+        for kp in ch.knowledge_points:
+            if start <= idx < end:
+                if ch.title != last_chapter:
+                    lines.append(f"# {ch.title}")
+                    last_chapter = ch.title
+                lines.append(f"  - {kp.title}")
+            idx += 1
+        if idx >= end:
+            break
+    return "\n".join(lines)
+
+
+def _norm_title(title: str) -> str:
+    """标题标准化（去空白、小写），用于策略软匹配。"""
+    return re.sub(r"\s+", "", (title or "")).lower()
+
+
+_PAUSE_MARKER_RE = re.compile(r"\[PAUSE", re.IGNORECASE)
+
+
+def _ensure_pause(text: str) -> str:
+    """确定性兜底：讲稿无 [PAUSE] 时在末尾补一个，保证配音韵律。"""
+    if not text or _PAUSE_MARKER_RE.search(text):
+        return text
+    return text.rstrip() + " [PAUSE:0.4]"
+
+
 def _build_kp_context(
     ir: CourseIR,
     outline: dict,
     chapter_index: int,
     kp_index: int,
+    *,
+    global_index: int | None = None,
 ) -> dict:
-    """从 Outline Agent 产出中提取当前知识点的上下文。"""
+    """从 Outline Agent 产出中提取当前知识点的上下文。
+
+    策略对齐顺序：①标题软匹配（标准化后比较，兼容 Outline 乱序）→
+    ②全局知识点序号（兼容 Outline **改写标题**导致的失配，这是历史上策略被
+    静默丢弃的根因）。两级回退保证策略不再静默丢失。
+    """
     chapter = ir.chapters[chapter_index]
     kp = chapter.knowledge_points[kp_index]
     kp_strategies = outline.get("kp_strategies", [])
+    if not isinstance(kp_strategies, list):
+        kp_strategies = []
 
-    # 按标题匹配策略
     strategy_entry: dict = {}
-    for s in kp_strategies:
-        if isinstance(s, dict) and s.get("kp_title") == kp.title:
-            strategy_entry = s
-            break
+    # ① 标题软匹配
+    target = _norm_title(kp.title)
+    if target:
+        for s in kp_strategies:
+            if isinstance(s, dict) and _norm_title(s.get("kp_title", "")) == target:
+                strategy_entry = s
+                break
+    # ② 全局序号对齐（标题匹配不到时回退）
+    if (
+        not strategy_entry
+        and global_index is not None
+        and 0 <= global_index < len(kp_strategies)
+        and isinstance(kp_strategies[global_index], dict)
+    ):
+        strategy_entry = kp_strategies[global_index]
 
     # 下一个知识点标题（用于铺垫）
     next_kp_title = ""

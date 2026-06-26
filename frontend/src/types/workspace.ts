@@ -13,6 +13,7 @@ export interface LatestTask {
   id: string;
   status: string;
   progress: number;
+  step_detail?: string | null;
   error_message: string | null;
 }
 

@@ -28,6 +28,7 @@ class Task(BaseMixin, Base):
     task_type: Mapped[str] = mapped_column(String(50), default="full_pipeline")
     status: Mapped[str] = mapped_column(String(20), default="pending")
     progress: Mapped[int] = mapped_column(Integer, default=0)
+    step_detail: Mapped[str | None] = mapped_column(String(120), nullable=True)
     error_message: Mapped[str | None] = mapped_column(Text, nullable=True)
     ir_snapshot_path: Mapped[str | None] = mapped_column(String(500), nullable=True)
     estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)

@@ -14,6 +14,7 @@ export interface Task {
   task_type: string;
   status: TaskStatus;
   progress: number;
+  step_detail?: string | null;
   error_message: string | null;
   estimated_cost: number;
   actual_cost: number;

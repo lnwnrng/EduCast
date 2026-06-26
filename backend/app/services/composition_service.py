@@ -31,6 +31,7 @@ from app.models.resource import Resource
 from app.models.task import SubTask, Task
 from app.pipeline.composer import VideoComposer
 from app.pipeline.formula import FormulaRenderer
+from app.pipeline.progress import DEFAULT_STEP_DETAIL, band_progress
 from app.pipeline.renderer import SlideRenderer
 from app.pipeline.ssml_converter import strip_markers
 from app.pipeline.subtitles import (
@@ -51,6 +52,7 @@ from app.services.resource_service import ResourceService
 from app.utils import ffmpeg
 from app.utils.hash import compute_input_hash
 from app.utils.task_helpers import to_uuid as _to_uuid
+from app.utils.task_helpers import update_task_status
 
 # 区分"构造参数未传入"与"显式传入 None（用于关闭某能力）"
 _UNSET = object()
@@ -65,6 +67,14 @@ _BADGES: dict[SceneType, str | None] = {
 }
 
 _SENTENCE_SPLIT = re.compile(r"[。！？!?\n]+")
+
+
+def _card_text(value: object, max_len: int) -> str:
+    """把 Outline 文案规整为片头/片尾卡片单行文本（折叠空白 + 截断）。"""
+    text = re.sub(r"\s+", " ", str(value or "")).strip()
+    if not text:
+        return ""
+    return text if len(text) <= max_len else text[:max_len].rstrip() + "…"
 
 
 @dataclass
@@ -151,7 +161,12 @@ class CompositionService:
         if ir is None:
             logger.error("合成找不到 IR: project=%s", project_id)
             await self._update_task(
-                db, task_id, "failed", 0, error_message="合成失败：未找到 IR"
+                db,
+                task_id,
+                "failed",
+                None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
+                error_message="合成失败：未找到 IR",
             )
             await self._update_project(db, project_id, "failed")
             return
@@ -162,13 +177,25 @@ class CompositionService:
         self._renderer = SlideRenderer(template_name=ir.template or "micro_lecture")
         if not flat:
             await self._update_task(
-                db, task_id, "failed", 0, error_message="合成失败：IR 无分镜"
+                db,
+                task_id,
+                "failed",
+                None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
+                error_message="合成失败：IR 无分镜",
             )
             await self._update_project(db, project_id, "failed")
             return
 
         try:
-            await self._update_task(db, task_id, "generating", 50)
+            # generating 区间起点 = 45（reviewing 检查点之后继续，不回退到 50）
+            await self._update_task(
+                db,
+                task_id,
+                "generating",
+                band_progress("generating", 0, 1),
+                step_detail=DEFAULT_STEP_DETAIL["generating"],
+            )
             await self._update_project(db, project_id, "generating")
 
             # 生成版本号（按现有视频数递增）与生成配置（音色 / 能力开关）
@@ -198,6 +225,14 @@ class CompositionService:
             tpl = get_template(ir.template or "micro_lecture")
             cover_bg = tpl.colors.cover_bg
 
+            # 片头/片尾文案复用 Outline 产出（opening_hook / closing_summary），
+            # 不再写死「感谢观看」；缺失时回退到学科 / 默认致谢。
+            outline = ir.teaching_outline or {}
+            intro_subtitle = _card_text(outline.get("opening_hook"), 28) or (
+                ir.subject or ""
+            )
+            outro_summary = _card_text(outline.get("closing_summary"), 40) or "感谢观看"
+
             # ── 片头（可选）──
             intro_path: str | None = None
             intro_dur = 0.0
@@ -207,7 +242,7 @@ class CompositionService:
                     await ffmpeg.generate_intro_clip(
                         intro_path,
                         title=ir.title or "教学视频",
-                        subject=ir.subject or "",
+                        subject=intro_subtitle,
                         template_colors=cover_bg,
                         duration=settings.INTRO_DURATION,
                         width=settings.VIDEO_WIDTH,
@@ -228,7 +263,7 @@ class CompositionService:
                     await ffmpeg.generate_outro_clip(
                         outro_path,
                         title=ir.title or "教学视频",
-                        summary_text="感谢观看",
+                        summary_text=outro_summary,
                         template_colors=cover_bg,
                         duration=settings.OUTRO_DURATION,
                         width=settings.VIDEO_WIDTH,
@@ -275,14 +310,25 @@ class CompositionService:
                 clip_paths.append(clip_path)
                 scene_transitions.append(fs.scene.transition.value)
 
-                progress = 50 + int(30 * (i + 1) / total)
-                await self._update_task(db, task_id, "generating", progress)
+                await self._update_task(
+                    db,
+                    task_id,
+                    "generating",
+                    band_progress("generating", i + 1, total),
+                    step_detail=f"生成第 {i + 1}/{total} 个分镜素材…",
+                )
 
             if not clip_paths:
                 raise RuntimeError("所有分镜片段生成失败")
 
             # ── 字幕 / 章节 ──
-            await self._update_task(db, task_id, "composing", 82)
+            await self._update_task(
+                db,
+                task_id,
+                "composing",
+                band_progress("composing", 1, 3),
+                step_detail="生成字幕与章节…",
+            )
             # 字幕用纯文本（剥离 SSML 标记），时间轴已按转场补偿
             segments = build_narration_segments(
                 [
@@ -359,7 +405,13 @@ class CompositionService:
             )
 
             # ── zip 打包 ──
-            await self._update_task(db, task_id, "composing", 92)
+            await self._update_task(
+                db,
+                task_id,
+                "composing",
+                band_progress("composing", 2, 3),
+                step_detail="打包导出资源…",
+            )
             zip_path = os.path.join(export_dir, f"gen{gen}.zip")
             _bundle_zip(zip_path, ir, video_path, srt_path, vtt_path, cover_path)
 
@@ -383,6 +435,7 @@ class CompositionService:
                 task_id,
                 "completed",
                 100,
+                step_detail=DEFAULT_STEP_DETAIL["completed"],
                 ir_snapshot_path=video_path,
                 actual_cost=actual_cost,
             )
@@ -401,7 +454,12 @@ class CompositionService:
                 "合成失败: project=%s, error=%s", project_id, exc, exc_info=True
             )
             await self._update_task(
-                db, task_id, "failed", 0, error_message=f"合成失败: {exc}"
+                db,
+                task_id,
+                "failed",
+                None,
+                step_detail=DEFAULT_STEP_DETAIL["failed"],
+                error_message=f"合成失败: {exc}",
             )
             await self._update_project(db, project_id, "failed")
 
@@ -924,25 +982,27 @@ class CompositionService:
         db: AsyncSession,
         task_id: str,
         status: str,
-        progress: int,
+        progress: int | None = None,
+        step_detail: str | None = None,
         ir_snapshot_path: str | None = None,
         error_message: str | None = None,
         actual_cost: float | None = None,
     ) -> None:
-        pk = _to_uuid(task_id)
-        if pk is None:
-            return
-        task = await db.get(Task, pk)
-        if task:
-            task.status = status
-            task.progress = max(progress, 0)
-            if ir_snapshot_path is not None:
-                task.ir_snapshot_path = ir_snapshot_path
-            if error_message is not None:
-                task.error_message = error_message
-            if actual_cost is not None:
-                task.actual_cost = actual_cost
-            await db.commit()
+        """更新任务状态（委托给共享 update_task_status —— 含 WebSocket 广播）。
+
+        改为委托后，生成/合成阶段（45–98%）也会实时广播进度与 step_detail，
+        前端 WS 不再只在解析/编排阶段收到推送。
+        """
+        await update_task_status(
+            db,
+            task_id,
+            status,
+            progress,
+            step_detail=step_detail,
+            ir_snapshot_path=ir_snapshot_path,
+            error_message=error_message,
+            actual_cost=actual_cost,
+        )
 
     async def _sum_subtask_cost(
         self, db: AsyncSession, task_uuid: UUID | None

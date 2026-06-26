@@ -1,10 +1,11 @@
 import React, { useEffect, useState } from 'react';
-import { Drawer, Progress, Tag } from 'antd';
+import { Drawer, Tag } from 'antd';
 import { Loader2, CheckCircle2, AlertCircle, Clock, Video } from 'lucide-react';
 import { getDashboard } from '../../api/monitoring';
 import type { DashboardRecentTask } from '../../types/cost';
 import { statusMeta } from '../../utils/status';
 import { useNavigate } from 'react-router-dom';
+import PipelineProgress from './PipelineProgress';
 import styles from './TaskDrawer.module.css';
 
 interface TaskDrawerProps {
@@ -21,7 +22,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ visible, onClose }) => {
     try {
       const resp = await getDashboard();
       setTasks(resp.data.recent_tasks.slice(0, 10));
-    } catch (e) {
+    } catch {
       // 忽略错误，悬浮抽屉不应该打断用户
     }
   };
@@ -81,8 +82,7 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ visible, onClose }) => {
         <div className={styles.taskList}>
           {tasks.map(task => {
             const meta = statusMeta(task.status);
-            const isRunning = !['completed', 'failed', 'pending'].includes(task.status);
-            
+
             return (
               <div 
                 key={task.id} 
@@ -108,11 +108,11 @@ export const TaskDrawer: React.FC<TaskDrawerProps> = ({ visible, onClose }) => {
                 </div>
                 
                 <div className={styles.progressWrapper}>
-                  <Progress 
-                    percent={task.progress || 0} 
-                    status={task.status === 'failed' ? 'exception' : (task.status === 'completed' ? 'success' : 'active')}
-                    strokeColor={isRunning ? { '0%': '#e87cc0', '100%': '#9d7bef' } : undefined}
-                    size="small"
+                  <PipelineProgress
+                    status={task.status}
+                    progress={task.progress || 0}
+                    stepDetail={task.step_detail}
+                    variant="compact"
                   />
                 </div>
               </div>
