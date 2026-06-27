@@ -20,6 +20,7 @@
   --color-accent-rose: #e87cc0;
   --color-gradient-brand: linear-gradient(135deg, #e87cc0, #9d7bef);
   --color-gradient-brand-hover: linear-gradient(135deg, #ea8bc9, #a98bf2);
+  --color-gradient-info: linear-gradient(135deg, #ffffff 0%, #fce4ec 50%, #ce93d8 100%);
 
   /* Text */
   --color-text: #1a1726;
@@ -435,6 +436,15 @@ a {
 .ant-segmented .ant-segmented-item-selected {
   border-radius: var(--radius-xs) !important;
   box-shadow: var(--shadow-sm) !important;
+}
+
+/* --- Alert --- */
+.ant-alert-info {
+  border-left: none !important;
+}
+
+.ant-alert-info.ant-alert-no-icon {
+  padding-left: 16px !important;
 }
 
 /* ===== Responsive Layout ===== */

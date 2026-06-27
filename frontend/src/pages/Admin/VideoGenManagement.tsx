@@ -22,6 +22,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ExperimentOutlined,
+  InfoCircleOutlined,
   PlayCircleOutlined,
   PlusOutlined,
 } from '@ant-design/icons';
@@ -347,7 +348,8 @@ const VideoGenManagement: React.FC = () => {
       <Alert
         type="info"
         showIcon
-        style={{ marginBottom: 16 }}
+        icon={<InfoCircleOutlined style={{ color: '#9069e8' }} />}
+        style={{ marginBottom: 16, background: 'var(--color-gradient-info)', border: '1px solid rgba(157, 123, 239, 0.2)' }}
         message="同一时刻仅一条配置被激活"
         description={
           <span>

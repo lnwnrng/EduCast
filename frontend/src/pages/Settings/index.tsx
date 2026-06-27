@@ -17,6 +17,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ExperimentOutlined,
+  InfoCircleOutlined,
   LinkOutlined,
   SettingOutlined,
 } from '@ant-design/icons';
@@ -121,7 +122,8 @@ const SettingsPage: React.FC = () => {
       <Alert
         type="info"
         showIcon
-        style={{ marginBottom: 16 }}
+        icon={<InfoCircleOutlined style={{ color: '#9069e8' }} />}
+        style={{ marginBottom: 16, background: 'var(--color-gradient-info)', border: '1px solid rgba(157, 123, 239, 0.2)' }}
         message="所有 API Key 均为可选配置"
         description={
           <span>

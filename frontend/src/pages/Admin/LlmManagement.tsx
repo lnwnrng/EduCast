@@ -22,6 +22,7 @@ import {
   CheckCircleOutlined,
   CloseCircleOutlined,
   ExperimentOutlined,
+  InfoCircleOutlined,
   PlusOutlined,
   ThunderboltOutlined,
 } from '@ant-design/icons';
@@ -387,7 +388,8 @@ const LlmManagement: React.FC = () => {
       <Alert
         type="info"
         showIcon
-        style={{ marginBottom: 16 }}
+        icon={<InfoCircleOutlined style={{ color: '#9069e8' }} />}
+        style={{ marginBottom: 16, background: 'var(--color-gradient-info)', border: '1px solid rgba(157, 123, 239, 0.2)' }}
         message="逐级降级，总能出片"
         description={
           <span>
@@ -471,12 +473,17 @@ const LlmManagement: React.FC = () => {
               title: '使用 provider',
               key: 'config',
               render: (_: unknown, record: LLMStageAssignment) => {
-                const value = record.config_id ?? STAGE_FOLLOW_DEFAULT;
+                const value = record.config_id
+                  ? record.config_id
+                  : record.stage_key === 'default'
+                    ? undefined
+                    : STAGE_FOLLOW_DEFAULT;
                 return (
                   <Space direction="vertical" size={4} style={{ minWidth: 280 }}>
                     <Select
                       style={{ width: '100%' }}
                       value={value}
+                      placeholder={record.stage_key === 'default' ? '请选择默认 provider' : undefined}
                       loading={stageSaving === record.stage_key}
                       options={stageConfigOptions(record.stage_key)}
                       onChange={(v) =>
